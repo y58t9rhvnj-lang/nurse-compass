@@ -74,6 +74,11 @@ export interface PSWRecord {
   community: string;
 }
 
+// 服薬実施状況の記号（自立・声かけ・介助・拒否・保留・未実施）
+export type MedAdminStatus = "自" | "促" | "介" | "拒" | "保" | "未";
+// フローシートの服薬区分
+export type MedSlot = "朝" | "昼" | "夕" | "就寝前";
+
 export interface FlowsheetDay {
   date: string;
   dayOfStay: number;
@@ -81,12 +86,15 @@ export interface FlowsheetDay {
   meal: string;
   elimination: string;
   activity: string;
-  medication: string;
+  medication: string; // レガシー（フローシートには非表示。詳細は処方タブで確認）
   vitals: string;
   sleepDetail?: string; // 日別詳細（入眠・覚醒・睡眠の質）
   activityDetail?: string; // 日別詳細（参加プログラム・活動量）
   specialNote?: string; // 看護記録行の特記事項タイトル（無ければ「特記事項なし」）
   nursingRecordId?: string; // 診療録の看護記録と共有するID
+  // 服薬実施状況（区分ごとの記号）。既定は処方から導出したスロット=「自」。
+  // 服薬上の問題がある日だけ上書きする（薬剤名・用量は持たない＝二重管理しない）。
+  medicationAdmin?: Partial<Record<MedSlot, MedAdminStatus>>;
 }
 
 // 行動制限は診療録（ClinicalRecord）の原記録に一元化。
@@ -497,7 +505,7 @@ const CHART_A: ChartData = {
     { date: "2025/07/08", dayOfStay: 88, sleep: "23:00就寝 / 6:00起床", meal: "朝7割 昼9割 夕8割", elimination: "排便1回", activity: "デイルーム・作業療法", medication: "全量", vitals: "T36.4 P70 R16 BP115/70", sleepDetail: "入眠23:00・覚醒1回（トイレ）・再入眠良好", activityDetail: "作業療法評価に参加、集団活動は短時間", specialNote: "朝に軽度の被害的訴え", nursingRecordId: "nursing-a-20250708-01" },
     { date: "2025/07/07", dayOfStay: 87, sleep: "24:00就寝 / 7:00起床", meal: "朝6割 昼8割 夕7割", elimination: "排便なし", activity: "病室内で過ごす", medication: "全量", vitals: "T36.6 P74 R18 BP120/74", sleepDetail: "入眠までやや時間を要する・熟眠感乏しい", activityDetail: "カンファレンス日。日中は病室で読書、活動量少なめ" },
     { date: "2025/07/06", dayOfStay: 86, sleep: "23:30就寝 / 6:30起床", meal: "朝8割 昼8割 夕8割", elimination: "排便1回", activity: "面会・デイルーム", medication: "全量", vitals: "T36.5 P72 R16 BP118/72", sleepDetail: "入眠良好・中途覚醒なし", activityDetail: "母の面会あり。午後デイルームで談話" },
-    { date: "2025/07/05", dayOfStay: 85, sleep: "24:30就寝 / 6:30起床", meal: "朝7割 昼7割 夕8割", elimination: "排便1回", activity: "病室内", medication: "全量", vitals: "T36.4 P76 R16 BP122/76", sleepDetail: "不眠の訴えあり・ラジオで入眠（約6時間）", activityDetail: "日中は病室中心、活動量少なめ", specialNote: "中途覚醒あり（不眠）", nursingRecordId: "nursing-a-20250705-01" },
+    { date: "2025/07/05", dayOfStay: 85, sleep: "24:30就寝 / 6:30起床", meal: "朝7割 昼7割 夕8割", elimination: "排便1回", activity: "病室内", medication: "全量", vitals: "T36.4 P76 R16 BP122/76", sleepDetail: "不眠の訴えあり・ラジオで入眠（約6時間）", activityDetail: "日中は病室中心、活動量少なめ", specialNote: "中途覚醒あり（不眠）", nursingRecordId: "nursing-a-20250705-01", medicationAdmin: { 就寝前: "自" } },
     { date: "2025/07/04", dayOfStay: 84, sleep: "23:00就寝 / 6:40起床", meal: "朝8割 昼9割 夕8割", elimination: "排便1回", activity: "面会・売店", medication: "全量", vitals: "T36.5 P70 R16 BP116/70", sleepDetail: "入眠良好・熟眠感あり", activityDetail: "母の面会、売店へ外出（院内）", specialNote: "家族面会後に表情穏やか", nursingRecordId: "nursing-a-20250704-01" },
     { date: "2025/07/03", dayOfStay: 83, sleep: "23:30就寝 / 6:30起床", meal: "朝7割 昼8割 夕8割", elimination: "排便1回", activity: "デイルーム", medication: "全量", vitals: "T36.4 P72 R16 BP118/74", sleepDetail: "入眠良好・中途覚醒なし", activityDetail: "デイルームで盆栽の話題、活動意欲あり" },
   ],
@@ -1181,6 +1189,33 @@ export function deriveRestrictionMap(
   return map;
 }
 
+// 処方（定期）の用法から、フローシートで管理する服薬スロットを導出する。
+// 薬剤名・用量はフローシートに持たず、どの区分に定期薬があるかだけを処方から求める。
+export function deriveMedSlots(
+  orders: PrescriptionOrder[],
+): Record<MedSlot, boolean> {
+  const slots: Record<MedSlot, boolean> = {
+    朝: false,
+    昼: false,
+    夕: false,
+    就寝前: false,
+  };
+  for (const o of orders) {
+    if (o.category !== "定期") continue;
+    for (const g of o.groups) {
+      const u = g.usage;
+      if (u.includes("毎食")) {
+        slots.朝 = slots.昼 = slots.夕 = true;
+      }
+      if (u.includes("朝")) slots.朝 = true;
+      if (u.includes("昼")) slots.昼 = true;
+      if (u.includes("夕")) slots.夕 = true;
+      if (u.includes("就寝前") || u.includes("眠前")) slots.就寝前 = true;
+    }
+  }
+  return slots;
+}
+
 // フローシートの1日分を既定値で作成（代表週の穏やかな日用）。overridesで上書き。
 function fday(
   date: string,
@@ -1241,6 +1276,7 @@ const EXTRA_WEEKS: Record<string, FlowsheetDay[]> = {
         medication: "全量＋頓服",
         sleepDetail: "入眠困難・中途覚醒多い",
         activityDetail: "隔離室で15〜30分ごとの観察",
+        medicationAdmin: { 朝: "介", 夕: "介", 就寝前: "自" },
       },
       "2025/04/13": {
         vitals: "T36.6 P84 R16 BP128/80",
@@ -1249,6 +1285,7 @@ const EXTRA_WEEKS: Record<string, FlowsheetDay[]> = {
         activity: "隔離解除・一般室へ",
         sleepDetail: "入眠改善・中途覚醒1回",
         activityDetail: "解除後、病室で休息",
+        medicationAdmin: { 朝: "促", 夕: "自" },
       },
       "2025/04/14": { meal: "朝7割 昼8割 夕7割", activity: "病室・短時間デイルーム" },
     }),
@@ -1268,8 +1305,9 @@ const EXTRA_WEEKS: Record<string, FlowsheetDay[]> = {
         elimination: "排便なし",
         sleepDetail: "早朝覚醒・入眠困難",
         activityDetail: "入院手続き、臥床がち・自発性低下",
+        medicationAdmin: { 朝: "促", 就寝前: "自" },
       },
-      "2025/05/03": { meal: "朝3割 昼4割 夕5割", activity: "病室中心（食欲低下）", sleep: "4:30覚醒→6:30起床" },
+      "2025/05/03": { meal: "朝3割 昼4割 夕5割", activity: "病室中心（食欲低下）", sleep: "4:30覚醒→6:30起床", medicationAdmin: { 朝: "促" } },
       "2025/05/04": { meal: "朝4割 昼6割 夕6割" },
     }),
   ],
@@ -1286,8 +1324,9 @@ const EXTRA_WEEKS: Record<string, FlowsheetDay[]> = {
         activity: "入院・多弁",
         sleepDetail: "睡眠時間短い・多弁で入眠遅延",
         activityDetail: "入院手続き、活動的・多弁",
+        medicationAdmin: { 朝: "拒", 夕: "拒" },
       },
-      "2025/06/02": { sleep: "2:30就寝 / 5:30起床（短時間）", sleepDetail: "睡眠短時間・観念奔逸", activity: "デイルーム（多弁）" },
+      "2025/06/02": { sleep: "2:30就寝 / 5:30起床（短時間）", sleepDetail: "睡眠短時間・観念奔逸", activity: "デイルーム（多弁）", medicationAdmin: { 朝: "促", 夕: "促" } },
       "2025/06/03": { sleep: "23:30就寝 / 6:00起床", sleepDetail: "睡眠やや改善" },
     }),
   ],

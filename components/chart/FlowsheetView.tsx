@@ -3,11 +3,14 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, ShieldAlert } from "lucide-react";
 import {
+  deriveMedSlots,
   deriveRestrictionMap,
   parseVitals,
   type ChartData,
   type DailyRestriction,
   type FlowsheetDay,
+  type MedAdminStatus,
+  type MedSlot,
 } from "@/lib/chartData";
 import type { ChartTabId } from "@/lib/chartTabs";
 import type { ChartFocus } from "@/lib/chartNav";
@@ -36,6 +39,12 @@ export default function FlowsheetView({
   const restrictionMap = useMemo(
     () => deriveRestrictionMap(data.clinicalRecords),
     [data.clinicalRecords],
+  );
+
+  // 服薬スロット（朝昼夕就寝前のどれに定期薬があるか）を処方から導出
+  const medSlots = useMemo(
+    () => deriveMedSlots(data.prescriptionOrders),
+    [data.prescriptionOrders],
   );
 
   // 時系列（古い→新しい）に並べ替えた全日。代表週（連続7日ブロック）が並ぶ。
@@ -101,6 +110,13 @@ export default function FlowsheetView({
   const openRestriction = (eventId: string) =>
     onNavigate("診療録", { type: "restrictionId", id: eventId });
 
+  // 服薬セル → その日の看護記録（無ければ日付ジャンプ）へ
+  const openMedication = (day: FlowsheetDay) => {
+    if (day.nursingRecordId)
+      onNavigate("診療録", { type: "nursingId", id: day.nursingRecordId });
+    else onNavigate("診療録", { type: "date", date: day.date });
+  };
+
   return (
     <div
       ref={scrollRef}
@@ -134,8 +150,10 @@ export default function FlowsheetView({
         <FlowTable
           days={windowDays}
           restrictionMap={restrictionMap}
+          medSlots={medSlots}
           onOpenNursing={openNursingRecord}
           onOpenRestriction={openRestriction}
+          onOpenMedication={openMedication}
         />
       </Section>
 
@@ -194,16 +212,40 @@ function Section({
   );
 }
 
+const MED_SLOTS: MedSlot[] = ["朝", "昼", "夕", "就寝前"];
+
+// 服薬実施状況の記号 → 落ち着いた識別色
+const MED_STYLE: Record<MedAdminStatus, string> = {
+  自: "bg-[#EAF5EC] text-[#2E7D46]", // 自立（緑）
+  促: "bg-[#EAF3FF] text-[#0A5FCC]", // 声かけ（青）
+  介: "bg-[#F4EBFB] text-[#7B3FA0]", // 介助（紫）
+  拒: "bg-[#FFF2E1] text-[#C93400]", // 拒否（橙）
+  保: "bg-[#F2F2F7] text-[#6E6E73]", // 保留（灰）
+  未: "bg-[#F2F2F7] text-[#8E8E93]", // 未実施（灰）
+};
+const MED_LABEL: Record<MedAdminStatus, string> = {
+  自: "自立",
+  促: "声かけ",
+  介: "介助",
+  拒: "拒否",
+  保: "保留",
+  未: "未実施",
+};
+
 function FlowTable({
   days,
   restrictionMap,
+  medSlots,
   onOpenNursing,
   onOpenRestriction,
+  onOpenMedication,
 }: {
   days: FlowsheetDay[];
   restrictionMap: Map<string, DailyRestriction>;
+  medSlots: Record<MedSlot, boolean>;
   onOpenNursing: (id: string) => void;
   onOpenRestriction: (eventId: string) => void;
+  onOpenMedication: (day: FlowsheetDay) => void;
 }) {
   const rows: { label: string; render: (d: FlowsheetDay) => ReactNode }[] = [
     { label: "体温", render: (d) => `${parseVitals(d.vitals).temp ?? "—"}` },
@@ -219,10 +261,17 @@ function FlowTable({
     { label: "食事", render: (d) => d.meal },
     { label: "排泄", render: (d) => d.elimination },
     { label: "活動", render: (d) => d.activity },
-    { label: "服薬", render: (d) => d.medication },
   ];
 
+  // 服薬区分ごとの実施状況（既定：処方から導出したスロット=「自」）
+  const medStatus = (d: FlowsheetDay, slot: MedSlot): MedAdminStatus | null => {
+    const override = d.medicationAdmin?.[slot];
+    if (override) return override;
+    return medSlots[slot] ? "自" : null;
+  };
+
   return (
+    <div className="space-y-1.5">
     <div className="overflow-x-auto rounded-xl border border-[#E5E5EA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
       <table className="border-collapse text-left text-[11.5px]">
         <thead>
@@ -254,6 +303,43 @@ function FlowTable({
                   {row.render(d)}
                 </td>
               ))}
+            </tr>
+          ))}
+
+          {/* 服薬（朝・昼・夕・就寝前の実施状況。記号のみ、詳細は処方タブ） */}
+          {MED_SLOTS.map((slot, si) => (
+            <tr key={`med-${slot}`} className="border-b border-[#F0F0F2]">
+              <th className="sticky left-0 z-10 bg-white px-2.5 py-2 text-left font-medium text-[#6E6E73]">
+                {si === 0 && (
+                  <span className="mr-1 text-[10px] font-normal text-[#AEAEB5]">
+                    服薬
+                  </span>
+                )}
+                {slot}
+              </th>
+              {days.map((d) => {
+                const st = medStatus(d, slot);
+                return (
+                  <td key={d.date} className="px-1.5 py-1.5 text-center align-top">
+                    {st ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenMedication(d)}
+                        aria-label={`${d.date} ${slot}の服薬（${MED_LABEL[st]}）の看護記録へ`}
+                        title={MED_LABEL[st]}
+                        className={[
+                          "inline-flex min-h-[44px] w-full min-w-[36px] items-center justify-center rounded-lg text-[12px] font-bold transition hover:brightness-95",
+                          MED_STYLE[st],
+                        ].join(" ")}
+                      >
+                        {st}
+                      </button>
+                    ) : (
+                      <span className="text-[#C7C7CC]">—</span>
+                    )}
+                  </td>
+                );
+              })}
             </tr>
           ))}
 
@@ -310,6 +396,25 @@ function FlowTable({
           </tr>
         </tbody>
       </table>
+    </div>
+      {/* 服薬記号の凡例 */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[10px] text-[#8E8E93]">
+        <span className="font-medium text-[#6E6E73]">服薬</span>
+        {(Object.keys(MED_LABEL) as MedAdminStatus[]).map((k) => (
+          <span key={k} className="flex items-center gap-1">
+            <span
+              className={[
+                "inline-flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold",
+                MED_STYLE[k],
+              ].join(" ")}
+            >
+              {k}
+            </span>
+            {MED_LABEL[k]}
+          </span>
+        ))}
+        <span className="text-[#AEAEB5]">／ 詳細は処方タブで確認</span>
+      </div>
     </div>
   );
 }
