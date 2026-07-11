@@ -110,13 +110,6 @@ export default function FlowsheetView({
   const openRestriction = (eventId: string) =>
     onNavigate("診療録", { type: "restrictionId", id: eventId });
 
-  // 服薬セル → その日の看護記録（無ければ日付ジャンプ）へ
-  const openMedication = (day: FlowsheetDay) => {
-    if (day.nursingRecordId)
-      onNavigate("診療録", { type: "nursingId", id: day.nursingRecordId });
-    else onNavigate("診療録", { type: "date", date: day.date });
-  };
-
   return (
     <div
       ref={scrollRef}
@@ -153,7 +146,6 @@ export default function FlowsheetView({
           medSlots={medSlots}
           onOpenNursing={openNursingRecord}
           onOpenRestriction={openRestriction}
-          onOpenMedication={openMedication}
         />
       </Section>
 
@@ -238,14 +230,12 @@ function FlowTable({
   medSlots,
   onOpenNursing,
   onOpenRestriction,
-  onOpenMedication,
 }: {
   days: FlowsheetDay[];
   restrictionMap: Map<string, DailyRestriction>;
   medSlots: Record<MedSlot, boolean>;
   onOpenNursing: (id: string) => void;
   onOpenRestriction: (eventId: string) => void;
-  onOpenMedication: (day: FlowsheetDay) => void;
 }) {
   const rows: { label: string; render: (d: FlowsheetDay) => ReactNode }[] = [
     { label: "体温", render: (d) => `${parseVitals(d.vitals).temp ?? "—"}` },
@@ -272,17 +262,18 @@ function FlowTable({
 
   return (
     <div className="space-y-1.5">
-    <div className="overflow-x-auto rounded-xl border border-[#E5E5EA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+    <div className="max-h-[56vh] overflow-auto rounded-xl border border-[#E5E5EA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
       <table className="border-collapse text-left text-[11.5px]">
         <thead>
-          <tr className="border-b border-[#E5E5EA] bg-[#F7F7F9]">
-            <th className="sticky left-0 z-10 min-w-[64px] bg-[#F7F7F9] px-2.5 py-2 font-semibold text-[#6E6E73]">
+          <tr className="border-b border-[#E5E5EA]">
+            {/* 左上コーナー：縦横どちらのスクロールでも固定 */}
+            <th className="sticky left-0 top-0 z-30 min-w-[64px] border-b border-[#E5E5EA] bg-[#F7F7F9] px-2.5 py-2 font-semibold text-[#6E6E73]">
               項目
             </th>
             {days.map((d) => (
               <th
                 key={d.date}
-                className="min-w-[104px] whitespace-nowrap px-2.5 py-2 text-center font-semibold text-[#1D1D1F]"
+                className="sticky top-0 z-20 min-w-[104px] whitespace-nowrap border-b border-[#E5E5EA] bg-[#F7F7F9] px-2.5 py-2 text-center font-semibold text-[#1D1D1F]"
               >
                 <div>{shortDate(d.date)}</div>
                 <div className="text-[9px] font-normal text-[#AEAEB5]">
@@ -322,18 +313,16 @@ function FlowTable({
                 return (
                   <td key={d.date} className="px-1.5 py-1.5 text-center align-top">
                     {st ? (
-                      <button
-                        type="button"
-                        onClick={() => onOpenMedication(d)}
-                        aria-label={`${d.date} ${slot}の服薬（${MED_LABEL[st]}）の看護記録へ`}
+                      <span
                         title={MED_LABEL[st]}
+                        aria-label={`${slot}：${MED_LABEL[st]}`}
                         className={[
-                          "inline-flex min-h-[44px] w-full min-w-[36px] items-center justify-center rounded-lg text-[12px] font-bold transition hover:brightness-95",
+                          "inline-flex h-7 w-full min-w-[36px] items-center justify-center rounded-lg text-[12px] font-bold",
                           MED_STYLE[st],
                         ].join(" ")}
                       >
                         {st}
-                      </button>
+                      </span>
                     ) : (
                       <span className="text-[#C7C7CC]">—</span>
                     )}

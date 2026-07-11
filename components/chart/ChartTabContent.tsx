@@ -81,7 +81,14 @@ function ClinicalRecordsTab({
   focus: ChartNavRequest | null;
   onNavigate: (tab: ChartTabId, focus: ChartFocus) => void;
 }) {
-  const all = data.clinicalRecords;
+  // 古い→新しい順に並べ替え（時系列が自然に追える表示）
+  const all = useMemo(
+    () =>
+      [...data.clinicalRecords].sort((a, b) =>
+        `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`),
+      ),
+    [data.clinicalRecords],
+  );
   const [filter, setFilter] = useState("すべて");
   const [page, setPage] = useState(0);
   const [selectedDate, setSelectedDate] = useState("all");
