@@ -6,6 +6,7 @@ import {
   Users,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { ADMITTED_COUNT, MY_PATIENTS, TOTAL_BEDS } from "@/lib/wardData";
 
 function InfoCard({
   icon,
@@ -40,20 +41,22 @@ function InfoCard({
 }
 
 export default function WardHomeTopBar() {
+  const myNames = MY_PATIENTS.map((p) => p.name).join("・");
+
   return (
     <div className="flex shrink-0 gap-3">
       <div className="grid flex-1 grid-cols-4 gap-3">
         <InfoCard
           icon={<BedDouble className="h-4 w-4 text-[#34C759]" strokeWidth={2} />}
           label="病棟状況"
-          value="在院 18名"
-          sub="定員 24名"
+          value={`在院 ${ADMITTED_COUNT}名`}
+          sub={`定員 ${TOTAL_BEDS}名`}
         />
         <InfoCard
           icon={<Users className="h-4 w-4 text-[#0A84FF]" strokeWidth={2} />}
           label="受け持ち患者"
-          value="3名"
-          sub="Aさん・Eさん・Fさん"
+          value={`${MY_PATIENTS.length}名`}
+          sub={myNames}
         />
         <InfoCard
           icon={

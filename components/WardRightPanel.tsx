@@ -161,7 +161,7 @@ export default function WardRightPanel({
         <button
           type="button"
           onClick={onPatientTopRequest}
-          className="min-h-[42px] w-full rounded-xl border border-[#D8D8DE] bg-white text-[13px] font-semibold text-[#0A84FF] transition-colors hover:bg-[#F5F5F7]"
+          className="min-h-[44px] w-full rounded-xl border border-[#D8D8DE] bg-white text-[13px] font-semibold text-[#0A84FF] transition-colors hover:bg-[#F5F5F7]"
         >
           患者トップへ
         </button>

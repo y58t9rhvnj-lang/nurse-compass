@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Nurse Compass | Aims Medical Center",
   description: "看護師としての判断の羅針盤",
+};
+
+// iPad Safari のスケール由来のタップ座標ズレを防ぐ。
+// device-width 固定＋等倍＋ズーム無効＋セーフエリア考慮。
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

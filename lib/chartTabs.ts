@@ -1,0 +1,26 @@
+// Compass Chart の電子カルテタブ定義（Sprint9A）
+
+export type ChartTabId =
+  | "診療録"
+  | "患者情報"
+  | "生活歴"
+  | "エピソード"
+  | "看護記録"
+  | "OT"
+  | "PSW"
+  | "フローシート"
+  | "検査"
+  | "処方";
+
+export const CHART_TABS: ChartTabId[] = [
+  "診療録",
+  "患者情報",
+  "生活歴",
+  "エピソード",
+  "看護記録",
+  "OT",
+  "PSW",
+  "フローシート",
+  "検査",
+  "処方",
+];
