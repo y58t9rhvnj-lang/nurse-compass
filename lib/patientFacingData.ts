@@ -76,6 +76,9 @@ interface Disclosure {
 
 interface TopicDef {
   levels: Disclosure[];
+  // Sprint10.8B: 話題ごとの関連情報と解放しきい値（睡眠を特別扱いしない）。
+  relatedResources?: RelatedResource[];
+  sufficientAt?: number;
 }
 
 // 主ルート（初期の学習導線）
@@ -88,6 +91,9 @@ interface MainNode {
 }
 
 interface PatientConvo {
+  // coreTheme: 最終的に十分確認したい中心テーマ（会話は一本道にしない）。
+  // 主ルートは自然な導線、coreTheme はいずれ深めたい中心。強制はしない。
+  coreTheme: string;
   mainRoute: MainNode[];
   greetings: Record<GreetingKind, string>;
   topics: Record<string, TopicDef>;
@@ -195,6 +201,7 @@ function pIdx(id: string): number {
 const CONVO: Record<string, PatientConvo> = {
   // Aさん（統合失調症・回復期）: 慎重・礼儀正しい。被注察感はすぐには詳しく話さない。
   A: {
+    coreTheme: "sleep",
     mainRoute: [
       {
         topic: "greeting",
@@ -225,12 +232,6 @@ const CONVO: Record<string, PatientConvo> = {
         level: 2,
         direction: "眠れない背景に、気がかりがないか尋ねてみましょう。",
         example: "例えば「眠れないとき、気になることはありますか？」と尋ねられます。",
-        relatedResources: [
-          { type: "診療録", recordId: "clinical-a-20250705-sleep-01", title: "睡眠状況" },
-          { type: "看護記録", recordId: "nursing-a-20250705-01", title: "夜間観察" },
-          { type: "フローシート", date: "2025/07/05", title: "睡眠時間" },
-          { type: "処方", orderId: "rx-a-20250705-tonpuku", title: "睡眠薬" },
-        ],
       },
       {
         topic: "daytime",
@@ -250,26 +251,64 @@ const CONVO: Record<string, PatientConvo> = {
     },
     topics: {
       condition: { levels: [{ reply: "だいぶ落ち着いてきました。ただ、少し疲れが残っている感じがします。", fact: "本人：全体的には落ち着き、疲労感が残る" }] },
-      sleep: { levels: [
+      sleep: {
+        levels: [
           { reply: "夜は、あまり眠れませんでした。", fact: "本人：夜間の睡眠が不十分" },
           { reply: "何度か目が覚めてしまって……。そのたびに、なかなか寝つけませんでした。", fact: "本人：中途覚醒あり・再入眠困難" },
           { reply: "……廊下の音が気になって。あと、人に見られているような感じが、少し残っていて。", fact: "本人：物音・被注察感が睡眠を妨げている" },
-        ] },
+        ],
+        sufficientAt: 3,
+        relatedResources: [
+          { type: "診療録", recordId: "clinical-a-20250705-sleep-01", title: "睡眠状況" },
+          { type: "看護記録", recordId: "nursing-a-20250705-01", title: "夜間観察" },
+          { type: "フローシート", date: "2025/07/05", title: "睡眠時間" },
+          { type: "処方", orderId: "rx-a-20250705-tonpuku", title: "睡眠薬" },
+        ],
+      },
       daytime: { levels: [{ reply: "昼間は少し眠気が残ります。でも、作業療法には出るようにしています。", fact: "本人：日中に眠気が残るが活動は継続" }] },
       meal: { levels: [{ reply: "食事は、少しずつですが食べられています。", fact: "本人：摂取量は少なめだが摂取可" }] },
-      medication: { levels: [
+      medication: {
+        levels: [
           { reply: "薬は、きちんと飲んでいます。", fact: "本人：服薬アドヒアランス良好" },
           { reply: "飲むと、少し落ち着く気がします。", fact: "本人：服薬で安心感" },
-        ] },
-      family: { levels: [
+        ],
+        sufficientAt: 2,
+        relatedResources: [
+          { type: "処方", orderId: "rx-a-20250709-teiki", title: "処方内容" },
+          { type: "診療録", recordId: "clinical-a-20250705-sleep-01", title: "経過記録" },
+          { type: "フローシート", date: "2025/07/05", title: "服薬状況" },
+        ],
+      },
+      family: {
+        levels: [
           { reply: "母が時々、面会に来てくれます。", fact: "本人：母の面会あり" },
           { reply: "……あまり、心配をかけたくないんです。", fact: "本人：母への気づかい" },
-        ] },
-      discharge: { levels: [
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "生活歴", title: "家族の記載" },
+          { type: "看護記録", recordId: "nursing-a-20250704-01", title: "面会時の様子" },
+        ],
+      },
+      discharge: {
+        levels: [
           { reply: "早く家に帰りたい気持ちはあります。", fact: "本人：退院願望あり" },
           { reply: "でも、まだ少し不安もあって……。", fact: "本人：退院への不安" },
-        ] },
-      hobby: { levels: [{ reply: "静かな場所で、詰将棋をするのが好きです。", fact: "本人：詰将棋を好む" }] },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "生活歴", title: "退院後の生活" },
+          { type: "診療録", recordId: "clinical-a-20250705-sleep-01", title: "経過記録" },
+        ],
+      },
+      hobby: {
+        levels: [{ reply: "静かな場所で、詰将棋をするのが好きです。", fact: "本人：詰将棋を好む" }],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "生活歴", title: "生活歴" },
+          { type: "看護記録", recordId: "nursing-a-20250709-01", title: "活動の記録" },
+        ],
+      },
       ot: { levels: [{ reply: "作業療法には出ています。手を動かしていると、気がまぎれるので。", fact: "本人：OT参加・気晴らしになる" }] },
       anxiety: { levels: [
           { reply: "……少し、落ち着かないことはあります。", fact: "本人：漠然とした不安" },
@@ -295,6 +334,7 @@ const CONVO: Record<string, PatientConvo> = {
 
   // Eさん（うつ病）: 返答が短く、自責的。開示はゆっくり。
   E: {
+    coreTheme: "self_blame",
     mainRoute: [
       {
         topic: "greeting",
@@ -337,12 +377,6 @@ const CONVO: Record<string, PatientConvo> = {
         level: 0,
         direction: "支えや、これからの希望について尋ねてみましょう。",
         example: "例えば「これから楽しみにしていることはありますか？」と尋ねられます。",
-        relatedResources: [
-          { type: "診療録", recordId: "clinical-e-20250708-sleep-01", title: "睡眠の経過" },
-          { type: "看護記録", recordId: "nursing-e-20250707-01", title: "気持ちの記録" },
-          { type: "フローシート", date: "2025/07/08", title: "睡眠・活動" },
-          { type: "生活歴", title: "家族の記載" },
-        ],
       },
     ],
     greetings: {
@@ -359,24 +393,59 @@ const CONVO: Record<string, PatientConvo> = {
           { reply: "何もやる気が起きないんです。", fact: "本人：意欲低下の訴え" },
           { reply: "……ずっと、このままな気がして。", fact: "本人：将来への悲観" },
         ] },
-      sleep: { levels: [
+      sleep: {
+        levels: [
           { reply: "早くに目が覚めてしまって。", fact: "本人：早朝覚醒" },
           { reply: "それからは、ただ横になっていました。", fact: "本人：覚醒後の臥床" },
-        ] },
+        ],
+        sufficientAt: 2,
+        relatedResources: [
+          { type: "診療録", recordId: "clinical-e-20250708-sleep-01", title: "睡眠の経過" },
+          { type: "フローシート", date: "2025/07/08", title: "睡眠・活動" },
+        ],
+      },
       meal: { levels: [
           { reply: "あまり、食べられていません。", fact: "本人：食欲低下" },
           { reply: "食べたい気持ちが、わかなくて。", fact: "本人：食思不振の自覚" },
         ] },
-      self_blame: { levels: [
+      self_blame: {
+        levels: [
           { reply: "こんな自分で、情けなくて。", fact: "本人：自責的思考" },
           { reply: "家族にも、申し訳ないんです。", fact: "本人：家族への罪責感" },
-        ] },
-      hope: { levels: [{ reply: "孫には、また会いたいなとは思います。……でも、今の自分では。", fact: "本人：孫に会いたい思いが希望として残る" }] },
-      family: { levels: [{ reply: "家族は、時々来てくれます。", fact: "本人：家族面会あり" }] },
-      medication: { levels: [
+        ],
+        sufficientAt: 2,
+        relatedResources: [
+          { type: "看護記録", recordId: "nursing-e-20250707-01", title: "気持ちの記録" },
+          { type: "診療録", recordId: "clinical-e-20250708-sleep-01", title: "経過の記録" },
+        ],
+      },
+      hope: {
+        levels: [{ reply: "孫には、また会いたいなとは思います。……でも、今の自分では。", fact: "本人：孫に会いたい思いが希望として残る" }],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "生活歴", title: "家族の記載" },
+          { type: "看護記録", recordId: "nursing-e-20250709-01", title: "日中の様子" },
+        ],
+      },
+      family: {
+        levels: [{ reply: "家族は、時々来てくれます。", fact: "本人：家族面会あり" }],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "生活歴", title: "家族の記載" },
+          { type: "診療録", recordId: "clinical-e-20250708-sleep-01", title: "経過の記録" },
+        ],
+      },
+      medication: {
+        levels: [
           { reply: "薬は、言われた通りに飲んでいます。", fact: "本人：服薬遵守" },
           { reply: "効いているのかは、よく分かりません。", fact: "本人：効果実感の乏しさ" },
-        ] },
+        ],
+        sufficientAt: 2,
+        relatedResources: [
+          { type: "処方", orderId: "rx-e-20250708-teiki", title: "処方内容" },
+          { type: "診療録", recordId: "clinical-e-20250708-sleep-01", title: "経過の記録" },
+        ],
+      },
       discharge: { levels: [{ reply: "家に帰っても、迷惑をかけるだけな気がして。", fact: "本人：退院への自信のなさ" }] },
       hobby: { levels: [{ reply: "前は、編み物を……。今は、何かをする気になれなくて。", fact: "本人：以前の趣味への関心低下" }] },
       anxiety: { levels: [{ reply: "……これからのことが、不安で。", fact: "本人：将来不安" }] },
@@ -396,6 +465,7 @@ const CONVO: Record<string, PatientConvo> = {
 
   // Fさん（双極性障害・軽躁）: 多弁で話題が広がる。服薬・休息の必要感が乏しい。
   F: {
+    coreTheme: "medication",
     mainRoute: [
       {
         topic: "greeting",
@@ -432,11 +502,6 @@ const CONVO: Record<string, PatientConvo> = {
         level: 0,
         direction: "退院後の計画や、休息のとり方を尋ねてみましょう。",
         example: "例えば「退院したら何をしたいですか？」と尋ねられます。",
-        relatedResources: [
-          { type: "処方", orderId: "rx-f-20250707-teiki", title: "定期処方" },
-          { type: "診療録", recordId: "clinical-f-20250707-med-01", title: "服薬の経過" },
-          { type: "生活歴", title: "退院後の生活" },
-        ],
       },
     ],
     greetings: {
@@ -453,16 +518,38 @@ const CONVO: Record<string, PatientConvo> = {
           { reply: "絶好調です！　アイデアが止まらなくて。", fact: "本人：高揚感・観念奔逸傾向" },
           { reply: "じっとしていられないんですよ。", fact: "本人：多動・静止困難" },
         ] },
-      sleep: { levels: [
+      sleep: {
+        levels: [
           { reply: "睡眠は短いけど平気です。", fact: "本人：睡眠時間短縮を問題視せず" },
           { reply: "やりたいことがたくさんあって、寝るのがもったいなくて。", fact: "本人：睡眠欲求の低下" },
-        ] },
-      medication: { levels: [
+        ],
+        sufficientAt: 2,
+        relatedResources: [
+          { type: "フローシート", date: "2025/07/08", title: "睡眠時間" },
+          { type: "看護記録", recordId: "nursing-f-20250708-01", title: "夜間の記録" },
+        ],
+      },
+      medication: {
+        levels: [
           { reply: "薬は……正直、もう飲まなくてもいい気がします。", fact: "本人：服薬に消極的" },
           { reply: "眠くなるのが、少し嫌なんですよね。", fact: "本人：副作用（眠気）忌避" },
           { reply: "調子いいのに、飲む意味あります？", fact: "本人：病識・必要感の乏しさ" },
-        ] },
-      plan: { levels: [{ reply: "退院したら、すぐアプリ開発です！　休むのはもったいなくて。", fact: "本人：退院後の過活動計画・休息軽視" }] },
+        ],
+        sufficientAt: 2,
+        relatedResources: [
+          { type: "処方", orderId: "rx-f-20250707-teiki", title: "処方内容" },
+          { type: "診療録", recordId: "clinical-f-20250707-med-01", title: "服薬の経過" },
+        ],
+      },
+      plan: {
+        levels: [{ reply: "退院したら、すぐアプリ開発です！　休むのはもったいなくて。", fact: "本人：退院後の過活動計画・休息軽視" }],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "処方", orderId: "rx-f-20250707-teiki", title: "定期処方" },
+          { type: "診療録", recordId: "clinical-f-20250707-med-01", title: "服薬の経過" },
+          { type: "生活歴", title: "退院後の生活" },
+        ],
+      },
       meal: { levels: [{ reply: "食事はしっかり食べてます！　話しながらでも、どんどんいけますよ。", fact: "本人：食欲良好・多弁" }] },
       family: { levels: [{ reply: "家族は心配性でね。でも僕はこの通り元気なので。", fact: "本人：家族の心配を軽視" }] },
       discharge: { levels: [{ reply: "早く退院したいです。やりたいことが山ほどあって。", fact: "本人：退院希望・活動意欲過剰" }] },
@@ -484,6 +571,7 @@ const CONVO: Record<string, PatientConvo> = {
 };
 
 const FALLBACK_CONVO: PatientConvo = {
+  coreTheme: "sleep",
   mainRoute: [
     {
       topic: "greeting",
@@ -589,6 +677,14 @@ export interface FacingConvoState {
   completedMainSteps: string[];
   topicLevels: Record<string, number>;
   askedTopics: string[];
+  // currentTopic: 現在話している話題（学生は自由に切り替えられる）。
+  currentTopic: string | null;
+  // lastMeaningfulTopic: 最後に意味のある話題（unknown 時は維持）。
+  lastMeaningfulTopic: string | null;
+  // pendingImportantTopics: 一度触れたが、まだ十分に深められていない重要な話題。
+  pendingImportantTopics: string[];
+  // unlockedResourcesByTopic: 話題ごとに解放済みの関連情報（表示は currentTopic のみ）。
+  unlockedResourcesByTopic: Record<string, RelatedResource[]>;
   unknownStreak: number;
   stalledTurns: number;
   hintLevel: 0 | 1 | 2;
@@ -604,6 +700,10 @@ export function initialFacingState(): FacingConvoState {
     completedMainSteps: [],
     topicLevels: {},
     askedTopics: [],
+    currentTopic: null,
+    lastMeaningfulTopic: null,
+    pendingImportantTopics: [],
+    unlockedResourcesByTopic: {},
     unknownStreak: 0,
     stalledTurns: 0,
     hintLevel: 0,
@@ -615,7 +715,79 @@ export function initialFacingState(): FacingConvoState {
 }
 
 function normalize(s: string): string {
-  return s.trim().toLowerCase().replace(/\s+/g, "");
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[　\s]+/g, "")
+    .replace(/[？?。、，．.,!！「」]/g, "");
+}
+
+// Coach 質問例とセットで保持するマッチフレーズ。
+// detectTopic が例文そのものを正しく話題判定できるようにする。
+const COACH_MATCH_PHRASES: Record<string, string[]> = {
+  condition: [
+    "今日の調子はいかが",
+    "今日の気分はいかが",
+    "いつ頃からその感じ",
+    "体調はいかが",
+  ],
+  sleep: [
+    "夜中に目が覚める",
+    "途中で起きる",
+    "中途覚醒",
+    "夜中に起きる",
+    "昨日はよく眠れ",
+    "夜はよく眠れ",
+    "眠れないとき",
+    "気になることはありますか",
+  ],
+  daytime: ["日中はどのように過ごし", "日中の過ごし方"],
+  meal: ["食事はとれてい", "食べる量に変化", "食欲", "食べる量"],
+  medication: [
+    "お薬について",
+    "お薬は飲めてい",
+    "お薬で困っている",
+    "薬について",
+    "服薬",
+  ],
+  family: [
+    "ご家族とは",
+    "ご家族のことも",
+    "ご家族",
+    "家族とは",
+    "面会",
+  ],
+  discharge: ["退院後のこと", "退院後", "帰宅"],
+  hobby: [
+    "どんなときに楽しんで",
+    "趣味",
+    "好きなこと",
+    "詰将棋",
+  ],
+  ot: ["作業療法では", "作業療法", "リハビリ"],
+  anxiety: ["気になっていること", "何か不安", "心配"],
+  plan: ["退院したら何をしたい", "退院したら", "退院後の計画", "休息"],
+  self_blame: [
+    "どんなことがつらい",
+    "つらいこと",
+    "情けない",
+    "ご家族のことも",
+    "気にされていますか",
+  ],
+  hope: ["楽しみにしていること", "これからの希望", "希望"],
+  paranoia: ["その感じは", "いつ頃からあります", "見られている"],
+};
+
+function topicMatchPhrases(id: string): string[] {
+  const base = TOPIC_KW[id]?.strong ?? [];
+  const coach = COACH_MATCH_PHRASES[id] ?? [];
+  return [...new Set([...base, ...coach])];
+}
+
+/** Coach 例文から「」内の質問文を取り出す。 */
+export function extractQuotedExample(example: string): string | null {
+  const m = example.match(/「([^」]+)」/);
+  return m ? m[1] : null;
 }
 
 function byPriority(ids: string[]): string {
@@ -650,10 +822,19 @@ function detectTopic(
   if (text === "") return "unknown";
   const ids = Object.keys(convo.topics);
 
-  const strong = ids.filter((id) =>
-    (TOPIC_KW[id]?.strong ?? []).some((kw) => text.includes(normalize(kw))),
-  );
-  if (strong.length) return byPriority(strong);
+  // より長いフレーズ一致を優先（例: 「退院したら」>「退院」、「ご家族のことも」>「家族」）。
+  let bestId = "";
+  let bestLen = 0;
+  for (const id of ids) {
+    for (const kw of topicMatchPhrases(id)) {
+      const nkw = normalize(kw);
+      if (nkw.length > 0 && text.includes(nkw) && nkw.length > bestLen) {
+        bestLen = nkw.length;
+        bestId = id;
+      }
+    }
+  }
+  if (bestId) return bestId;
 
   const weak = ids.filter((id) =>
     (TOPIC_KW[id]?.weak ?? []).some((kw) => text.includes(normalize(kw))),
@@ -674,8 +855,29 @@ interface Acc {
   disclosedFacts: string[];
   completedMainSteps: string[];
   advancedMain: boolean;
+  disclosedNew: boolean;
   repeated: boolean;
   alreadyTotal: number;
+  currentTopic: string | null;
+  lastMeaningfulTopic: string | null;
+  unlockedResourcesByTopic: Record<string, RelatedResource[]>;
+}
+
+// 重要な話題＝深掘り余地がある（開示レベルが2以上）か、中心テーマ。
+function isImportantTopic(convo: PatientConvo, id: string): boolean {
+  const def = convo.topics[id];
+  if (!def) return false;
+  return def.levels.length >= 2 || id === convo.coreTheme;
+}
+
+function isTopicExhausted(
+  convo: PatientConvo,
+  id: string,
+  topicLevels: Record<string, number>,
+): boolean {
+  const def = convo.topics[id];
+  if (!def) return true;
+  return (topicLevels[id] ?? 0) >= def.levels.length;
 }
 
 export function advanceConversation(
@@ -697,8 +899,12 @@ export function advanceConversation(
     disclosedFacts: [...state.disclosedFacts],
     completedMainSteps: [...state.completedMainSteps],
     advancedMain: false,
+    disclosedNew: false,
     repeated: false,
     alreadyTotal: state.alreadyTotal,
+    currentTopic: state.currentTopic,
+    lastMeaningfulTopic: state.lastMeaningfulTopic,
+    unlockedResourcesByTopic: { ...(state.unlockedResourcesByTopic ?? {}) },
   };
 
   const completeGreetingNode = () => {
@@ -714,6 +920,8 @@ export function advanceConversation(
   const discloseTopic = (id: string) => {
     const def = convo.topics[id];
     if (!def) return;
+    acc.currentTopic = id;
+    acc.lastMeaningfulTopic = id;
     const level = acc.topicLevels[id] ?? 0;
     if (level >= def.levels.length) {
       acc.alreadyTotal += 1;
@@ -726,7 +934,9 @@ export function advanceConversation(
     }
     const disc = def.levels[level];
     history.push({ role: "patient", text: disc.reply });
-    acc.topicLevels[id] = level + 1;
+    const newLevel = level + 1;
+    acc.topicLevels[id] = newLevel;
+    acc.disclosedNew = true;
     if (!acc.askedTopics.includes(id)) acc.askedTopics.push(id);
     if (disc.fact) acc.disclosedFacts.push(disc.fact);
 
@@ -735,33 +945,47 @@ export function advanceConversation(
     if (node && !acc.completedMainSteps.includes(key)) {
       acc.completedMainSteps.push(key);
       acc.advancedMain = true;
-      const mainInfos = acc.completedMainSteps.filter(
-        (k) => !k.startsWith("greeting"),
-      ).length;
-      if (node.relatedResources && (mainInfos >= 3 || level >= 2)) {
-        history.push({
-          role: "coach",
-          resources: node.relatedResources,
-        });
-      }
+    }
+
+    // 話題別の関連情報：開示レベルが sufficientAt に到達したら解放（睡眠を特別扱いしない）。
+    if (
+      def.relatedResources &&
+      def.sufficientAt !== undefined &&
+      newLevel >= def.sufficientAt &&
+      !acc.unlockedResourcesByTopic[id]
+    ) {
+      acc.unlockedResourcesByTopic[id] = def.relatedResources;
     }
   };
 
   const finalize = (opts: { unknown: boolean }): FacingConvoState => {
-    const stalledTurns = acc.advancedMain ? 0 : state.stalledTurns + 1;
+    const stalledTurns = acc.advancedMain || acc.disclosedNew ? 0 : state.stalledTurns + 1;
     let hintLevel: 0 | 1 | 2;
     if (opts.unknown) {
       hintLevel = computeHint(state.hintLevel, state.unknownStreak + 1, stalledTurns);
-    } else if (acc.advancedMain) {
+    } else if (acc.advancedMain || acc.disclosedNew) {
+      // 成功ターン（主ルート進行 or 新レベル開示）は Coach を idle へ戻す（Bug1）。
       hintLevel = 0;
     } else {
       const base = acc.repeated ? (Math.max(state.hintLevel, 1) as 0 | 1 | 2) : state.hintLevel;
       hintLevel = computeHint(base, 0, stalledTurns);
     }
+    // pendingImportantTopics を再計算：一度触れた重要話題のうち、まだ十分に深めておらず、
+    // 現在の話題ではないもの（＝あとで自然に戻す候補）。
+    const pendingImportantTopics = acc.askedTopics.filter(
+      (t) =>
+        t !== acc.currentTopic &&
+        isImportantTopic(convo, t) &&
+        !isTopicExhausted(convo, t, acc.topicLevels),
+    );
     return {
       ...state,
       topicLevels: acc.topicLevels,
       askedTopics: acc.askedTopics,
+      currentTopic: acc.currentTopic,
+      lastMeaningfulTopic: acc.lastMeaningfulTopic,
+      pendingImportantTopics,
+      unlockedResourcesByTopic: acc.unlockedResourcesByTopic,
       disclosedFacts: acc.disclosedFacts,
       completedMainSteps: acc.completedMainSteps,
       mainRouteProgress: acc.completedMainSteps.length,
@@ -790,6 +1014,8 @@ export function advanceConversation(
       text: convo.unknownReplies[(unknownTotal - 1) % convo.unknownReplies.length],
       unknown: true,
     });
+    // unknown は currentTopic を変えない。lastMeaningfulTopic を維持。
+    acc.currentTopic = state.currentTopic;
     return finalize({ unknown: true });
   }
 
@@ -812,25 +1038,294 @@ export function requestHint(state: FacingConvoState): FacingConvoState {
   return { ...state, hintLevel: (state.hintLevel >= 1 ? 2 : 1) as 0 | 1 | 2 };
 }
 
-export interface CoachHintView {
-  done: boolean;
+/** 「Compass Coachに相談する」押下：level-1 の視点のみ表示（質問例は出さない）。 */
+export function requestCoachConsultation(
+  state: FacingConvoState,
+): FacingConvoState {
+  return { ...state, hintLevel: 1 };
+}
+
+/** Coach のヒント本文を表示すべきか（成功ターン後は idle に戻す）。 */
+export function shouldShowCoachHint(state: FacingConvoState): boolean {
+  return state.hintLevel >= 1;
+}
+
+/** 表示対象の意味ある話題（unknown 時は lastMeaningfulTopic を維持）。 */
+export function getMeaningfulTopic(state: FacingConvoState): string | null {
+  return state.currentTopic ?? state.lastMeaningfulTopic;
+}
+
+/** 右ペインに表示する関連情報（現在の意味ある話題の解放済みのみ）。 */
+export function getDisplayTopicResources(
+  state: FacingConvoState,
+): { topicId: string; resources: RelatedResource[] } | null {
+  const topicId = getMeaningfulTopic(state);
+  if (!topicId) return null;
+  const resources = state.unlockedResourcesByTopic?.[topicId];
+  if (!resources?.length) return null;
+  return { topicId, resources };
+}
+
+/** 話題に応じた関連情報メッセージ（結論を示さない中立表現）。 */
+export function getResourceMessage(topicId: string): string {
+  const messages: Record<string, string> = {
+    sleep: "睡眠について確認できる情報があります。",
+    medication: "服薬について確認できる情報があります。",
+    hobby: "生活や活動について確認できる情報があります。",
+    ot: "生活や活動について確認できる情報があります。",
+    daytime: "生活や活動について確認できる情報があります。",
+    family: "家族との関係について確認できる情報があります。",
+    condition: "気分や心理状態について確認できる情報があります。",
+    self_blame: "気分や心理状態について確認できる情報があります。",
+    anxiety: "気分や心理状態について確認できる情報があります。",
+    hope: "気分や心理状態について確認できる情報があります。",
+    meal: "食事について確認できる情報があります。",
+    discharge: "退院や将来について確認できる情報があります。",
+    plan: "退院や将来について確認できる情報があります。",
+  };
+  return (
+    messages[topicId] ??
+    "患者さんの発言に関連する情報があります。"
+  );
+}
+
+export interface CoachExampleValidation {
+  patientId: string;
+  topicId: string;
+  example: string;
+  question: string;
+  detected: string;
+  ok: boolean;
+}
+
+// 話題ごとの短いラベルと、深掘り／質問例。会話を一本道にせず、
+// 現在の話題に沿った「一つの視点」を提示するために使う。
+const TOPIC_META: Record<
+  string,
+  { label: string; deepen: string; example: string }
+> = {
+  condition: {
+    label: "体調",
+    deepen: "体調や気分の変化について、もう少し聞けそうです。",
+    example: "例えば「いつ頃からその感じがありますか？」と尋ねられます。",
+  },
+  sleep: {
+    label: "睡眠",
+    deepen: "睡眠の様子を、もう少し具体的に確認してみましょう。",
+    example: "例えば「夜中に目が覚めることはありましたか？」と尋ねられます。",
+  },
+  daytime: {
+    label: "日中の過ごし方",
+    deepen: "日中の過ごし方や活動について、もう少し聞けそうです。",
+    example: "例えば「日中はどのように過ごしていますか？」と尋ねられます。",
+  },
+  meal: {
+    label: "食事",
+    deepen: "食事や食欲の変化について、もう少し聞けそうです。",
+    example: "例えば「食べる量に変化はありますか？」と尋ねられます。",
+  },
+  medication: {
+    label: "薬",
+    deepen: "薬を飲むことを、患者さんがどのように感じているか聞けそうです。",
+    example: "例えば「お薬について、どんな気持ちがありますか？」と尋ねられます。",
+  },
+  family: {
+    label: "家族",
+    deepen: "家族との関係について、患者さん自身がどう感じているか聞けそうです。",
+    example: "例えば「ご家族とは、どんなふうに過ごしていますか？」と尋ねられます。",
+  },
+  discharge: {
+    label: "退院",
+    deepen: "退院や将来について、患者さんがどう感じているか聞けそうです。",
+    example: "例えば「退院後のことを考えていますか？」と尋ねられます。",
+  },
+  hobby: {
+    label: "好きなこと",
+    deepen: "好きなことが、患者さんにとってどのような意味を持つか聞けそうです。",
+    example: "例えば「それはどんなときに楽しんでいましたか？」と尋ねられます。",
+  },
+  ot: {
+    label: "作業療法",
+    deepen: "作業療法や日中の活動について、もう少し聞けそうです。",
+    example: "例えば「作業療法では、どんなことをしていますか？」と尋ねられます。",
+  },
+  anxiety: {
+    label: "不安",
+    deepen: "不安や気がかりについて、患者さんのペースで聞けそうです。",
+    example: "例えば「気になっていることはありますか？」と尋ねられます。",
+  },
+  plan: {
+    label: "退院後の計画",
+    deepen: "退院後の計画や、休息のとり方について聞けそうです。",
+    example: "例えば「退院したら何をしたいですか？」と尋ねられます。",
+  },
+  self_blame: {
+    label: "気持ちのつらさ",
+    deepen: "つらさの背景にある気持ちを、そっと聞けそうです。",
+    example: "例えば「今、どんなことがつらいですか？」と尋ねられます。",
+  },
+  hope: {
+    label: "これからの希望",
+    deepen: "支えや、これからの希望について聞けそうです。",
+    example: "例えば「これから楽しみにしていることはありますか？」と尋ねられます。",
+  },
+  paranoia: {
+    label: "気がかりな感覚",
+    deepen: "急がず、患者さんのペースに合わせて聞いてみましょう。",
+    example: "例えば「その感じは、いつ頃からありますか？」と尋ねられます。",
+  },
+};
+
+function topicLabel(id: string): string {
+  return TOPIC_META[id]?.label ?? "その話題";
+}
+
+// Coach が示す「一つの視点」。kind は表示の意味づけ（デバッグ・将来拡張用）。
+export interface CoachFocusView {
+  kind: "onboard" | "deepen" | "return" | "broaden";
   direction: string;
   example: string;
 }
 
-export function getCoachHint(
+// 現在の話題を深める視点（患者別の主ルート文言があればそれを優先）。
+function deepenView(
+  convo: PatientConvo,
+  id: string,
+  level: number,
+): CoachFocusView {
+  const node = convo.mainRoute.find((n) => n.topic === id && n.level === level);
+  if (node) {
+    return { kind: "deepen", direction: node.direction, example: node.example };
+  }
+  const meta = TOPIC_META[id];
+  return {
+    kind: "deepen",
+    direction: meta?.deepen ?? "もう少し詳しく聞いてみましょう。",
+    example: meta?.example ?? "",
+  };
+}
+
+// 会話は一本道にしない。現在の話題を軸に、常に「一つの視点」だけ返す。
+// 優先順位:
+//   1. 現在の話題をまだ深められるなら深める
+//   2. 一区切りなら、未完了の重要テーマへ自然に戻す視点を示す
+//   3. まだ主ルートに続きがあれば、次の自然な視点を示す
+//   4. 中心テーマがまだ深められるなら中心テーマへ、完了していれば別の側面へ広げる
+export function getCoachFocus(
   patientId: string,
   state: FacingConvoState,
-): CoachHintView {
+): CoachFocusView {
   const convo = getConvo(patientId);
-  const node = nextMainNode(convo, state);
-  if (!node) {
+  const cur = getMeaningfulTopic(state);
+  const curDef = cur ? convo.topics[cur] : undefined;
+  const curLevel = cur ? state.topicLevels[cur] ?? 0 : 0;
+  const curExhausted =
+    !cur || !curDef || curLevel >= curDef.levels.length;
+
+  // 1. 現在の話題を十分に深める
+  if (cur && curDef && !curExhausted) {
+    return deepenView(convo, cur, curLevel);
+  }
+
+  // 2. 一区切り → 未完了の重要テーマへ自然に戻す（強制しない）
+  if (state.pendingImportantTopics.length > 0) {
+    const top = byPriority(state.pendingImportantTopics);
+    const meta = TOPIC_META[top];
     return {
-      done: true,
-      direction:
-        "ひと通りお話を聞けました。気づいたことをメモに残し、カルテと照らし合わせてみましょう。",
-      example: "",
+      kind: "return",
+      direction: `先ほどの${topicLabel(top)}について、まだ確認できそうなことがありそうです。`,
+      example: meta?.example ?? "",
     };
   }
-  return { done: false, direction: node.direction, example: node.example };
+
+  // 3. 主ルートにまだ続きがあれば、次の自然な視点（中心テーマへ向かう導線）
+  const node = nextMainNode(convo, state);
+  if (node) {
+    return {
+      kind: cur ? "deepen" : "onboard",
+      direction: node.direction,
+      example: node.example,
+    };
+  }
+
+  // 4a. 主ルート完了。中心テーマがまだ深められるなら中心テーマへ。
+  const core = convo.coreTheme;
+  if (
+    core !== cur &&
+    !isTopicExhausted(convo, core, state.topicLevels) &&
+    convo.topics[core]
+  ) {
+    return deepenView(convo, core, state.topicLevels[core] ?? 0);
+  }
+
+  // 4b. 中心テーマも一区切り。まだ触れていない側面へ自然に広げる。
+  const untouched = PRIORITY.filter(
+    (t) => convo.topics[t] && (state.topicLevels[t] ?? 0) === 0,
+  );
+  if (untouched.length > 0) {
+    const next = untouched[0];
+    const meta = TOPIC_META[next];
+    return {
+      kind: "broaden",
+      direction: `${topicLabel(next)}についても聞いてみるとよいかもしれません。`,
+      example: meta?.example ?? "",
+    };
+  }
+
+  return {
+    kind: "broaden",
+    direction:
+      "ほかにも確認したいことがあれば、引き続き患者さんと話してみましょう。",
+    example: "",
+  };
+}
+
+/** 全患者の Coach 質問例が detectTopic で正しく判定されるか検証する。 */
+export function validateCoachExamples(): CoachExampleValidation[] {
+  const results: CoachExampleValidation[] = [];
+  const patients = Object.keys(CONVO);
+
+  for (const patientId of patients) {
+    const convo = CONVO[patientId];
+    const seen = new Set<string>();
+
+    for (const node of convo.mainRoute) {
+      if (node.topic === "greeting") continue;
+      const key = `${node.topic}:${node.example}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const question = extractQuotedExample(node.example);
+      if (!question) continue;
+      const state = initialFacingState();
+      const detected = detectTopic(convo, question, state);
+      results.push({
+        patientId,
+        topicId: node.topic,
+        example: node.example,
+        question,
+        detected,
+        ok: detected === node.topic,
+      });
+    }
+
+    for (const [topicId, meta] of Object.entries(TOPIC_META)) {
+      if (!convo.topics[topicId] || !meta.example) continue;
+      const key = `meta:${topicId}:${meta.example}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const question = extractQuotedExample(meta.example);
+      if (!question) continue;
+      const state = initialFacingState();
+      const detected = detectTopic(convo, question, state);
+      results.push({
+        patientId,
+        topicId,
+        example: meta.example,
+        question,
+        detected,
+        ok: detected === topicId,
+      });
+    }
+  }
+  return results;
 }
