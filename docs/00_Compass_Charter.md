@@ -270,6 +270,10 @@ Compass creates an environment where students continue thinking.
 - `docs/02_Information_Card_Model.md` — 情報カードのドメインモデル
 - `docs/03_Information_Organization_Workspace.md` — データ → 情報 → 手がかり モデル
 - `docs/05_Thinking_Flow.md` — 思考サイクルと情報優先順位
+- `docs/06_Compass_Educational_Model_V1.md` — Version1 教育モデル（公式基盤・Freeze）
+- `docs/07_Glossary.md` — 用語集
+- `docs/08_Design_Principles.md` — 設計原則・設計テスト・レビュー層
+- `docs/09_Design_Log.md` — 設計判断ログ
 
 ---
 

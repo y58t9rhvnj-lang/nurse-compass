@@ -437,9 +437,12 @@ Compass Version1 における**教育設計上の仮説**である。
 Compass は、ノートを自動で書き換えたり、要約したりしない。
 整理の主体は、あくまで学生である。
 
-> 実装上の注意：現行の「気づきメモ」（`lib/notes.ts` / NoteZone）は
-> 情報整理ノートの前身にあたる。Sprint11.1 で導入した情報カード基盤
-> （`lib/information/`）とは独立しており、自動同期・自動転記は行わない。
+> 実装上の注意：現行の「気づきメモ」（`lib/notes.ts` / NoteZone）は、
+> 確定用語では「**一時メモ（Temporary memo）**」にあたる作業記憶の場である
+> （`docs/06_Compass_Educational_Model_V1.md` §6・`docs/07_Glossary.md`）。
+> 一時メモは**自動的に収集データにはならない**。何を収集するかは学生が明示的に選ぶ。
+> Sprint11.1 で導入した情報カード基盤（`lib/information/`）とは独立しており、
+> 自動同期・自動転記は行わない。
 
 > 実装対応（確定方針）：学生が作る「情報」は、**テーマ別に整理・分類された
 > データのまとまり**（内部型 `InformationGroup`）とし、学生の解釈文は
@@ -568,6 +571,8 @@ Compass Version1 の将来のワークフローは、次の一続きの導線と
 - `docs/00_Compass_Charter.md` — 憲章・開発判断基準
 - `docs/01_Compass_Version1_Spec.md` — Version1 学習フロー仕様
 - `docs/02_Information_Card_Model.md` — 情報カード・ドメインモデル
+- `docs/06_Compass_Educational_Model_V1.md` — Version1 教育モデル（公式基盤・Freeze）
+- `docs/07_Glossary.md` — 用語集
 
 本書は、情報カードから患者関連図までの全設計における教育的基準とする。
 「データ → 情報 → 手がかり」モデル（§3）は Version1 の教育仮説であり、
