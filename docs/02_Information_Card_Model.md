@@ -159,7 +159,7 @@ Status: Domain Model（Version1 の中核データモデル）
 
 ## 7. 関連ドキュメント
 
-- `docs/00_Compass_Charter.md` — 憲章（開発判断基準②「情報カード中心か」）
+- `docs/00_Compass_Charter.md` — 憲章（§10 Compass Design Test：情報カードを中核とする情報の扱い）
 - `docs/01_Compass_Version1_Spec.md` — Version1 学習フロー
 - `docs/03_Information_Organization_Workspace.md` — データ → 情報 → 手がかり モデル
 - `lib/patientFacingData.ts` — `RelatedResource` / `resourceToNav`（実装上の原型）

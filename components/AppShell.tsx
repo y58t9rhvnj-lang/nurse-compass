@@ -12,6 +12,7 @@ import ChartSideNav from "@/components/chart/ChartSideNav";
 import FacingPatient from "@/components/patient/facing/FacingPatient";
 import FacingCoachPanel from "@/components/patient/facing/FacingCoachPanel";
 import NoteZone from "@/components/patient/notes/NoteZone";
+import ClinicalThinkingWorkspace from "@/components/thinking-workspace/ClinicalThinkingWorkspace";
 import type { ChartTabId } from "@/lib/chartTabs";
 import type { ChartFocus } from "@/lib/chartNav";
 import {
@@ -57,6 +58,12 @@ export default function AppShell() {
     setPendingQuestion(null);
     setActiveView("ward");
   };
+  // 情報整理ノート（Clinical Thinking Workspace）。現在の患者を保持したまま遷移する。
+  const goWorkspace = () => {
+    setNotice(null);
+    setPendingQuestion(null);
+    setActiveView("workspace");
+  };
   // 電子カルテを開く。tab 指定時はそのタブから、focus 指定時は該当記録へ移動・強調。
   const goChart = (tab?: ChartTabId, focus?: ChartFocus) => {
     setNotice(null);
@@ -77,6 +84,7 @@ export default function AppShell() {
     if (view === "ward") goWard();
     else if (view === "patient") goPatientTop();
     else if (view === "chart") goChart();
+    else if (view === "workspace") goWorkspace();
   };
 
   return (
@@ -124,6 +132,21 @@ export default function AppShell() {
               />
             </aside>
           </>
+        ) : activeView === "workspace" ? (
+          <>
+            {/* 通常 Compass 左サイドバー */}
+            <aside className="w-[204px] shrink-0 border-r border-[#E5E5EA] bg-white">
+              <SideNav activeView={activeView} onNavigate={handleSideNav} />
+            </aside>
+
+            {/* 情報整理ノート（3領域は Workspace 内で構成） */}
+            <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+              <ClinicalThinkingWorkspace
+                patient={selectedPatient}
+                onBack={goPatientTop}
+              />
+            </main>
+          </>
         ) : (
           <>
             {/* 通常 Compass 左サイドバー */}
@@ -158,6 +181,7 @@ export default function AppShell() {
                       onBack={goWard}
                       state={facingState}
                       onChange={setFacingState}
+                      onOpenWorkspace={goWorkspace}
                     />
                   </div>
                 </div>

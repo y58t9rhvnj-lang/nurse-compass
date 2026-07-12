@@ -8,13 +8,14 @@ import {
   Home,
   MessageCircle,
   Network,
+  NotebookPen,
   Settings,
   StickyNote,
   User,
   Users,
 } from "lucide-react";
 
-export type AppView = "ward" | "patient" | "chart";
+export type AppView = "ward" | "patient" | "chart" | "workspace";
 
 const navItems: {
   label: string;
@@ -25,6 +26,7 @@ const navItems: {
   { label: "病棟ホーム", icon: Home, view: "ward" },
   { label: "患者トップ", icon: Users, view: "patient" },
   { label: "電子カルテ", icon: FileText, view: "chart" },
+  { label: "情報整理ノート", icon: NotebookPen, view: "workspace" },
   { label: "情報BOX", icon: MessageCircle, badge: 2 },
   { label: "申し送り", icon: MessageCircle },
   { label: "スケジュール", icon: Calendar },

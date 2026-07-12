@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronLeft, MessagesSquare, Plus, Send } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  MessagesSquare,
+  NotebookPen,
+  Plus,
+  Send,
+} from "lucide-react";
 import type { Patient } from "@/lib/wardData";
 import {
   type FacingConvoState,
@@ -21,11 +28,13 @@ export default function FacingPatient({
   onBack,
   state,
   onChange,
+  onOpenWorkspace,
 }: {
   patient: Patient;
   onBack: () => void;
   state: FacingConvoState;
   onChange: (next: FacingConvoState) => void;
+  onOpenWorkspace?: () => void;
 }) {
   const observation = getObservation(patient.id);
   const [draft, setDraft] = useState("");
@@ -53,14 +62,26 @@ export default function FacingPatient({
     <div className="flex h-full flex-col gap-3 px-6 py-4">
       {/* 上部：戻る＋患者ステータス（固定） */}
       <div className="shrink-0 space-y-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex min-h-[44px] w-fit items-center gap-1 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-[#0A84FF] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:bg-[#F2F7FF]"
-        >
-          <ChevronLeft className="h-4 w-4" strokeWidth={2} />
-          病棟へ戻る
-        </button>
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex min-h-[44px] w-fit items-center gap-1 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-[#0A84FF] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:bg-[#F2F7FF]"
+          >
+            <ChevronLeft className="h-4 w-4" strokeWidth={2} />
+            病棟へ戻る
+          </button>
+          {onOpenWorkspace && (
+            <button
+              type="button"
+              onClick={onOpenWorkspace}
+              className="flex min-h-[44px] w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-[#3A3A3C] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:bg-[#F2F2F5]"
+            >
+              <NotebookPen className="h-4 w-4 text-[#0A84FF]" strokeWidth={1.75} />
+              情報整理ノート
+            </button>
+          )}
+        </div>
         <PatientPresence patient={patient} observation={observation} />
       </div>
 
