@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, MessagesSquare, Send } from "lucide-react";
+import { Check, ChevronLeft, MessagesSquare, Plus, Send } from "lucide-react";
 import type { Patient } from "@/lib/wardData";
 import {
   type FacingConvoState,
   advanceConversation,
+  getEntryId,
   getObservation,
 } from "@/lib/patientFacingData";
+import { useInformationCards } from "@/hooks/useInformationCards";
 import PatientPresence from "./PatientPresence";
 
 // Sprint10.8A: 中央は患者との対話に専念する。
@@ -28,6 +30,10 @@ export default function FacingPatient({
   const observation = getObservation(patient.id);
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 「追加済み」は Information Card store から導出（UI ローカル state では管理しない）。
+  const { hydrated, isEntryAdded, addPatientUtterance } = useInformationCards(
+    patient.id,
+  );
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -78,16 +84,23 @@ export default function FacingPatient({
             {state.history.map((item, i) => {
               if (item.role === "coach") return null;
               const isStudent = item.role === "student";
+              const entryId = getEntryId(patient.id, item, i);
+              if (isStudent) {
+                return (
+                  <li key={entryId} className="flex justify-end">
+                    <Bubble role="student" name="学生" text={item.text} />
+                  </li>
+                );
+              }
               return (
-                <li
-                  key={i}
-                  className={isStudent ? "flex justify-end" : "flex justify-start"}
-                >
-                  <Bubble
-                    role={item.role}
-                    name={isStudent ? "学生" : patient.name}
-                    text={item.text}
-                  />
+                <li key={entryId} className="flex flex-col items-start">
+                  <Bubble role="patient" name={patient.name} text={item.text} />
+                  {hydrated && (
+                    <AddToNoteButton
+                      added={isEntryAdded(entryId)}
+                      onAdd={() => addPatientUtterance(entryId, item.text)}
+                    />
+                  )}
                 </li>
               );
             })}
@@ -122,6 +135,39 @@ export default function FacingPatient({
         </form>
       </div>
     </div>
+  );
+}
+
+// 患者発言を Information Card として保存する控えめな操作（吹き出し下・左寄せ）。
+// 追加済みは store 由来で、リロード・カルテ往復後も復元される。色だけでなく文字でも状態を示す。
+function AddToNoteButton({
+  added,
+  onAdd,
+}: {
+  added: boolean;
+  onAdd: () => void;
+}) {
+  if (added) {
+    return (
+      <span
+        className="mt-0.5 -mb-1 inline-flex min-h-[44px] items-center gap-1 px-1 text-[11px] font-semibold text-[#34C759]"
+        aria-label="この発言はノートへ追加済みです"
+      >
+        <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+        追加済み
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      aria-label="この患者の発言をノートへ追加する"
+      className="mt-0.5 -mb-1 inline-flex min-h-[44px] items-center gap-1 px-1 text-[11px] font-medium text-[#8E8E93] transition hover:text-[#0A84FF]"
+    >
+      <Plus className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+      ノートへ追加
+    </button>
   );
 }
 

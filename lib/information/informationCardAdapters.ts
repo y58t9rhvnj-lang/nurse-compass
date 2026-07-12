@@ -44,6 +44,25 @@ export function notesToInformationCards(
   return cards;
 }
 
+// Sprint11.2: 患者発言 → Information Card。
+// 会話エントリID（entryId）を sourceReference に保持し、将来の元会話ジャンプに備える。
+// 今回は sourceReference を使った画面遷移は実装しない。
+export function patientUtteranceToInformationCard(
+  patientId: string,
+  entryId: string,
+  text: string,
+): InformationCard {
+  return createInformationCard({
+    patientId,
+    content: text,
+    sourceType: "patient_conversation",
+    sourceLabel: "患者との会話",
+    createdBy: "student",
+    originalText: text,
+    sourceReference: { kind: "patient_conversation", id: entryId },
+  });
+}
+
 // 逆変換（設計のみ）: student_note 由来のカードから Note 下書きを作る。
 // 実際の Note ストアへは書き込まない（自動同期しない）。将来必要時に配線する。
 export interface NoteDraft {

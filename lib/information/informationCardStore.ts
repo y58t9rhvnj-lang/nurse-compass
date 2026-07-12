@@ -172,6 +172,76 @@ export function addCardPersistent(card: InformationCard): InformationCard {
   return card;
 }
 
+// ===== 重複判定（会話エントリID基準） =====
+
+// 患者発言カードの重複は、本文ではなく sourceReference の会話エントリIDで判定する。
+// 同じ内容でも別エントリ（別ID）なら別カードとして追加できる。
+export function hasCardForEntry(
+  cards: InformationCard[],
+  entryId: string,
+): boolean {
+  return cards.some(
+    (c) =>
+      c.sourceReference?.kind === "patient_conversation" &&
+      c.sourceReference.id === entryId,
+  );
+}
+
+// ===== React 購読用リアクティブ層（useSyncExternalStore） =====
+// 「追加済み」表示は UI ローカル state ではなく、この store から導出する。
+// localStorage 永続のため、リロード・カルテ往復後も追加済み状態が復元される。
+
+const cache = new Map<string, InformationCard[]>();
+const listeners = new Set<() => void>();
+const EMPTY: InformationCard[] = [];
+
+function emit(): void {
+  for (const l of listeners) l();
+}
+
+// 別タブでの localStorage 変更にも追従する。
+export function subscribeCards(callback: () => void): () => void {
+  listeners.add(callback);
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === STORAGE_KEY) {
+      cache.clear();
+      emit();
+    }
+  };
+  if (isBrowser()) window.addEventListener("storage", onStorage);
+  return () => {
+    listeners.delete(callback);
+    if (isBrowser()) window.removeEventListener("storage", onStorage);
+  };
+}
+
+// 安定参照を返す（空配列もキャッシュして useSyncExternalStore のループを防ぐ）。
+export function getCardsSnapshot(patientId: string): InformationCard[] {
+  const cached = cache.get(patientId);
+  if (cached) return cached;
+  const loaded = getCards(loadStore(), patientId);
+  cache.set(patientId, loaded);
+  return loaded;
+}
+
+// サーバー描画時は常に空（安定参照）。
+export function getServerCardsSnapshot(): InformationCard[] {
+  return EMPTY;
+}
+
+// 患者発言などから 1 枚のカードを追加し、キャッシュ更新＋購読者へ通知する。
+// patientId 単位でキャッシュするため、患者の取り違えは起きない。
+export function addCardForPatient(
+  patientId: string,
+  card: InformationCard,
+): InformationCard {
+  const next = addCard(loadStore(), card);
+  saveStore(next);
+  cache.set(patientId, getCards(next, patientId));
+  emit();
+  return card;
+}
+
 export function updateCardPersistent(
   patientId: string,
   id: string,

@@ -671,10 +671,28 @@ function getConvo(patientId: string): PatientConvo {
 }
 
 // ===== 会話状態 =====
+// 判別共用体に対して各メンバーへ分配して Omit する（共通プロパティのみへ潰さない）。
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never;
+
+// Sprint11.2: 各エントリに安定IDを持たせ、患者発言を Information Card から一意に参照できるようにする。
+// ID は作成時に一度だけ確定し、再レンダリング・カルテ往復でも変わらない。
+// 古い state（ID なし）でも壊れないよう、getEntryId が索引ベースの安全なフォールバックを返す。
 export type FacingEntry =
-  | { role: "student"; text: string }
-  | { role: "patient"; text: string; unknown?: boolean }
-  | { role: "coach"; resources: RelatedResource[] };
+  | { id: string; role: "student"; text: string }
+  | { id: string; role: "patient"; text: string; unknown?: boolean }
+  | { id: string; role: "coach"; resources: RelatedResource[] };
+
+// エントリの安定ID（未設定の旧 state では索引ベースのフォールバックを返す）。
+export function getEntryId(
+  patientId: string,
+  entry: FacingEntry,
+  index: number,
+): string {
+  const withId = entry as { id?: string };
+  return withId.id && withId.id !== "" ? withId.id : `${patientId}-${index}`;
+}
 
 export interface FacingConvoState {
   mainRouteProgress: number;
@@ -892,7 +910,13 @@ export function advanceConversation(
   if (text === "") return state;
 
   const convo = getConvo(patientId);
-  const history: FacingEntry[] = [...state.history, { role: "student", text }];
+  const history: FacingEntry[] = [...state.history];
+  // 追加時の索引を安定IDとして確定する（append-only なので再レンダリング・往復で不変、
+  // かつ同一会話の再現で同じIDになる）。
+  const pushEntry = (entry: DistributiveOmit<FacingEntry, "id">) => {
+    history.push({ ...entry, id: `${patientId}-${history.length}` } as FacingEntry);
+  };
+  pushEntry({ role: "student", text });
   const greetingKind = detectGreeting(text);
   const topic = detectTopic(convo, text, state);
 
@@ -929,14 +953,14 @@ export function advanceConversation(
     if (level >= def.levels.length) {
       acc.alreadyTotal += 1;
       acc.repeated = true;
-      history.push({
+      pushEntry({
         role: "patient",
         text: convo.alreadyReplies[(acc.alreadyTotal - 1) % convo.alreadyReplies.length],
       });
       return;
     }
     const disc = def.levels[level];
-    history.push({ role: "patient", text: disc.reply });
+    pushEntry({ role: "patient", text: disc.reply });
     const newLevel = level + 1;
     acc.topicLevels[id] = newLevel;
     acc.disclosedNew = true;
@@ -1007,7 +1031,7 @@ export function advanceConversation(
   };
 
   if (greetingKind) {
-    history.push({ role: "patient", text: convo.greetings[greetingKind] });
+    pushEntry({ role: "patient", text: convo.greetings[greetingKind] });
     completeGreetingNode();
     if (topic !== "unknown" && convo.topics[topic]) {
       discloseTopic(topic);
@@ -1017,7 +1041,7 @@ export function advanceConversation(
 
   if (topic === "unknown" || !convo.topics[topic]) {
     const unknownTotal = state.unknownTotal + 1;
-    history.push({
+    pushEntry({
       role: "patient",
       text: convo.unknownReplies[(unknownTotal - 1) % convo.unknownReplies.length],
       unknown: true,

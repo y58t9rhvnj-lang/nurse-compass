@@ -19,8 +19,16 @@ import {
 import {
   noteToInformationCard,
   notesToInformationCards,
+  patientUtteranceToInformationCard,
 } from "../lib/information/informationCardAdapters";
+import { hasCardForEntry } from "../lib/information/informationCardStore";
 import { sampleInformationCards } from "../lib/information/informationCardSamples";
+import {
+  advanceConversation,
+  getEntryId,
+  initialFacingState,
+  type FacingEntry,
+} from "../lib/patientFacingData";
 
 let failures = 0;
 function check(label: string, cond: boolean) {
@@ -183,6 +191,99 @@ function validCard(patientId: string): InformationCard {
   const samples = sampleInformationCards("A");
   check("サンプル4件生成", samples.length === 4);
   check("サンプルは全て valid", samples.every((c) => isInformationCard(c)));
+}
+
+// ===== Sprint11.2: 患者発言から Information Card を追加する =====
+
+// 会話履歴から患者発言（role=patient, unknownでない実発言も含む）を entryId 付きで取り出す。
+function patientEntries(
+  patientId: string,
+  history: FacingEntry[],
+): { entryId: string; text: string; role: string }[] {
+  return history.map((item, i) => ({
+    role: item.role,
+    entryId: getEntryId(patientId, item, i),
+    text: item.role === "coach" ? "" : item.text,
+  }));
+}
+
+// ---- 1〜5, 11: 患者発言から Card 生成／学生発言からは作らない ----
+{
+  let s = initialFacingState();
+  s = advanceConversation("A", s, "おはようございます");
+  const entries = patientEntries("A", s.history);
+  const student = entries.find((e) => e.role === "student");
+  const patient = entries.find((e) => e.role === "patient");
+  check("会話に学生・患者エントリが存在", !!student && !!patient);
+
+  const card = patientUtteranceToInformationCard(
+    "A",
+    patient!.entryId,
+    patient!.text,
+  );
+  check("患者発言から Card 生成できる", isInformationCard(card));
+  check("sourceType が patient_conversation", card.sourceType === "patient_conversation");
+  check("sourceLabel が 患者との会話", card.sourceLabel === "患者との会話");
+  check("patientId が正しい", card.patientId === "A");
+  check(
+    "conversationEntryId が sourceReference に保存",
+    card.sourceReference?.kind === "patient_conversation" &&
+      card.sourceReference.id === patient!.entryId,
+  );
+  check("学生発言と患者発言の entryId は異なる", student!.entryId !== patient!.entryId);
+}
+
+// ---- 6, 7: entryId 基準の重複防止 / 同一本文でも別entryなら別カード ----
+{
+  const cards: InformationCard[] = [];
+  const addIfNew = (patientId: string, entryId: string, text: string) => {
+    if (hasCardForEntry(cards, entryId)) return false;
+    cards.push(patientUtteranceToInformationCard(patientId, entryId, text));
+    return true;
+  };
+
+  check("初回追加は成功", addIfNew("A", "A-1", "はい、こんにちは。"));
+  check("同一 entryId は重複追加されない", !addIfNew("A", "A-1", "はい、こんにちは。"));
+  check("追加済み判定できる（entryId基準）", hasCardForEntry(cards, "A-1"));
+  // 同じ本文でも entryId が違えば別カードとして追加できる
+  check("同一本文・別entryは追加できる", addIfNew("A", "A-5", "はい、こんにちは。"));
+  check("2枚に増える", cards.filter((c) => c.patientId === "A").length === 2);
+}
+
+// ---- 8: 患者Aのカードが患者Eへ混ざらない ----
+{
+  let s = emptyStoreState();
+  s = addCard(s, patientUtteranceToInformationCard("A", "A-1", "Aの発言"));
+  s = addCard(s, patientUtteranceToInformationCard("E", "E-1", "Eの発言"));
+  check("A entry は E に混ざらない", !hasCardForEntry(getCards(s, "E"), "A-1"));
+  check("E entry は A に混ざらない", !hasCardForEntry(getCards(s, "A"), "E-1"));
+  check("A の追加済み判定は A で成立", hasCardForEntry(getCards(s, "A"), "A-1"));
+}
+
+// ---- 9: serialize / deserialize 後も追加済み判定ができる ----
+{
+  let s = emptyStoreState();
+  s = addCard(s, patientUtteranceToInformationCard("A", "A-2", "夜は眠れませんでした。"));
+  const restored = deserializeStore(serializeStore(s));
+  check(
+    "永続化往復後も entryId で追加済み判定",
+    hasCardForEntry(getCards(restored, "A"), "A-2"),
+  );
+}
+
+// ---- 10: 古い会話エントリに ID が無くても normalize（fallback ID）可能 ----
+{
+  // id を持たない旧 state 相当のエントリ
+  const legacy = [
+    { role: "student", text: "こんにちは" },
+    { role: "patient", text: "……こんにちは。" },
+  ] as unknown as FacingEntry[];
+  const id0 = getEntryId("A", legacy[0], 0);
+  const id1 = getEntryId("A", legacy[1], 1);
+  check("旧エントリでも fallback ID を生成", id0 === "A-0" && id1 === "A-1");
+  check("fallback ID は一意", id0 !== id1);
+  const card = patientUtteranceToInformationCard("A", id1, "……こんにちは。");
+  check("fallback ID からでも Card 生成できる", isInformationCard(card));
 }
 
 console.log(`\nInformation Card validation: ${failures} failed`);
