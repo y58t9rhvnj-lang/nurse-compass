@@ -91,9 +91,10 @@ interface MainNode {
 }
 
 interface PatientConvo {
-  // coreTheme: 最終的に十分確認したい中心テーマ（会話は一本道にしない）。
-  // 主ルートは自然な導線、coreTheme はいずれ深めたい中心。強制はしない。
-  coreTheme: string;
+  // coreThemes: 患者ごとに最終的に十分確認したい重要テーマ群（会話は一本道にしない）。
+  // 学生には一覧表示せず、Coach が自然な戻しを判断する内部材料としてのみ使う。
+  // 配列の先頭ほど重要度が高い（pending 選択の優先度に用いる）。
+  coreThemes: string[];
   mainRoute: MainNode[];
   greetings: Record<GreetingKind, string>;
   topics: Record<string, TopicDef>;
@@ -200,8 +201,9 @@ function pIdx(id: string): number {
 // ===== 患者別会話定義 =====
 const CONVO: Record<string, PatientConvo> = {
   // Aさん（統合失調症・回復期）: 慎重・礼儀正しい。被注察感はすぐには詳しく話さない。
+  // 重要テーマ: 睡眠 / 不安・被注察感 / 日中生活への影響。
   A: {
-    coreTheme: "sleep",
+    coreThemes: ["sleep", "anxiety", "paranoia", "daytime"],
     mainRoute: [
       {
         topic: "greeting",
@@ -333,8 +335,9 @@ const CONVO: Record<string, PatientConvo> = {
   },
 
   // Eさん（うつ病）: 返答が短く、自責的。開示はゆっくり。
+  // 重要テーマ: 気分 / 自責感 / 睡眠・食事 / 希望や支え。
   E: {
-    coreTheme: "self_blame",
+    coreThemes: ["self_blame", "condition", "sleep", "meal", "hope"],
     mainRoute: [
       {
         topic: "greeting",
@@ -464,8 +467,9 @@ const CONVO: Record<string, PatientConvo> = {
   },
 
   // Fさん（双極性障害・軽躁）: 多弁で話題が広がる。服薬・休息の必要感が乏しい。
+  // 重要テーマ: 活動性 / 睡眠 / 服薬への認識 / 休息と今後の計画。
   F: {
-    coreTheme: "medication",
+    coreThemes: ["medication", "sleep", "condition", "plan"],
     mainRoute: [
       {
         topic: "greeting",
@@ -571,7 +575,7 @@ const CONVO: Record<string, PatientConvo> = {
 };
 
 const FALLBACK_CONVO: PatientConvo = {
-  coreTheme: "sleep",
+  coreThemes: ["sleep"],
   mainRoute: [
     {
       topic: "greeting",
@@ -863,21 +867,20 @@ interface Acc {
   unlockedResourcesByTopic: Record<string, RelatedResource[]>;
 }
 
-// 重要な話題＝深掘り余地がある（開示レベルが2以上）か、中心テーマ。
-function isImportantTopic(convo: PatientConvo, id: string): boolean {
-  const def = convo.topics[id];
-  if (!def) return false;
-  return def.levels.length >= 2 || id === convo.coreTheme;
+// 話題が「十分に深まった」とみなすしきい値（sufficientAt があればそれ、無ければ全レベル）。
+function sufficientThreshold(def: TopicDef): number {
+  return def.sufficientAt ?? def.levels.length;
 }
 
-function isTopicExhausted(
+// coreTheme の重要テーマが、まだ sufficientAt に到達していない（＝深める余地がある）か。
+function isThemeUnfinished(
   convo: PatientConvo,
   id: string,
   topicLevels: Record<string, number>,
 ): boolean {
   const def = convo.topics[id];
-  if (!def) return true;
-  return (topicLevels[id] ?? 0) >= def.levels.length;
+  if (!def) return false;
+  return (topicLevels[id] ?? 0) < sufficientThreshold(def);
 }
 
 export function advanceConversation(
@@ -970,13 +973,18 @@ export function advanceConversation(
       const base = acc.repeated ? (Math.max(state.hintLevel, 1) as 0 | 1 | 2) : state.hintLevel;
       hintLevel = computeHint(base, 0, stalledTurns);
     }
-    // pendingImportantTopics を再計算：一度触れた重要話題のうち、まだ十分に深めておらず、
-    // 現在の話題ではないもの（＝あとで自然に戻す候補）。
+    // pendingImportantTopics を再計算（Sprint10.8C）。次の全条件を満たす話題のみ保持する:
+    //   - coreThemes に含まれる重要テーマである
+    //   - 一度は話題に出た（askedTopics）
+    //   - sufficientAt にまだ到達していない（深める余地がある）
+    //   - 現在の話題ではない（別の話題へ移動した）
+    // まだ触れていないテーマは登録しない。askedTopics は一意なので重複しない。
+    // 十分に深まった時点で条件から外れ、自動的に pending から削除される。
     const pendingImportantTopics = acc.askedTopics.filter(
       (t) =>
         t !== acc.currentTopic &&
-        isImportantTopic(convo, t) &&
-        !isTopicExhausted(convo, t, acc.topicLevels),
+        convo.coreThemes.includes(t) &&
+        isThemeUnfinished(convo, t, acc.topicLevels),
     );
     return {
       ...state,
@@ -1053,6 +1061,23 @@ export function shouldShowCoachHint(state: FacingConvoState): boolean {
 /** 表示対象の意味ある話題（unknown 時は lastMeaningfulTopic を維持）。 */
 export function getMeaningfulTopic(state: FacingConvoState): string | null {
   return state.currentTopic ?? state.lastMeaningfulTopic;
+}
+
+// Sprint10.8C: 学生には表示しない「会話の見守り」内部状態。
+// UI に一覧・進捗・チェックリストとして出さず、Coach の判断材料としてのみ使う。
+export interface ConversationGuidanceState {
+  currentFocus: string | null;
+  pendingImportantTopics: string[];
+}
+
+/** 内部の会話ガイダンス状態（Coach 判断用・UI 常時表示は禁止）。 */
+export function getGuidanceState(
+  state: FacingConvoState,
+): ConversationGuidanceState {
+  return {
+    currentFocus: getMeaningfulTopic(state),
+    pendingImportantTopics: state.pendingImportantTopics,
+  };
 }
 
 /** 右ペインに表示する関連情報（現在の意味ある話題の解放済みのみ）。 */
@@ -1205,12 +1230,63 @@ function deepenView(
   };
 }
 
+// 未完了の重要テーマ（pending）へ自然に戻すときの、押し付けにならない文面。
+// 患者ごとの臨床像に配慮した中立表現。定義がなければ汎用文にフォールバックする。
+const RETURN_GUIDANCE: Record<string, string> = {
+  sleep: "先ほどのお話で気になった睡眠についても、もう少し確認できそうですね。",
+  medication: "先ほど話されていた薬への思いにも、まだ聞けそうなことがありそうです。",
+  anxiety: "先ほど触れられていた不安なお気持ちにも、もう少し寄り添えそうです。",
+  paranoia: "先ほどのお話にあった気がかりについて、まだ伺えることがありそうです。",
+  self_blame: "先ほどのご自身を責めるお気持ちにも、もう少し耳を傾けられそうです。",
+  condition: "先ほどの体調やお気持ちの変化について、もう少し伺えそうです。",
+  meal: "先ほどのお食事の様子についても、まだ確認できそうなことがありそうです。",
+  hope: "先ほど話されていた支えや楽しみについて、もう少し聞けそうです。",
+  daytime: "先ほどのお話と、日中の過ごし方には何かつながりがあるでしょうか。",
+  plan: "先ほどの退院後の計画について、休息の面からも聞けそうです。",
+};
+
+// pending の重要テーマから、Coach が示す「一つ」を選ぶ（一覧表示はしない）。
+// 優先度: (1) coreThemes 上の重要度（配列の先頭ほど高い） →
+//         (2) 最後に触れた順序（より最近を優先）。
+function pickPendingTopic(
+  convo: PatientConvo,
+  state: FacingConvoState,
+): string | null {
+  const cur = getMeaningfulTopic(state);
+  const pend = state.pendingImportantTopics.filter((t) => t !== cur);
+  if (pend.length === 0) return null;
+  const importance = (t: string) => {
+    const i = convo.coreThemes.indexOf(t);
+    return i < 0 ? 999 : i;
+  };
+  const recency = (t: string) => state.askedTopics.lastIndexOf(t);
+  return [...pend].sort((a, b) => {
+    const imp = importance(a) - importance(b);
+    if (imp !== 0) return imp;
+    return recency(b) - recency(a);
+  })[0];
+}
+
+// pending テーマへ自然に戻す視点（強制しない・一つだけ）。
+function returnView(topicId: string): CoachFocusView {
+  const meta = TOPIC_META[topicId];
+  return {
+    kind: "return",
+    direction:
+      RETURN_GUIDANCE[topicId] ??
+      `先ほどの${topicLabel(topicId)}について、まだ確認できそうなことがありそうです。`,
+    example: meta?.example ?? "",
+  };
+}
+
 // 会話は一本道にしない。現在の話題を軸に、常に「一つの視点」だけ返す。
-// 優先順位:
-//   1. 現在の話題をまだ深められるなら深める
-//   2. 一区切りなら、未完了の重要テーマへ自然に戻す視点を示す
-//   3. まだ主ルートに続きがあれば、次の自然な視点を示す
-//   4. 中心テーマがまだ深められるなら中心テーマへ、完了していれば別の側面へ広げる
+// 優先順位（Sprint10.8C）:
+//   1. 現在の話題が「進行中」（sufficientAt 未到達）なら深める。前の話題へは戻さない。
+//   2. 現在の話題が一区切り（sufficientAt 到達）で pending があれば、一つだけ自然に戻す。
+//   3. 現在の話題にまだ開示レベルが残っていれば、続けて深める。
+//   4. 主ルートに続きがあれば、次の自然な視点を示す。
+//   5. coreThemes にまだ深められる重要テーマがあれば、そちらへ。
+//   6. まだ触れていない側面へ広げる／一般的な内省の問いを返す。
 export function getCoachFocus(
   patientId: string,
   state: FacingConvoState,
@@ -1219,26 +1295,24 @@ export function getCoachFocus(
   const cur = getMeaningfulTopic(state);
   const curDef = cur ? convo.topics[cur] : undefined;
   const curLevel = cur ? state.topicLevels[cur] ?? 0 : 0;
-  const curExhausted =
-    !cur || !curDef || curLevel >= curDef.levels.length;
 
-  // 1. 現在の話題を十分に深める
-  if (cur && curDef && !curExhausted) {
+  // 1. 現在の話題が進行中（一区切り前）なら深める。前の話題へ戻す提案はしない。
+  if (cur && curDef && curLevel < sufficientThreshold(curDef)) {
     return deepenView(convo, cur, curLevel);
   }
 
-  // 2. 一区切り → 未完了の重要テーマへ自然に戻す（強制しない）
-  if (state.pendingImportantTopics.length > 0) {
-    const top = byPriority(state.pendingImportantTopics);
-    const meta = TOPIC_META[top];
-    return {
-      kind: "return",
-      direction: `先ほどの${topicLabel(top)}について、まだ確認できそうなことがありそうです。`,
-      example: meta?.example ?? "",
-    };
+  // 2. 一区切り → 未完了の重要テーマ（pending）へ自然に戻す（強制しない・一つだけ）。
+  const pendingTop = pickPendingTopic(convo, state);
+  if (pendingTop) {
+    return returnView(pendingTop);
   }
 
-  // 3. 主ルートにまだ続きがあれば、次の自然な視点（中心テーマへ向かう導線）
+  // 3. 現在の話題にまだ開示レベルが残っていれば、続けて深める。
+  if (cur && curDef && curLevel < curDef.levels.length) {
+    return deepenView(convo, cur, curLevel);
+  }
+
+  // 4. 主ルートにまだ続きがあれば、次の自然な視点。
   const node = nextMainNode(convo, state);
   if (node) {
     return {
@@ -1248,17 +1322,19 @@ export function getCoachFocus(
     };
   }
 
-  // 4a. 主ルート完了。中心テーマがまだ深められるなら中心テーマへ。
-  const core = convo.coreTheme;
-  if (
-    core !== cur &&
-    !isTopicExhausted(convo, core, state.topicLevels) &&
-    convo.topics[core]
-  ) {
-    return deepenView(convo, core, state.topicLevels[core] ?? 0);
+  // 5. coreThemes のうち、まだ深めきれていない重要テーマへ（強制しない）。
+  const nextCore = convo.coreThemes.find(
+    (t) =>
+      t !== cur &&
+      convo.topics[t] &&
+      isThemeUnfinished(convo, t, state.topicLevels),
+  );
+  if (nextCore) {
+    if ((state.topicLevels[nextCore] ?? 0) > 0) return returnView(nextCore);
+    return deepenView(convo, nextCore, state.topicLevels[nextCore] ?? 0);
   }
 
-  // 4b. 中心テーマも一区切り。まだ触れていない側面へ自然に広げる。
+  // 6a. まだ触れていない側面へ自然に広げる。
   const untouched = PRIORITY.filter(
     (t) => convo.topics[t] && (state.topicLevels[t] ?? 0) === 0,
   );
@@ -1272,10 +1348,11 @@ export function getCoachFocus(
     };
   }
 
+  // 6b. 一般的な内省の問い（focus も pending もない・全体を話し終えた場合）。
   return {
     kind: "broaden",
     direction:
-      "ほかにも確認したいことがあれば、引き続き患者さんと話してみましょう。",
+      "患者さんの言葉で、まだ気になっていることはありますか？　引き続き話してみましょう。",
     example: "",
   };
 }
