@@ -1,51 +1,31 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowRight,
-  BookOpen,
-  ChevronLeft,
-  HeartPulse,
-  Lightbulb,
-  LineChart,
-  MessagesSquare,
-  Pill,
-  Send,
-  Sparkles,
-  Stethoscope,
-} from "lucide-react";
-import type { ChartTabId } from "@/lib/chartTabs";
-import type { ChartFocus } from "@/lib/chartNav";
+import { ChevronLeft, MessagesSquare, Send } from "lucide-react";
 import type { Patient } from "@/lib/wardData";
 import {
   type FacingConvoState,
-  type RelatedResource,
   advanceConversation,
-  getCoachHint,
   getObservation,
-  requestHint,
-  resourceToNav,
 } from "@/lib/patientFacingData";
 import PatientPresence from "./PatientPresence";
 
-// Sprint10.5「Coachによる患者対話ガイド」中央（対話式・制御コンポーネント）。
+// Sprint10.8A: 中央は患者との対話に専念する。
+// Compass Coach とヒント・関連情報は右ペイン（FacingCoachPanel）へ移設済み。
+// チャットには「学生の発言」「患者の発言」「初回の空状態ガイド」のみを表示する。
 // 会話状態は親（AppShell）が患者別に保持するため、カルテ往復しても維持される。
-// Coach は正解を出さず、第1段階（方向）→第2段階（質問例）で段階的に支援する。
 export default function FacingPatient({
   patient,
   onBack,
-  onOpenChart,
   state,
   onChange,
 }: {
   patient: Patient;
   onBack: () => void;
-  onOpenChart: (tab: ChartTabId, focus?: ChartFocus) => void;
   state: FacingConvoState;
   onChange: (next: FacingConvoState) => void;
 }) {
   const observation = getObservation(patient.id);
-  const hint = getCoachHint(patient.id, state);
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -63,8 +43,6 @@ export default function FacingPatient({
     setDraft("");
   };
 
-  const askForHint = () => onChange(requestHint(state));
-
   return (
     <div className="flex h-full flex-col gap-3 px-6 py-4">
       {/* 上部：戻る＋患者ステータス（固定） */}
@@ -80,7 +58,7 @@ export default function FacingPatient({
         <PatientPresence patient={patient} observation={observation} />
       </div>
 
-      {/* 中央：チャット（スクロール） */}
+      {/* 中央：チャット（スクロール・学生／患者の発言のみ） */}
       <div
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto rounded-3xl border border-[#EBEBF0] bg-[#F7F9FC] p-4"
@@ -92,22 +70,13 @@ export default function FacingPatient({
               話しかけてみましょう
             </p>
             <p className="max-w-xs text-[11.5px] leading-relaxed text-[#AEAEB5]">
-              患者さんは、あなたが声をかけると答えてくれます。下のヒントを参考に、まずは挨拶から。
+              患者さんは、あなたが声をかけると答えてくれます。右のヒントを参考に、まずは挨拶から。
             </p>
           </div>
         ) : (
           <ul className="space-y-2.5">
             {state.history.map((item, i) => {
-              if (item.role === "coach") {
-                return (
-                  <li key={i} className="flex justify-start">
-                    <RelatedResourcesPanel
-                      resources={item.resources}
-                      onOpenChart={onOpenChart}
-                    />
-                  </li>
-                );
-              }
+              if (item.role === "coach") return null;
               const isStudent = item.role === "student";
               return (
                 <li
@@ -126,13 +95,8 @@ export default function FacingPatient({
         )}
       </div>
 
-      {/* 下部：Coach ヒント（遅延・段階的）＋入力（固定） */}
-      <div className="shrink-0 space-y-2">
-        <CoachHintStrip
-          hint={hint}
-          hintLevel={state.hintLevel}
-          onAskHint={askForHint}
-        />
+      {/* 下部：入力（固定） */}
+      <div className="shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -189,156 +153,6 @@ function Bubble({
         {name}
       </p>
       <p className="text-[13px] leading-relaxed">{text}</p>
-    </div>
-  );
-}
-
-// 患者発言に関連する情報一覧。学生がどれを見るか選択する。
-function RelatedResourcesPanel({
-  resources,
-  onOpenChart,
-}: {
-  resources: RelatedResource[];
-  onOpenChart: (tab: ChartTabId, focus?: ChartFocus) => void;
-}) {
-  return (
-    <div className="w-full max-w-[92%] rounded-2xl border border-[#E4DAF7] bg-gradient-to-b from-[#F7F2FF] to-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-      <div className="mb-1 flex items-center gap-1.5">
-        <Sparkles className="h-3.5 w-3.5 text-[#AF52DE]" strokeWidth={2} />
-        <span className="text-[12px] font-semibold text-[#6B3FA0]">
-          Compass Coach
-        </span>
-      </div>
-      <p className="text-[12.5px] leading-relaxed text-[#4A3A66]">
-        患者さんの発言に関連する情報があります。
-      </p>
-      <p className="mt-0.5 text-[11px] font-medium text-[#8E8E93]">
-        関連情報（{resources.length}件）
-      </p>
-      <ul className="mt-2.5 space-y-1.5">
-        {resources.map((res, i) => (
-          <li key={i}>
-            <ResourceCard
-              resource={res}
-              onOpen={() => {
-                const { tab, focus } = resourceToNav(res);
-                onOpenChart(tab, focus);
-              }}
-            />
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-const RESOURCE_ICON: Record<
-  RelatedResource["type"],
-  typeof Stethoscope
-> = {
-  診療録: Stethoscope,
-  看護記録: HeartPulse,
-  フローシート: LineChart,
-  処方: Pill,
-  生活歴: BookOpen,
-};
-
-function ResourceCard({
-  resource,
-  onOpen,
-}: {
-  resource: RelatedResource;
-  onOpen: () => void;
-}) {
-  const Icon = RESOURCE_ICON[resource.type];
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="flex min-h-[44px] w-full items-center gap-3 rounded-xl border border-[#EBEBF0] bg-white px-3 py-2.5 text-left transition hover:border-[#D1D1FF] hover:bg-[#FAFAFF]"
-    >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F2F2F7]">
-        <Icon className="h-4 w-4 text-[#0A84FF]" strokeWidth={1.75} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[10.5px] font-medium text-[#8E8E93]">
-          {resource.type}
-        </span>
-        <span className="block text-[13px] font-medium text-[#1D1D1F]">
-          {resource.title}
-        </span>
-      </span>
-      <ArrowRight className="h-4 w-4 shrink-0 text-[#C7C7CC]" strokeWidth={2} />
-    </button>
-  );
-}
-
-// 入力欄の上の Coach 支援。序盤は控えめな案内のみ。
-// hintLevel 0=控えめ（ボタンで要求可）／1=方向のみ／2=質問例まで。
-function CoachHintStrip({
-  hint,
-  hintLevel,
-  onAskHint,
-}: {
-  hint: ReturnType<typeof getCoachHint>;
-  hintLevel: 0 | 1 | 2;
-  onAskHint: () => void;
-}) {
-  if (hint.done) {
-    return (
-      <div className="flex items-start gap-2 rounded-2xl border border-[#E4DAF7] bg-[#F7F2FF] px-3.5 py-2.5">
-        <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#AF52DE]" strokeWidth={2} />
-        <p className="text-[12.5px] leading-relaxed text-[#4A3A66]">
-          {hint.direction}
-        </p>
-      </div>
-    );
-  }
-
-  if (hintLevel === 0) {
-    return (
-      <div className="flex items-center justify-between rounded-2xl border border-[#EBEBF0] bg-white px-3.5 py-1.5">
-        <p className="text-[11.5px] text-[#8E8E93]">
-          困ったときはヒントを確認できます
-        </p>
-        <button
-          type="button"
-          onClick={onAskHint}
-          className="flex min-h-[44px] items-center gap-1 rounded-full px-2.5 text-[11.5px] font-semibold text-[#AF52DE] transition hover:text-[#8E3FBE]"
-        >
-          <Lightbulb className="h-3.5 w-3.5" strokeWidth={2} />
-          ヒントを見る
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border border-[#E4DAF7] bg-[#F7F2FF] px-3.5 py-2.5">
-      <div className="flex items-start gap-2">
-        <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#AF52DE]" strokeWidth={2} />
-        <div className="min-w-0 flex-1">
-          <p className="text-[10.5px] font-semibold text-[#AF52DE]">Compass Coach</p>
-          <p className="text-[12.5px] leading-relaxed text-[#4A3A66]">
-            {hint.direction}
-          </p>
-          {hintLevel >= 2 && hint.example && (
-            <p className="mt-1 rounded-lg bg-white/70 px-2.5 py-1.5 text-[12px] leading-relaxed text-[#6B3FA0]">
-              {hint.example}
-            </p>
-          )}
-        </div>
-        {hintLevel < 2 && (
-          <button
-            type="button"
-            onClick={onAskHint}
-            className="flex min-h-[44px] shrink-0 items-center gap-1 rounded-full px-2.5 text-[11.5px] font-semibold text-[#AF52DE] transition hover:text-[#8E3FBE]"
-          >
-            <Lightbulb className="h-3.5 w-3.5" strokeWidth={2} />
-            もう少しヒント
-          </button>
-        )}
-      </div>
     </div>
   );
 }

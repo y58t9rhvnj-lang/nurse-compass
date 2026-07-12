@@ -10,6 +10,7 @@ import CompassChart from "@/components/chart/CompassChart";
 import ChartAside from "@/components/chart/ChartAside";
 import ChartSideNav from "@/components/chart/ChartSideNav";
 import FacingPatient from "@/components/patient/facing/FacingPatient";
+import FacingCoachPanel from "@/components/patient/facing/FacingCoachPanel";
 import NoteZone from "@/components/patient/notes/NoteZone";
 import type { ChartTabId } from "@/lib/chartTabs";
 import type { ChartFocus } from "@/lib/chartNav";
@@ -155,7 +156,6 @@ export default function AppShell() {
                     <FacingPatient
                       patient={selectedPatient}
                       onBack={goWard}
-                      onOpenChart={goChart}
                       state={facingState}
                       onChange={setFacingState}
                     />
@@ -164,7 +164,7 @@ export default function AppShell() {
               )}
             </main>
 
-            {/* 右ペイン */}
+            {/* 右ペイン（288px） */}
             <aside className="w-[288px] shrink-0 border-l border-[#E5E5EA] bg-white">
               {activeView === "ward" ? (
                 <WardRightPanel
@@ -172,8 +172,20 @@ export default function AppShell() {
                   onPatientTopRequest={goPatientTop}
                 />
               ) : (
-                <div className="h-full overflow-y-auto p-4">
-                  <NoteZone patientId={selectedId} />
+                // Sprint10.8A（修正）: 主役は NoteZone（情報整理ノートの前身）。
+                // Compass Coach はその下にコンパクトな補助ウィジェットとして配置する。
+                <div className="flex h-full flex-col">
+                  <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                    <NoteZone patientId={selectedId} />
+                  </div>
+                  <div className="shrink-0">
+                    <FacingCoachPanel
+                      patient={selectedPatient}
+                      state={facingState}
+                      onChange={setFacingState}
+                      onOpenChart={goChart}
+                    />
+                  </div>
                 </div>
               )}
             </aside>
