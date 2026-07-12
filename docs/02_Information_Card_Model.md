@@ -23,6 +23,11 @@ Status: Domain Model（Version1 の中核データモデル）
 情報カードは「情報そのもの」だけでなく、
 **「その情報がどこから来たか」** を必ず伴う。
 
+> 用語について：内部の型名 `InformationCard` は保持するが、
+> `docs/03_Information_Organization_Workspace.md` の「データ → 情報 → 手がかり」
+> モデルでは、情報カードは学生にとって未整理の事実である **「データ」** にあたる。
+> 学生自身が整理して意味づけたものが「情報」であり、それは情報整理ノートで生まれる。
+
 ---
 
 ## 2. 概念的フィールド定義
@@ -155,6 +160,7 @@ Status: Domain Model（Version1 の中核データモデル）
 
 - `docs/00_Compass_Charter.md` — 憲章（開発判断基準②「情報カード中心か」）
 - `docs/01_Compass_Version1_Spec.md` — Version1 学習フロー
+- `docs/03_Information_Organization_Workspace.md` — データ → 情報 → 手がかり モデル
 - `lib/patientFacingData.ts` — `RelatedResource` / `resourceToNav`（実装上の原型）
 - `lib/chartNav.ts` — `ChartFocus`（出所ナビゲーションの厳密リンク）
 - `lib/notes.ts` — `Note`（気づきメモ。情報カードへの拡張起点）
