@@ -56,7 +56,13 @@ export default function ChartTabContent({
     case "PSW":
       return <PSWTab data={data} />;
     case "フローシート":
-      return <FlowsheetView data={data} onNavigate={onNavigate} />;
+      return (
+        <FlowsheetView
+          data={data}
+          nav={nav && nav.tab === "フローシート" ? nav : null}
+          onNavigate={onNavigate}
+        />
+      );
     case "検査":
       return <ExamsView data={data} />;
     case "処方":
@@ -164,7 +170,9 @@ function ClinicalRecordsTab({
         return;
       }
       let target: ClinicalRecord | undefined;
-      if (f.type === "clinicalId")
+      if (f.type === "recordId")
+        target = all.find((r) => r.id === f.id);
+      else if (f.type === "clinicalId")
         target = all.find((r) => r.medicationChangeId === f.id);
       else if (f.type === "nursingId")
         target = all.find((r) => r.nursingRecordId === f.id);
@@ -174,6 +182,8 @@ function ClinicalRecordsTab({
         setSelectedDate(f.date);
         runFocus(target, { kind: "date", value: f.date });
       } else {
+        // 日付指定は解除し（一覧を全件表示に戻す）、recordId で特定した1件へ厳密に移動
+        setSelectedDate("all");
         runFocus(target, { kind: "key", value: keyOf(target) });
       }
     });

@@ -4,10 +4,12 @@
 import type { ChartTabId } from "./chartTabs";
 
 export type ChartFocus =
+  | { type: "recordId"; id: string } // 診療録の記録（一意な recordId で厳密に特定）
   | { type: "clinicalId"; id: string } // 診療録の記録（medicationChangeId）
   | { type: "nursingId"; id: string } // 診療録の看護記録（nursingRecordId）
   | { type: "restrictionId"; id: string } // 診療録の行動制限イベント（restrictionEventId）
   | { type: "date"; date: string } // 診療録の日付ジャンプ
+  | { type: "flowsheetDate"; date: string } // フローシートの日付ジャンプ
   | { type: "rxId"; id: string }; // 処方オーダー（medicationChangeId）
 
 export interface ChartNavRequest {

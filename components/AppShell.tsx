@@ -9,9 +9,14 @@ import WardHomeTopBar from "@/components/ward/WardHomeTopBar";
 import CompassChart from "@/components/chart/CompassChart";
 import ChartAside from "@/components/chart/ChartAside";
 import ChartSideNav from "@/components/chart/ChartSideNav";
-import CompassPatient from "@/components/patient/compass/CompassPatient";
-import CompassAside from "@/components/patient/compass/CompassAside";
-import type { CompassNavTarget } from "@/components/patient/compass/CompassNav";
+import FacingPatient from "@/components/patient/facing/FacingPatient";
+import NoteZone from "@/components/patient/notes/NoteZone";
+import type { ChartTabId } from "@/lib/chartTabs";
+import type { ChartFocus } from "@/lib/chartNav";
+import {
+  type FacingConvoState,
+  initialFacingState,
+} from "@/lib/patientFacingData";
 import { DEFAULT_PATIENT_ID, PATIENTS } from "@/lib/wardData";
 
 // Compass の問い → 気づきメモへの誘導用。token でクリック毎に再フォーカス/スクロールを発火させる。
@@ -24,8 +29,22 @@ export default function AppShell() {
   const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(
     null,
   );
+  // 患者画面の Compass Coach 導線から開いたときの電子カルテ初期タブ／フォーカス。
+  const [chartInitialTab, setChartInitialTab] = useState<ChartTabId | undefined>(
+    undefined,
+  );
+  const [chartInitialFocus, setChartInitialFocus] = useState<
+    ChartFocus | undefined
+  >(undefined);
+  // 「患者と向き合う」会話状態を患者別に保持。カルテ往復しても維持し、患者ごとに独立。
+  const [facingConvos, setFacingConvos] = useState<
+    Record<string, FacingConvoState>
+  >({});
 
   const selectedPatient = PATIENTS[selectedId];
+  const facingState = facingConvos[selectedId] ?? initialFacingState();
+  const setFacingState = (next: FacingConvoState) =>
+    setFacingConvos((prev) => ({ ...prev, [selectedId]: next }));
 
   const goPatientTop = () => {
     setNotice(null);
@@ -37,8 +56,11 @@ export default function AppShell() {
     setPendingQuestion(null);
     setActiveView("ward");
   };
-  const goChart = () => {
+  // 電子カルテを開く。tab 指定時はそのタブから、focus 指定時は該当記録へ移動・強調。
+  const goChart = (tab?: ChartTabId, focus?: ChartFocus) => {
     setNotice(null);
+    setChartInitialTab(tab);
+    setChartInitialFocus(focus);
     setActiveView("chart");
   };
   // 患者切替時は誘導中の問いをクリア
@@ -50,19 +72,6 @@ export default function AppShell() {
     setPendingQuestion({ text, token: Date.now() });
   };
   const clearPendingQuestion = () => setPendingQuestion(null);
-  // 気づきメモへスクロール＋フォーカス（問い文なし）。空文字で文脈バナーは非表示。
-  const focusNotes = () => setPendingQuestion({ text: "", token: Date.now() });
-  const handleCompassNav = (target: CompassNavTarget) => {
-    if (target === "電子カルテ") {
-      goChart();
-      return;
-    }
-    if (target === "メモ") {
-      focusNotes();
-      return;
-    }
-    setNotice(`${target} は次のSprintで実装予定です`);
-  };
   const handleSideNav = (view: AppView) => {
     if (view === "ward") goWard();
     else if (view === "patient") goPatientTop();
@@ -96,7 +105,11 @@ export default function AppShell() {
                 </div>
               )}
               <div className="flex min-h-0 flex-1 flex-col">
-                <CompassChart patient={selectedPatient} />
+                <CompassChart
+                  patient={selectedPatient}
+                  initialTab={chartInitialTab}
+                  initialFocus={chartInitialFocus}
+                />
               </div>
             </main>
 
@@ -139,11 +152,12 @@ export default function AppShell() {
                     </div>
                   )}
                   <div className="min-h-0 flex-1">
-                    <CompassPatient
+                    <FacingPatient
                       patient={selectedPatient}
                       onBack={goWard}
-                      pendingQuestion={pendingQuestion}
-                      onClearPendingQuestion={clearPendingQuestion}
+                      onOpenChart={goChart}
+                      state={facingState}
+                      onChange={setFacingState}
                     />
                   </div>
                 </div>
@@ -158,11 +172,9 @@ export default function AppShell() {
                   onPatientTopRequest={goPatientTop}
                 />
               ) : (
-                <CompassAside
-                  patient={selectedPatient}
-                  onUseQuestion={useQuestionForNote}
-                  onNavigate={handleCompassNav}
-                />
+                <div className="h-full overflow-y-auto p-4">
+                  <NoteZone patientId={selectedId} />
+                </div>
               )}
             </aside>
           </>

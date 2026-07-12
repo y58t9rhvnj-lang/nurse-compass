@@ -9,9 +9,22 @@ import ChartPatientBar from "./ChartPatientBar";
 import ChartTabs from "./ChartTabs";
 
 // Compass Chart（中央）: 精神科電子カルテ。患者バー・タブは固定、本文のみスクロール。
-export default function CompassChart({ patient }: { patient: Patient }) {
-  const [activeTab, setActiveTab] = useState<ChartTabId>("診療録");
-  const [nav, setNav] = useState<ChartNavRequest | null>(null);
+// initialTab: 患者画面の Compass Coach 導線から開いたときの初期タブ（未指定なら診療録）。
+// initialFocus: 開いた直後に特定の記録へ移動・強調するためのフォーカス（例: 診療録の recordId）。
+export default function CompassChart({
+  patient,
+  initialTab,
+  initialFocus,
+}: {
+  patient: Patient;
+  initialTab?: ChartTabId;
+  initialFocus?: ChartFocus;
+}) {
+  const startTab = initialTab ?? "診療録";
+  const [activeTab, setActiveTab] = useState<ChartTabId>(startTab);
+  const [nav, setNav] = useState<ChartNavRequest | null>(
+    initialFocus ? { tab: startTab, focus: initialFocus, token: 1 } : null,
+  );
   const [prevPatientId, setPrevPatientId] = useState(patient.id);
 
   // 患者切替時はリンク状態をクリア（レンダー中に前回値と比較して調整）

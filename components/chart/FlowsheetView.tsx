@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, ShieldAlert } from "lucide-react";
 import {
   deriveMedSlots,
@@ -13,7 +13,7 @@ import {
   type MedSlot,
 } from "@/lib/chartData";
 import type { ChartTabId } from "@/lib/chartTabs";
-import type { ChartFocus } from "@/lib/chartNav";
+import type { ChartFocus, ChartNavRequest } from "@/lib/chartNav";
 import DateSelect from "./DateSelect";
 import VitalsChart, { type VitalPoint } from "./VitalsChart";
 
@@ -28,9 +28,11 @@ function shortDate(d: string) {
 // 行動制限の詳細は診療録に一元化し、ここでは日別の派生マークとリンクのみを持つ。
 export default function FlowsheetView({
   data,
+  nav,
   onNavigate,
 }: {
   data: ChartData;
+  nav: ChartNavRequest | null;
   onNavigate: (tab: ChartTabId, focus: ChartFocus) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -67,6 +69,29 @@ export default function FlowsheetView({
   const [currentDate, setCurrentDate] = useState<string>(
     () => chronoDays[chronoDays.length - 1]?.date ?? "",
   );
+  const [highlightDate, setHighlightDate] = useState<string | null>(null);
+  const [prevNavToken, setPrevNavToken] = useState<number | undefined>();
+
+  // 患者画面などからの日付ジャンプ（flowsheetDate）。レンダー中に前回値と比較して調整。
+  const flowsheetJump =
+    nav?.focus.type === "flowsheetDate" ? nav.focus.date : null;
+  if (
+    flowsheetJump &&
+    nav &&
+    nav.token !== prevNavToken &&
+    chronoDays.some((d) => d.date === flowsheetJump)
+  ) {
+    setPrevNavToken(nav.token);
+    setCurrentDate(flowsheetJump);
+    setHighlightDate(flowsheetJump);
+  }
+
+  // ハイライトは1.5秒で解除
+  useEffect(() => {
+    if (!highlightDate) return;
+    const t = window.setTimeout(() => setHighlightDate(null), 1500);
+    return () => window.clearTimeout(t);
+  }, [highlightDate]);
 
   // currentDate を含む代表週（7日ブロック）を導出。
   const rawIndex = chronoDays.findIndex((d) => d.date === currentDate);
@@ -144,6 +169,7 @@ export default function FlowsheetView({
           days={windowDays}
           restrictionMap={restrictionMap}
           medSlots={medSlots}
+          highlightDate={highlightDate}
           onOpenNursing={openNursingRecord}
           onOpenRestriction={openRestriction}
         />
@@ -228,12 +254,14 @@ function FlowTable({
   days,
   restrictionMap,
   medSlots,
+  highlightDate,
   onOpenNursing,
   onOpenRestriction,
 }: {
   days: FlowsheetDay[];
   restrictionMap: Map<string, DailyRestriction>;
   medSlots: Record<MedSlot, boolean>;
+  highlightDate?: string | null;
   onOpenNursing: (id: string) => void;
   onOpenRestriction: (eventId: string) => void;
 }) {
@@ -273,7 +301,12 @@ function FlowTable({
             {days.map((d) => (
               <th
                 key={d.date}
-                className="sticky top-0 z-20 min-w-[104px] whitespace-nowrap border-b border-[#E5E5EA] bg-[#F7F7F9] px-2.5 py-2 text-center font-semibold text-[#1D1D1F]"
+                className={[
+                  "sticky top-0 z-20 min-w-[104px] whitespace-nowrap border-b border-[#E5E5EA] px-2.5 py-2 text-center font-semibold transition-colors duration-500",
+                  highlightDate === d.date
+                    ? "bg-[#EAF3FF] text-[#0A5FCC]"
+                    : "bg-[#F7F7F9] text-[#1D1D1F]",
+                ].join(" ")}
               >
                 <div>{shortDate(d.date)}</div>
                 <div className="text-[9px] font-normal text-[#AEAEB5]">
