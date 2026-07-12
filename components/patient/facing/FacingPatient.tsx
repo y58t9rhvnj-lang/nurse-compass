@@ -284,80 +284,35 @@ function CoachHintStrip({
   hintLevel: 0 | 1 | 2;
   onAskHint: () => void;
 }) {
-  const breadthSection =
-    hint.showBreadth &&
-    (hint.exploredLabels.length > 0 || hint.unexploredHints.length > 0) ? (
-      <div className="mt-2 space-y-1.5 border-t border-[#E4DAF7]/60 pt-2">
-        <p className="text-[10px] font-medium text-[#AEAEB5]">患者理解の広がり</p>
-        {hint.exploredLabels.length > 0 && (
-          <div>
-            <p className="text-[10.5px] text-[#8E8E93]">確認できたこと</p>
-            <ul className="mt-0.5 space-y-0.5">
-              {hint.exploredLabels.map((label) => (
-                <li key={label} className="text-[11px] text-[#636366]">
-                  ・{label}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {hint.unexploredHints.length > 0 && (
-          <div>
-            <p className="text-[10.5px] text-[#8E8E93]">まだ話していない領域</p>
-            <ul className="mt-0.5 space-y-0.5">
-              {hint.unexploredHints.map((area) => (
-                <li key={area} className="text-[11px] text-[#8E8E93]">
-                  ・{area}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    ) : null;
-
-  // 控えめな初期状態：ヒントは出さず、必要なら自分で開ける
-  // ただし話題完了直後・全人的理解達成時は方向メッセージを表示
-  if (hintLevel === 0 && !hint.topicJustCompleted && !hint.wholePersonReady) {
+  if (hint.done) {
     return (
-      <div className="rounded-2xl border border-[#EBEBF0] bg-white px-3.5 py-1.5">
-        <div className="flex items-center justify-between">
-          <p className="text-[11.5px] text-[#8E8E93]">
-            困ったときはヒントを確認できます
-          </p>
-          <button
-            type="button"
-            onClick={onAskHint}
-            className="flex min-h-[44px] items-center gap-1 rounded-full px-2.5 text-[11.5px] font-semibold text-[#AF52DE] transition hover:text-[#8E3FBE]"
-          >
-            <Lightbulb className="h-3.5 w-3.5" strokeWidth={2} />
-            ヒントを見る
-          </button>
-        </div>
-        {breadthSection}
+      <div className="flex items-start gap-2 rounded-2xl border border-[#E4DAF7] bg-[#F7F2FF] px-3.5 py-2.5">
+        <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#AF52DE]" strokeWidth={2} />
+        <p className="text-[12.5px] leading-relaxed text-[#4A3A66]">
+          {hint.direction}
+        </p>
       </div>
     );
   }
 
-  // 話題完了・全人的理解達成時の控えめ表示（方向のみ）
   if (hintLevel === 0) {
     return (
-      <div className="rounded-2xl border border-[#E4DAF7] bg-[#F7F2FF] px-3.5 py-2.5">
-        <div className="flex items-start gap-2">
-          <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#AF52DE]" strokeWidth={2} />
-          <div className="min-w-0 flex-1">
-            <p className="text-[10.5px] font-semibold text-[#AF52DE]">Compass Coach</p>
-            <p className="text-[12.5px] leading-relaxed text-[#4A3A66]">
-              {hint.direction}
-            </p>
-            {breadthSection}
-          </div>
-        </div>
+      <div className="flex items-center justify-between rounded-2xl border border-[#EBEBF0] bg-white px-3.5 py-1.5">
+        <p className="text-[11.5px] text-[#8E8E93]">
+          困ったときはヒントを確認できます
+        </p>
+        <button
+          type="button"
+          onClick={onAskHint}
+          className="flex min-h-[44px] items-center gap-1 rounded-full px-2.5 text-[11.5px] font-semibold text-[#AF52DE] transition hover:text-[#8E3FBE]"
+        >
+          <Lightbulb className="h-3.5 w-3.5" strokeWidth={2} />
+          ヒントを見る
+        </button>
       </div>
     );
   }
 
-  // 第1段階（方向）／第2段階（質問例）
   return (
     <div className="rounded-2xl border border-[#E4DAF7] bg-[#F7F2FF] px-3.5 py-2.5">
       <div className="flex items-start gap-2">
@@ -372,7 +327,6 @@ function CoachHintStrip({
               {hint.example}
             </p>
           )}
-          {breadthSection}
         </div>
         {hintLevel < 2 && (
           <button
