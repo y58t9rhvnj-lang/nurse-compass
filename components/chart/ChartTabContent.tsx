@@ -49,6 +49,8 @@ export default function ChartTabContent({
       return <LifeHistoryTab data={data} />;
     case "エピソード":
       return <EpisodesTab data={data} />;
+    case "サマリー":
+      return <SummariesTab data={data} />;
     case "看護記録":
       return <NursingTab data={data} />;
     case "OT":
@@ -73,6 +75,8 @@ export default function ChartTabContent({
           onNavigate={onNavigate}
         />
       );
+    case "書類":
+      return <DocumentsTab data={data} />;
   }
 }
 
@@ -411,6 +415,102 @@ function EpisodesTab({ data }: { data: ChartData }) {
           e.description,
         ])}
       />
+    </ChartPanel>
+  );
+}
+
+function SummariesTab({ data }: { data: ChartData }) {
+  if (data.summaries.length === 0) {
+    return (
+      <ChartPanel>
+        <EmptyState text="この患者のサマリーはありません" />
+      </ChartPanel>
+    );
+  }
+  // 新しい時点が上に来るよう日付降順で表示
+  const sorted = [...data.summaries].sort((a, b) =>
+    b.date.localeCompare(a.date),
+  );
+  return (
+    <ChartPanel>
+      <TabCount count={data.summaries.length} />
+      <div className="space-y-2.5">
+        {sorted.map((s) => (
+          <article
+            key={s.id}
+            className="rounded-xl border border-[#E5E5EA] bg-white px-3.5 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
+          >
+            <div className="mb-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <span className="inline-flex rounded-md bg-[#EAF3FF] px-2 py-0.5 text-[11px] font-semibold text-[#0A5FCC]">
+                {s.timepoint}
+              </span>
+              <h4 className="text-[13px] font-bold text-[#1D1D1F]">{s.title}</h4>
+              <time className="text-[12px] tabular-nums text-[#6E6E73]">
+                {s.date}
+              </time>
+              <span className="ml-auto text-[11px] text-[#8E8E93]">
+                {s.author}
+              </span>
+            </div>
+            <p className="text-[12.5px] leading-[1.6] text-[#3A3A3C]">
+              {s.content}
+            </p>
+          </article>
+        ))}
+      </div>
+    </ChartPanel>
+  );
+}
+
+function DocumentsTab({ data }: { data: ChartData }) {
+  if (data.clinicalDocuments.length === 0) {
+    return (
+      <ChartPanel>
+        <EmptyState text="この患者の書類はありません" />
+      </ChartPanel>
+    );
+  }
+  const sorted = [...data.clinicalDocuments].sort((a, b) =>
+    b.date.localeCompare(a.date),
+  );
+  return (
+    <ChartPanel>
+      <TabCount count={data.clinicalDocuments.length} />
+      <div className="space-y-2.5">
+        {sorted.map((doc) => (
+          <article
+            key={doc.id}
+            className="overflow-hidden rounded-xl border border-[#E5E5EA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
+          >
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-[#F0F0F2] bg-[#FAFAFC] px-3.5 py-2.5">
+              <span className="inline-flex rounded-md bg-[#F4EBFB] px-2 py-0.5 text-[11px] font-semibold text-[#7B3FA0]">
+                {doc.category}
+              </span>
+              <h4 className="text-[13px] font-bold text-[#1D1D1F]">
+                {doc.title}
+              </h4>
+              <time className="text-[12px] tabular-nums text-[#6E6E73]">
+                {doc.date}
+              </time>
+              <span className="ml-auto text-[11px] text-[#8E8E93]">
+                {doc.author}
+              </span>
+            </div>
+            <dl className="divide-y divide-[#F0F0F2] px-3.5 py-1">
+              {doc.sections.map((sec, i) => (
+                <div key={i} className="py-2">
+                  <dt className="mb-0.5 text-[11.5px] font-semibold text-[#6E6E73]">
+                    {sec.heading}
+                  </dt>
+                  <dd className="text-[12.5px] leading-[1.55] text-[#3A3A3C]">
+                    {sec.body}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </article>
+        ))}
+      </div>
     </ChartPanel>
   );
 }

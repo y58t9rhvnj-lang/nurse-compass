@@ -14,6 +14,7 @@ import {
   User,
   Users,
 } from "lucide-react";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 
 export type AppView = "ward" | "patient" | "chart" | "workspace";
 
@@ -22,11 +23,17 @@ const navItems: {
   icon: typeof Home;
   view?: AppView;
   badge?: number;
+  flag?: "informationNotebook";
 }[] = [
   { label: "病棟ホーム", icon: Home, view: "ward" },
   { label: "患者トップ", icon: Users, view: "patient" },
   { label: "電子カルテ", icon: FileText, view: "chart" },
-  { label: "情報整理ノート", icon: NotebookPen, view: "workspace" },
+  {
+    label: "情報整理ノート",
+    icon: NotebookPen,
+    view: "workspace",
+    flag: "informationNotebook",
+  },
   { label: "情報BOX", icon: MessageCircle, badge: 2 },
   { label: "申し送り", icon: MessageCircle },
   { label: "スケジュール", icon: Calendar },
@@ -62,7 +69,9 @@ export default function SideNav({
 
       {/* ナビ */}
       <ul className="flex flex-1 flex-col gap-1">
-        {navItems.map(({ label, icon: Icon, view, badge }) => {
+        {navItems
+          .filter((item) => !item.flag || isFeatureEnabled(item.flag))
+          .map(({ label, icon: Icon, view, badge }) => {
           const active = view !== undefined && view === activeView;
           const clickable = view !== undefined;
           return (

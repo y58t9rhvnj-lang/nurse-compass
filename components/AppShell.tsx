@@ -20,6 +20,10 @@ import {
   initialFacingState,
 } from "@/lib/patientFacingData";
 import { DEFAULT_PATIENT_ID, PATIENTS } from "@/lib/wardData";
+import { isFeatureEnabled } from "@/lib/featureFlags";
+
+// 第1回講義では情報整理ノートを学生ナビから隠す（コードは保持）。
+const NOTEBOOK_ENABLED = isFeatureEnabled("informationNotebook");
 
 // Compass の問い → 気づきメモへの誘導用。token でクリック毎に再フォーカス/スクロールを発火させる。
 type PendingQuestion = { text: string; token: number };
@@ -84,7 +88,7 @@ export default function AppShell() {
     if (view === "ward") goWard();
     else if (view === "patient") goPatientTop();
     else if (view === "chart") goChart();
-    else if (view === "workspace") goWorkspace();
+    else if (view === "workspace" && NOTEBOOK_ENABLED) goWorkspace();
   };
 
   return (
@@ -181,7 +185,7 @@ export default function AppShell() {
                       onBack={goWard}
                       state={facingState}
                       onChange={setFacingState}
-                      onOpenWorkspace={goWorkspace}
+                      onOpenWorkspace={NOTEBOOK_ENABLED ? goWorkspace : undefined}
                     />
                   </div>
                 </div>

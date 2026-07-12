@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Pencil, Trash2, X } from "lucide-react";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { Note } from "@/lib/notes";
 
 function formatTimestamp(ms: number): string {
@@ -15,10 +15,14 @@ export default function NoteItem({
   note,
   onUpdate,
   onDelete,
+  collected = false,
+  onCollect,
 }: {
   note: Note;
   onUpdate: (id: string, text: string) => void;
   onDelete: (id: string) => void;
+  collected?: boolean;
+  onCollect?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.text);
@@ -76,12 +80,42 @@ export default function NoteItem({
           <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[#1D1D1F]">
             {note.text}
           </p>
-          <div className="mt-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-[#AEAEB5]">
-              {formatTimestamp(note.updatedAt)}
-              {edited && "（編集済み）"}
-            </span>
-            <div className="flex items-center gap-1">
+          <div className="mt-2.5 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-[11px] text-[#AEAEB5]">
+                {formatTimestamp(note.updatedAt)}
+                {edited && "（編集済み）"}
+              </span>
+              {onCollect &&
+                (collected ? (
+                  <span
+                    className="inline-flex min-h-[44px] items-center gap-1 text-[11px] font-semibold text-[#34C759]"
+                    aria-label="このメモは収集済みです"
+                  >
+                    <Check
+                      className="h-3.5 w-3.5"
+                      strokeWidth={2.5}
+                      aria-hidden="true"
+                    />
+                    収集済み
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onCollect}
+                    aria-label="このメモを収集する"
+                    className="inline-flex min-h-[44px] items-center gap-1 text-[11px] font-medium text-[#8E8E93] transition hover:text-[#0A84FF]"
+                  >
+                    <Plus
+                      className="h-3.5 w-3.5"
+                      strokeWidth={2}
+                      aria-hidden="true"
+                    />
+                    収集する
+                  </button>
+                ))}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
               <button
                 type="button"
                 onClick={startEdit}

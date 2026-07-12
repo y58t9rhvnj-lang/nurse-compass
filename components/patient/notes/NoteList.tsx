@@ -8,10 +8,14 @@ export default function NoteList({
   notes,
   onUpdate,
   onDelete,
+  isCollected,
+  onCollect,
 }: {
   notes: Note[];
   onUpdate: (id: string, text: string) => void;
   onDelete: (id: string) => void;
+  isCollected?: (noteId: string) => boolean;
+  onCollect?: (note: Note) => void;
 }) {
   if (notes.length === 0) {
     return (
@@ -31,6 +35,8 @@ export default function NoteList({
           note={note}
           onUpdate={onUpdate}
           onDelete={onDelete}
+          collected={isCollected?.(note.id) ?? false}
+          onCollect={onCollect ? () => onCollect(note) : undefined}
         />
       ))}
     </div>

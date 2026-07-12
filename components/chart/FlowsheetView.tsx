@@ -268,6 +268,7 @@ function FlowTable({
   const rows: { label: string; render: (d: FlowsheetDay) => ReactNode }[] = [
     { label: "体温", render: (d) => `${parseVitals(d.vitals).temp ?? "—"}` },
     { label: "脈拍", render: (d) => `${parseVitals(d.vitals).pulse ?? "—"}` },
+    { label: "呼吸", render: (d) => `${parseVitals(d.vitals).resp ?? "—"}` },
     {
       label: "血圧",
       render: (d) => {

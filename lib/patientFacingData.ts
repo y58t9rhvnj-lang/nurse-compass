@@ -200,10 +200,11 @@ function pIdx(id: string): number {
 
 // ===== 患者別会話定義 =====
 const CONVO: Record<string, PatientConvo> = {
-  // Aさん（統合失調症・回復期）: 慎重・礼儀正しい。被注察感はすぐには詳しく話さない。
-  // 重要テーマ: 睡眠 / 不安・被注察感 / 日中生活への影響。
+  // Aさん（統合失調症・長期入院／回復期）: 物静かで控えめ。夜間の残遺幻聴、服薬自己管理への関心、
+  //   叔父との関係、退院・地域生活への不安が背景。同室Iさんは安心できる存在で回復のモデル。
+  // 重要テーマ: 睡眠・幻聴 / 服薬自己管理 / 退院と地域生活への不安 / 叔父との関係。
   A: {
-    coreThemes: ["sleep", "anxiety", "paranoia", "daytime"],
+    coreThemes: ["sleep", "paranoia", "medication", "discharge"],
     mainRoute: [
       {
         topic: "greeting",
@@ -252,73 +253,72 @@ const CONVO: Record<string, PatientConvo> = {
       casual: "……どうも。",
     },
     topics: {
-      condition: { levels: [{ reply: "だいぶ落ち着いてきました。ただ、少し疲れが残っている感じがします。", fact: "本人：全体的には落ち着き、疲労感が残る" }] },
+      condition: { levels: [{ reply: "だいぶ落ち着いています。ただ、夜になると声が聞こえることがあって。", fact: "本人：全体的に安定、夜間の幻聴が残る" }] },
       sleep: {
         levels: [
-          { reply: "夜は、あまり眠れませんでした。", fact: "本人：夜間の睡眠が不十分" },
-          { reply: "何度か目が覚めてしまって……。そのたびに、なかなか寝つけませんでした。", fact: "本人：中途覚醒あり・再入眠困難" },
-          { reply: "……廊下の音が気になって。あと、人に見られているような感じが、少し残っていて。", fact: "本人：物音・被注察感が睡眠を妨げている" },
+          { reply: "夜、なかなか寝つけないことがあります。", fact: "本人：入眠困難あり" },
+          { reply: "「だめな人間だ」とか……そういう声が、聞こえてくることがあって。", fact: "本人：夜間の幻聴（自己否定的な内容）" },
+          { reply: "そういう時は、ラジオを小さくかけて、やり過ごしています。眠れない時は、頓服をもらうこともあります。", fact: "本人：ラジオで対処・頓用睡眠薬の使用あり" },
         ],
         sufficientAt: 3,
         relatedResources: [
-          { type: "診療録", recordId: "clinical-a-20250705-sleep-01", title: "睡眠状況" },
-          { type: "看護記録", recordId: "nursing-a-20250705-01", title: "夜間観察" },
-          { type: "フローシート", date: "2025/07/05", title: "睡眠時間" },
-          { type: "処方", orderId: "rx-a-20250705-tonpuku", title: "睡眠薬" },
+          { type: "診療録", recordId: "clinical-a-sleep-voices", title: "幻聴と不眠の経過" },
+          { type: "看護記録", recordId: "nursing-a-night-voices", title: "夜間の観察" },
+          { type: "フローシート", date: "2025/07/06", title: "睡眠・頓服" },
+          { type: "処方", orderId: "rx-a-tonpuku", title: "頓用睡眠薬" },
         ],
       },
-      daytime: { levels: [{ reply: "昼間は少し眠気が残ります。でも、作業療法には出るようにしています。", fact: "本人：日中に眠気が残るが活動は継続" }] },
-      meal: { levels: [{ reply: "食事は、少しずつですが食べられています。", fact: "本人：摂取量は少なめだが摂取可" }] },
+      daytime: { levels: [{ reply: "昼間は、部屋で過ごすことが多いです。作業療法は、気が向かない日もあって。", fact: "本人：日中活動の低下・OT辞退あり" }] },
+      meal: { levels: [{ reply: "食事は、毎回きちんと食べています。間食は、一つだけにしているんです。", fact: "本人：食事は全量・間食制限に取り組む" }] },
       medication: {
         levels: [
-          { reply: "薬は、きちんと飲んでいます。", fact: "本人：服薬アドヒアランス良好" },
-          { reply: "飲むと、少し落ち着く気がします。", fact: "本人：服薬で安心感" },
+          { reply: "薬は、きちんと飲んでいます。今は、看護師さんが管理してくれています。", fact: "本人：服薬遵守・現在は看護管理" },
+          { reply: "同室のIさんは、自分で薬を管理していて……。自分にもできるかな、と思うことがあります。", fact: "本人：Iさんを見て服薬自己管理に関心" },
         ],
         sufficientAt: 2,
         relatedResources: [
-          { type: "処方", orderId: "rx-a-20250709-teiki", title: "処方内容" },
-          { type: "診療録", recordId: "clinical-a-20250705-sleep-01", title: "経過記録" },
-          { type: "フローシート", date: "2025/07/05", title: "服薬状況" },
+          { type: "処方", orderId: "rx-a-teiki-current", title: "定期処方" },
+          { type: "診療録", recordId: "clinical-a-med-selfmgmt", title: "服薬指導の記録" },
         ],
       },
       family: {
         levels: [
-          { reply: "母が時々、面会に来てくれます。", fact: "本人：母の面会あり" },
-          { reply: "……あまり、心配をかけたくないんです。", fact: "本人：母への気づかい" },
+          { reply: "叔父が、時々面会に来てくれます。……最近は、少し減っていて。", fact: "本人：キーパーソンは叔父・面会は減少" },
+          { reply: "……嫌われてしまったのかな、と思うことがあります。電話で確かめたわけではないのですが。", fact: "本人：叔父に嫌われた不安（未確認）" },
         ],
-        sufficientAt: 1,
+        sufficientAt: 2,
         relatedResources: [
-          { type: "生活歴", title: "家族の記載" },
-          { type: "看護記録", recordId: "nursing-a-20250704-01", title: "面会時の様子" },
+          { type: "生活歴", title: "家族背景" },
+          { type: "看護記録", recordId: "nursing-a-uncle", title: "叔父の話題の記録" },
         ],
       },
       discharge: {
         levels: [
-          { reply: "早く家に帰りたい気持ちはあります。", fact: "本人：退院願望あり" },
-          { reply: "でも、まだ少し不安もあって……。", fact: "本人：退院への不安" },
+          { reply: "正直、ここにいる方が安心なんです。", fact: "本人：入院環境に安心感（単なる退院拒否ではない）" },
+          { reply: "外で一人でやっていける自信が、まだなくて。", fact: "本人：地域生活への自信のなさ" },
         ],
-        sufficientAt: 1,
+        sufficientAt: 2,
         relatedResources: [
-          { type: "生活歴", title: "退院後の生活" },
-          { type: "診療録", recordId: "clinical-a-20250705-sleep-01", title: "経過記録" },
+          { type: "生活歴", title: "退院への思い" },
+          { type: "診療録", recordId: "clinical-a-discharge", title: "退院に関する経過" },
         ],
       },
       hobby: {
-        levels: [{ reply: "静かな場所で、詰将棋をするのが好きです。", fact: "本人：詰将棋を好む" }],
+        levels: [{ reply: "夜は、ラジオを聴いて過ごすことが多いです。中庭で、Iさんと過ごすこともあります。", fact: "本人：ラジオを好む・Iさんと過ごす" }],
         sufficientAt: 1,
         relatedResources: [
           { type: "生活歴", title: "生活歴" },
-          { type: "看護記録", recordId: "nursing-a-20250709-01", title: "活動の記録" },
+          { type: "看護記録", recordId: "nursing-a-courtyard-i", title: "Iさんと過ごす様子" },
         ],
       },
-      ot: { levels: [{ reply: "作業療法には出ています。手を動かしていると、気がまぎれるので。", fact: "本人：OT参加・気晴らしになる" }] },
+      ot: { levels: [{ reply: "作業療法は……気が向かない日も多くて。SSTには、最近は出るようにしています。", fact: "本人：OT辞退が多い・SSTは参加" }] },
       anxiety: { levels: [
           { reply: "……少し、落ち着かないことはあります。", fact: "本人：漠然とした不安" },
-          { reply: "人の視線が、気になるときがあって。", fact: "本人：視線への過敏" },
+          { reply: "夜に、声が気になるときがあって。", fact: "本人：夜間の幻聴への不安" },
         ] },
       paranoia: { levels: [
-          { reply: "……人に見られているような感じが、することがあります。", fact: "本人：被注察感の訴え" },
-          { reply: "悪口を言われているような気がして……。でも、気のせいかもしれません。", fact: "本人：関係念慮様の訴え" },
+          { reply: "……声が、聞こえることがあります。", fact: "本人：幻聴の訴え" },
+          { reply: "「怠け者だ」とか、責めるような声で……。でも、気のせいかもしれません。", fact: "本人：自己否定的な幻聴の内容" },
         ] },
     },
     unknownReplies: [
@@ -654,12 +654,14 @@ export const TAB_LABEL: Record<ChartTabId, string> = {
   患者情報: "基本情報",
   生活歴: "生活歴",
   エピソード: "エピソード",
+  サマリー: "サマリー",
   看護記録: "看護記録",
   OT: "OT",
   PSW: "PSW",
   フローシート: "フローシート",
   検査: "検査",
   処方: "処方",
+  書類: "書類",
 };
 
 export function getObservation(patientId: string): FacingObservation {

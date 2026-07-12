@@ -44,22 +44,50 @@ export function notesToInformationCards(
   return cards;
 }
 
-// Sprint11.2: 患者発言 → Information Card。
-// 会話エントリID（entryId）を sourceReference に保持し、将来の元会話ジャンプに備える。
-// 今回は sourceReference を使った画面遷移は実装しない。
+// Sprint11.2 / 12.2B: 患者発言 → Information Card（収集データ）。
+// 会話エントリID（entryId）を sourceReference に保持し、元会話への出所を維持する。
+// content は学生が収集ダイアログで整えた「保存する内容」、originalText は患者発言の元全文。
+//   - options.originalText 未指定時は content を元データとして扱う（旧呼び出し互換）。
+//   - options.observedAt があれば会話時刻として保持する。
 export function patientUtteranceToInformationCard(
   patientId: string,
   entryId: string,
-  text: string,
+  content: string,
+  options?: { originalText?: string; observedAt?: string },
 ): InformationCard {
   return createInformationCard({
     patientId,
-    content: text,
+    content,
     sourceType: "patient_conversation",
     sourceLabel: "患者との会話",
     createdBy: "student",
-    originalText: text,
+    originalText: options?.originalText ?? content,
+    observedAt: options?.observedAt,
     sourceReference: { kind: "patient_conversation", id: entryId },
+  });
+}
+
+// Sprint12.2B: 一時メモ（NoteZone）→ Information Card（収集データ）。
+// Note ID を sourceReference に保持する。学生UIの出典表記は「一時メモ」。
+// content は収集ダイアログで整えた内容、originalText は一時メモの元本文。
+// observedAt があれば「メモを書いた時刻」として保持する（一覧の時系列表示に使う）。
+// 元の一時メモ（Note ストア）はここでは変更・削除しない（別物として保持する）。
+export function temporaryMemoToInformationCard(
+  patientId: string,
+  noteId: string,
+  content: string,
+  originalText: string,
+  observedAt?: string,
+): InformationCard {
+  return createInformationCard({
+    patientId,
+    content,
+    sourceType: "student_note",
+    sourceLabel: "一時メモ",
+    createdBy: "student",
+    originalText,
+    observedAt,
+    sourceReference: { kind: "student_note", id: noteId },
   });
 }
 

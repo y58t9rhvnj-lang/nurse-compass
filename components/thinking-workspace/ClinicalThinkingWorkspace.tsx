@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import type { Patient } from "@/lib/wardData";
+import type { InformationCard } from "@/lib/information/informationCard";
 import { useInformationCards } from "@/hooks/useInformationCards";
+import CollectionDialog from "@/components/collection/CollectionDialog";
+import ConfirmDialog from "@/components/collection/ConfirmDialog";
 import WorkspaceHeader from "./WorkspaceHeader";
 import CollectedDataPane from "./CollectedDataPane";
 import InformationOrganizationPane from "./InformationOrganizationPane";
@@ -103,9 +106,56 @@ export default function ClinicalThinkingWorkspace({
   );
 }
 
-// 現在患者の Information Card（=データ）を購読して左ペインへ渡す。
-// 表示専用。追加操作は本 Sprint では行わない。
+// 現在患者の収集データ（Information Card）を購読して左ペインへ渡す。
+// 「内容を修正」は共通収集ダイアログを edit モードで再利用し、content のみ更新する。
+// 「収集解除」は確認後に store から取り除く（元の患者発言・一時メモは残る）。
 function DataPaneConnected({ patientId }: { patientId: string }) {
-  const { cards, hydrated } = useInformationCards(patientId);
-  return <CollectedDataPane cards={cards} hydrated={hydrated} />;
+  const { cards, hydrated, updateContent, release } =
+    useInformationCards(patientId);
+  const [editTarget, setEditTarget] = useState<InformationCard | null>(null);
+  const [releaseTarget, setReleaseTarget] = useState<InformationCard | null>(
+    null,
+  );
+
+  return (
+    <>
+      <CollectedDataPane
+        cards={cards}
+        hydrated={hydrated}
+        onEdit={setEditTarget}
+        onRelease={setReleaseTarget}
+      />
+
+      {/* 内容を修正（共通収集ダイアログの edit モード） */}
+      <CollectionDialog
+        key={editTarget?.id ?? "closed"}
+        open={editTarget !== null}
+        mode="edit"
+        originalText={editTarget?.originalText ?? editTarget?.content ?? ""}
+        initialContent={editTarget?.content ?? ""}
+        sourceLabel={editTarget?.sourceLabel ?? ""}
+        timestamp={editTarget?.observedAt ?? editTarget?.createdAt}
+        onCancel={() => setEditTarget(null)}
+        onConfirm={(content) => {
+          if (editTarget) updateContent(editTarget.id, content);
+          setEditTarget(null);
+        }}
+      />
+
+      {/* 収集解除の確認 */}
+      <ConfirmDialog
+        open={releaseTarget !== null}
+        title="このデータを収集対象から外しますか？"
+        description="元の患者発言や一時メモは削除されません。"
+        confirmLabel="収集解除"
+        cancelLabel="キャンセル"
+        destructive
+        onCancel={() => setReleaseTarget(null)}
+        onConfirm={() => {
+          if (releaseTarget) release(releaseTarget.id);
+          setReleaseTarget(null);
+        }}
+      />
+    </>
+  );
 }

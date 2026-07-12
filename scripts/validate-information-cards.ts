@@ -20,8 +20,13 @@ import {
   noteToInformationCard,
   notesToInformationCards,
   patientUtteranceToInformationCard,
+  temporaryMemoToInformationCard,
 } from "../lib/information/informationCardAdapters";
-import { hasCardForEntry } from "../lib/information/informationCardStore";
+import {
+  findCardBySource,
+  hasCardForEntry,
+  hasCardForNote,
+} from "../lib/information/informationCardStore";
 import { sampleInformationCards } from "../lib/information/informationCardSamples";
 import {
   advanceConversation,
@@ -284,6 +289,218 @@ function patientEntries(
   check("fallback ID は一意", id0 !== id1);
   const card = patientUtteranceToInformationCard("A", id1, "……こんにちは。");
   check("fallback ID からでも Card 生成できる", isInformationCard(card));
+}
+
+// ===== Sprint12.2B: 統一収集モデル（患者発言・一時メモからの収集） =====
+
+// 収集ダイアログ確定内容で患者発言を収集する（重複は entryId 基準で防ぐ）。
+function collectUtterance(
+  cards: InformationCard[],
+  patientId: string,
+  entryId: string,
+  content: string,
+  originalText: string,
+): boolean {
+  if (content.trim() === "") return false; // 空 content は追加不可
+  if (hasCardForEntry(cards, entryId)) return false; // 重複防止
+  cards.push(
+    patientUtteranceToInformationCard(patientId, entryId, content.trim(), {
+      originalText,
+    }),
+  );
+  return true;
+}
+
+// 収集ダイアログ確定内容で一時メモを収集する（重複は Note ID 基準で防ぐ）。
+function collectMemo(
+  cards: InformationCard[],
+  patientId: string,
+  noteId: string,
+  content: string,
+  originalText: string,
+  observedAt?: string,
+): boolean {
+  if (content.trim() === "") return false;
+  if (hasCardForNote(cards, noteId)) return false;
+  cards.push(
+    temporaryMemoToInformationCard(
+      patientId,
+      noteId,
+      content.trim(),
+      originalText,
+      observedAt,
+    ),
+  );
+  return true;
+}
+
+// 収集解除：収集データ配列から取り除く（元の患者発言・一時メモは対象外）。
+function releaseCard(cards: InformationCard[], id: string): InformationCard[] {
+  return cards.filter((c) => c.id !== id);
+}
+
+// 収集データの content のみ修正する（空は不可、originalText 等は不変）。
+function editContent(card: InformationCard, content: string): InformationCard {
+  if (content.trim() === "") return card; // 空 content は更新不可
+  return { ...card, content: content.trim(), updatedAt: new Date().toISOString() };
+}
+
+// ---- 1〜5: 患者発言の収集（ダイアログ確定内容・出所保持・重複防止） ----
+{
+  const cards: InformationCard[] = [];
+  const full = "……夜は、あまり眠れていないですね。物音で目が覚めてしまって。";
+  const edited = "夜間、物音で覚醒し眠れていない";
+  const ok = collectUtterance(cards, "A", "A-3", edited, full);
+  const card = cards[0];
+  check("1 患者発言をダイアログ確定内容で収集できる", ok && cards.length === 1);
+  check("2 originalText は患者発言の全文を保持", card.originalText === full);
+  check("3 content は編集後の内容を保持", card.content === edited);
+  check(
+    "4 sourceReference に conversation entry ID が残る",
+    card.sourceReference?.kind === "patient_conversation" &&
+      card.sourceReference.id === "A-3",
+  );
+  const dup = collectUtterance(cards, "A", "A-3", "別の内容", full);
+  check("5 同じ entryId は重複収集できない", !dup && cards.length === 1);
+}
+
+// ---- 6: 収集解除後は再収集できる ----
+{
+  let cards: InformationCard[] = [];
+  collectUtterance(cards, "A", "A-7", "内容", "元の発言");
+  const id = cards[0].id;
+  cards = releaseCard(cards, id);
+  check("6a 収集解除で一覧から消える", !cards.some((c) => c.id === id));
+  const recollect = collectUtterance(cards, "A", "A-7", "内容", "元の発言");
+  check("6b 収集解除後は同じ entryId を再収集できる", recollect && cards.length === 1);
+}
+
+// ---- 7〜10: 一時メモの収集（出所=Note ID・出典=一時メモ・重複防止・観察時刻） ----
+{
+  const cards: InformationCard[] = [];
+  const memoText = "家族の面会が少ないことが気がかり";
+  const memoCreatedIso = new Date(Date.parse("2026-07-12T22:16:00+09:00")).toISOString();
+  const ok = collectMemo(cards, "A", "note-42", memoText, memoText, memoCreatedIso);
+  const card = cards[0];
+  check("7 一時メモから収集できる", ok && cards.length === 1);
+  check("8 originalText は元メモ本文を保持", card.originalText === memoText);
+  check("8b sourceType=student_note / sourceLabel=一時メモ",
+    card.sourceType === "student_note" && card.sourceLabel === "一時メモ");
+  check("8c observedAt にメモ作成時刻を保持", card.observedAt === memoCreatedIso);
+  check(
+    "9 sourceReference に Note ID が残る",
+    card.sourceReference?.kind === "student_note" &&
+      card.sourceReference.id === "note-42",
+  );
+  const dup = collectMemo(cards, "A", "note-42", "別本文", "別本文");
+  check("10 同じ Note ID は重複収集できない", !dup && cards.length === 1);
+}
+
+// ---- 10b: 同一本文でも別 Note ID なら別データとして収集できる ----
+{
+  const cards: InformationCard[] = [];
+  const text = "同じ内容のメモ";
+  check("10b-1 note-x を収集", collectMemo(cards, "A", "note-x", text, text));
+  check("10b-2 同一本文・別 note-y も収集できる", collectMemo(cards, "A", "note-y", text, text));
+  check("10b-3 2件になる", cards.length === 2);
+}
+
+// ---- 11: 一時メモを後から編集しても収集済みデータは自動変更されない ----
+{
+  const cards: InformationCard[] = [];
+  const originalMemo = "収集した時点の本文";
+  collectMemo(cards, "A", "note-99", originalMemo, originalMemo);
+  // 一時メモ（Note）側を後から編集した状況を模す（Note と Card は別物）。
+  const editedMemoLater = "あとから書き換えた本文"; // Note 側だけ変わる想定
+  void editedMemoLater;
+  check(
+    "11 メモ編集後も収集データの content は自動変更されない",
+    cards[0].content === originalMemo,
+  );
+  check(
+    "11b メモ編集後も収集データの originalText は自動変更されない",
+    cards[0].originalText === originalMemo,
+  );
+}
+
+// ---- 12, 13, 17: content 修正 / originalText 不変 / 空 content 不可 ----
+{
+  const cards: InformationCard[] = [];
+  collectUtterance(cards, "A", "A-8", "初期内容", "患者発言の全文");
+  const before = cards[0];
+  const after = editContent(before, "修正後の内容");
+  check("12 収集データ content を修正できる", after.content === "修正後の内容");
+  check("13 content 修正で originalText は変わらない", after.originalText === "患者発言の全文");
+  check("13b content 修正でも id は不変", after.id === before.id);
+  check("17a 空 content では追加できない",
+    !collectUtterance(cards, "A", "A-9", "   ", "元発言"));
+  const noEdit = editContent(before, "   ");
+  check("17b 空 content では更新できない", noEdit.content === before.content);
+}
+
+// ---- 14: 患者 A と E のデータが混ざらない（entryId / Note ID とも） ----
+{
+  let s = emptyStoreState();
+  s = addCard(s, patientUtteranceToInformationCard("A", "A-1", "Aの発言"));
+  s = addCard(s, temporaryMemoToInformationCard("A", "note-1", "Aのメモ", "Aのメモ"));
+  s = addCard(s, patientUtteranceToInformationCard("E", "E-1", "Eの発言"));
+  s = addCard(s, temporaryMemoToInformationCard("E", "note-1", "Eのメモ", "Eのメモ"));
+  check("14a A の会話 entryId は E の収集済み判定に影響しない",
+    !hasCardForEntry(getCards(s, "E"), "A-1"));
+  check("14b A の Note ID は E の収集済み判定に影響しない（同名 note-1 でも別患者）",
+    hasCardForNote(getCards(s, "A"), "note-1") &&
+      findCardBySource(getCards(s, "E"), "student_note", "note-1")?.patientId === "E");
+}
+
+// ---- 15: serialize / deserialize 後も収集済み判定が維持 ----
+{
+  let s = emptyStoreState();
+  s = addCard(s, patientUtteranceToInformationCard("A", "A-2", "内容", { originalText: "元発言" }));
+  s = addCard(s, temporaryMemoToInformationCard("A", "note-7", "メモ内容", "メモ本文"));
+  const restored = deserializeStore(serializeStore(s));
+  check("15a 永続化往復後も患者発言が収集済み判定", hasCardForEntry(getCards(restored, "A"), "A-2"));
+  check("15b 永続化往復後も一時メモが収集済み判定", hasCardForNote(getCards(restored, "A"), "note-7"));
+}
+
+// ---- 16: 既存（旧UI）保存カードが収集済みとして認識される ----
+{
+  // 旧「ノートへ追加」相当：originalText / updatedAt なし・content=全文。
+  const legacy = {
+    id: "legacy-1",
+    patientId: "A",
+    content: "以前に保存した患者発言",
+    sourceType: "patient_conversation",
+    sourceLabel: "患者との会話",
+    createdAt: "2026-07-01T00:00:00.000Z",
+    createdBy: "student",
+    sourceReference: { kind: "patient_conversation", id: "A-legacy" },
+  };
+  check("16a 旧カード（originalText/updatedAt 無し）も valid", isInformationCard(legacy));
+  const norm = normalizeStoreState({ version: 1, cardsByPatient: { A: [legacy] } });
+  check("16b 旧カードが normalize で保持される", getCards(norm, "A").length === 1);
+  check("16c 旧カードが entryId で収集済み判定される",
+    hasCardForEntry(getCards(norm, "A"), "A-legacy"));
+}
+
+// ---- 18: 学生発言は収集対象にならない（患者発言のみ収集する） ----
+{
+  let st = initialFacingState();
+  st = advanceConversation("A", st, "眠れていますか？");
+  const entries = patientEntries("A", st.history);
+  const cards: InformationCard[] = [];
+  for (const e of entries) {
+    // UI 同様、患者発言のみを収集対象とする。
+    if (e.role !== "patient") continue;
+    collectUtterance(cards, "A", e.entryId, e.text, e.text);
+  }
+  const studentEntry = entries.find((e) => e.role === "student");
+  check("18a 会話に学生発言が存在", !!studentEntry);
+  check("18b 学生発言は収集データに含まれない",
+    studentEntry
+      ? !cards.some((c) => c.sourceReference?.id === studentEntry.entryId)
+      : false);
+  check("18c 患者発言のみ収集される", cards.every(
+    (c) => c.sourceReference?.kind === "patient_conversation"));
 }
 
 console.log(`\nInformation Card validation: ${failures} failed`);

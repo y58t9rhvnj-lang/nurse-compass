@@ -47,6 +47,7 @@ export interface InformationCard {
   note?: string;
   originalText?: string;
   observedAt?: string; // ISO 8601（学生観察や記録の発生時刻）
+  updatedAt?: string; // ISO 8601（収集後に content を修正した時刻。既存データには無くてよい）
 }
 
 // 生成入力：id / createdAt は省略可（未指定なら自動採番）。
@@ -116,7 +117,7 @@ export function validateInformationCard(value: unknown): CardValidationResult {
     errors.push("createdBy must be 'student' or 'system'");
   if (!isValidSourceReference(v.sourceReference))
     errors.push("sourceReference is invalid");
-  for (const k of ["category", "note", "originalText", "observedAt"] as const) {
+  for (const k of ["category", "note", "originalText", "observedAt", "updatedAt"] as const) {
     if (v[k] !== undefined && typeof v[k] !== "string")
       errors.push(`${k} must be a string when present`);
   }

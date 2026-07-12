@@ -1,19 +1,31 @@
-import { Database } from "lucide-react";
+"use client";
+
+import { Database, Pencil, Trash2 } from "lucide-react";
 import type { InformationCard } from "@/lib/information/informationCard";
-import {
-  formatDataTimestamp,
-  sourceTypeLabel,
-} from "@/lib/organization/informationDisplay";
+import { formatDataTimestamp } from "@/lib/organization/informationDisplay";
+
+// 元データ（originalText）が保存内容（content）と異なる場合だけ「元データあり」を控えめに示す。
+function hasDistinctOriginal(card: InformationCard): boolean {
+  return (
+    typeof card.originalText === "string" &&
+    card.originalText.trim() !== "" &&
+    card.originalText.trim() !== card.content.trim()
+  );
+}
 
 // 左ペイン「収集したデータ」。
-// Sprint11.1〜11.2 の Information Card store から、現在患者の保存済みデータを一覧表示する。
-// 学生向け表現は「データ」。本 Sprint では表示のみ（追加・分類・並び替え・削除・編集・ジャンプは行わない）。
+// 患者発言・一時メモから学生が明示的に収集した Information Card を一覧表示する。
+// 各データは「内容を修正」「収集解除」が可能。元データ全文は常時表示しない（一覧を圧迫しない）。
 export default function CollectedDataPane({
   cards,
   hydrated,
+  onEdit,
+  onRelease,
 }: {
   cards: InformationCard[];
   hydrated: boolean;
+  onEdit?: (card: InformationCard) => void;
+  onRelease?: (card: InformationCard) => void;
 }) {
   return (
     <section className="flex h-full min-h-0 flex-col">
@@ -36,7 +48,7 @@ export default function CollectedDataPane({
           <p className="rounded-2xl border border-dashed border-[#E0E0E5] bg-[#FAFAFC] px-4 py-6 text-center text-[12px] leading-relaxed text-[#8E8E93]">
             まだ収集したデータがありません。
             <br />
-            患者との会話やカルテから、必要だと思うデータを保存してください。
+            患者との会話や一時メモから、残しておきたいデータを収集してください。
           </p>
         ) : (
           <ul className="divide-y divide-[#EFEFF2]">
@@ -46,9 +58,6 @@ export default function CollectedDataPane({
                   {card.content}
                 </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#8E8E93]">
-                  <span className="inline-flex items-center rounded-full bg-[#F2F2F5] px-2 py-0.5 font-medium text-[#6E6E73]">
-                    {sourceTypeLabel(card.sourceType)}
-                  </span>
                   <span className="break-words">{card.sourceLabel}</span>
                   {(() => {
                     const ts = formatDataTimestamp(
@@ -56,7 +65,39 @@ export default function CollectedDataPane({
                     );
                     return ts ? <span>· {ts}</span> : null;
                   })()}
+                  {hasDistinctOriginal(card) && (
+                    <span className="inline-flex items-center rounded-full bg-[#F2F2F5] px-2 py-0.5 font-medium text-[#8E8E93]">
+                      元データあり
+                    </span>
+                  )}
                 </div>
+
+                {(onEdit || onRelease) && (
+                  <div className="mt-1.5 flex items-center gap-1">
+                    {onEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(card)}
+                        aria-label="この収集データの内容を修正する"
+                        className="inline-flex min-h-[44px] items-center gap-1 rounded-lg px-2 text-[11px] font-medium text-[#6E6E73] transition hover:bg-[#F2F2F5] hover:text-[#0A84FF]"
+                      >
+                        <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                        内容を修正
+                      </button>
+                    )}
+                    {onRelease && (
+                      <button
+                        type="button"
+                        onClick={() => onRelease(card)}
+                        aria-label="この収集データを収集解除する"
+                        className="inline-flex min-h-[44px] items-center gap-1 rounded-lg px-2 text-[11px] font-medium text-[#6E6E73] transition hover:bg-[#FFECEC] hover:text-[#FF3B30]"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                        収集解除
+                      </button>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

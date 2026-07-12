@@ -117,6 +117,7 @@ function CategoryBadge({ category }: { category: PrescriptionCategory }) {
     定期: "bg-[#EAF3FF] text-[#0A5FCC]",
     頓服: "bg-[#FFF2E1] text-[#C93400]",
     注射: "bg-[#F4EBFB] text-[#7B3FA0]",
+    臨時: "bg-[#E7F8ED] text-[#1E7A3D]",
   };
   return (
     <span

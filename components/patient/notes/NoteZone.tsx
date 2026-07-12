@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NotebookPen } from "lucide-react";
 import { useNotes } from "@/hooks/useNotes";
+import { useInformationCards } from "@/hooks/useInformationCards";
+import CollectionDialog from "@/components/collection/CollectionDialog";
+import type { Note } from "@/lib/notes";
 import NoteComposer from "./NoteComposer";
 import NoteList from "./NoteList";
 
@@ -20,6 +23,11 @@ export default function NoteZone({
 }) {
   const { notes, hydrated, addNote, updateNote, deleteNote } =
     useNotes(patientId);
+  // 一時メモの収集（収集データ store 由来で「収集済み」を判定する）。
+  const { isNoteCollected, collectTemporaryMemo } =
+    useInformationCards(patientId);
+  // 収集する対象の一時メモ（共通収集ダイアログで確認・確定する）。
+  const [collectTarget, setCollectTarget] = useState<Note | null>(null);
 
   const zoneRef = useRef<HTMLElement>(null);
   const token = pendingQuestion?.token;
@@ -56,13 +64,46 @@ export default function NoteZone({
           onClearContext={onClearPendingQuestion}
         />
         {hydrated ? (
-          <NoteList notes={notes} onUpdate={updateNote} onDelete={deleteNote} />
+          <NoteList
+            notes={notes}
+            onUpdate={updateNote}
+            onDelete={deleteNote}
+            isCollected={isNoteCollected}
+            onCollect={setCollectTarget}
+          />
         ) : (
           <p className="rounded-2xl border border-dashed border-[#E0E0E5] bg-[#FAFAFC] px-4 py-6 text-center text-[12px] text-[#AEAEB5]">
             メモを読み込み中…
           </p>
         )}
       </div>
+
+      {/* 共通収集ダイアログ（一時メモの収集） */}
+      <CollectionDialog
+        key={collectTarget?.id ?? "closed"}
+        open={collectTarget !== null}
+        mode="add"
+        originalText={collectTarget?.text ?? ""}
+        initialContent={collectTarget?.text ?? ""}
+        sourceLabel="一時メモ"
+        timestamp={
+          collectTarget
+            ? new Date(collectTarget.createdAt).toISOString()
+            : undefined
+        }
+        onCancel={() => setCollectTarget(null)}
+        onConfirm={(content) => {
+          if (collectTarget) {
+            collectTemporaryMemo(
+              collectTarget.id,
+              content,
+              collectTarget.text,
+              new Date(collectTarget.createdAt).toISOString(),
+            );
+          }
+          setCollectTarget(null);
+        }}
+      />
     </section>
   );
 }

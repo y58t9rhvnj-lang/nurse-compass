@@ -17,6 +17,7 @@ import {
   getObservation,
 } from "@/lib/patientFacingData";
 import { useInformationCards } from "@/hooks/useInformationCards";
+import CollectionDialog from "@/components/collection/CollectionDialog";
 import PatientPresence from "./PatientPresence";
 
 // Sprint10.8A: 中央は患者との対話に専念する。
@@ -39,10 +40,14 @@ export default function FacingPatient({
   const observation = getObservation(patient.id);
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
-  // 「追加済み」は Information Card store から導出（UI ローカル state では管理しない）。
-  const { hydrated, isEntryAdded, addPatientUtterance } = useInformationCards(
-    patient.id,
-  );
+  // 「収集済み」は収集データ（Information Card）store から導出（UI ローカル state では管理しない）。
+  const { hydrated, isEntryCollected, collectPatientUtterance } =
+    useInformationCards(patient.id);
+  // 収集する対象の患者発言（共通収集ダイアログで確認・確定する）。
+  const [collectTarget, setCollectTarget] = useState<{
+    entryId: string;
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -117,9 +122,11 @@ export default function FacingPatient({
                 <li key={entryId} className="flex flex-col items-start">
                   <Bubble role="patient" name={patient.name} text={item.text} />
                   {hydrated && (
-                    <AddToNoteButton
-                      added={isEntryAdded(entryId)}
-                      onAdd={() => addPatientUtterance(entryId, item.text)}
+                    <CollectButton
+                      collected={isEntryCollected(entryId)}
+                      onCollect={() =>
+                        setCollectTarget({ entryId, text: item.text })
+                      }
                     />
                   )}
                 </li>
@@ -155,39 +162,60 @@ export default function FacingPatient({
           </button>
         </form>
       </div>
+
+      {/* 共通収集ダイアログ（患者発言の収集） */}
+      <CollectionDialog
+        key={collectTarget?.entryId ?? "closed"}
+        open={collectTarget !== null}
+        mode="add"
+        originalText={collectTarget?.text ?? ""}
+        initialContent={collectTarget?.text ?? ""}
+        sourceLabel="患者との会話"
+        onCancel={() => setCollectTarget(null)}
+        onConfirm={(content) => {
+          if (collectTarget) {
+            collectPatientUtterance(
+              collectTarget.entryId,
+              content,
+              collectTarget.text,
+            );
+          }
+          setCollectTarget(null);
+        }}
+      />
     </div>
   );
 }
 
-// 患者発言を Information Card として保存する控えめな操作（吹き出し下・左寄せ）。
-// 追加済みは store 由来で、リロード・カルテ往復後も復元される。色だけでなく文字でも状態を示す。
-function AddToNoteButton({
-  added,
-  onAdd,
+// 患者発言を収集データとして収集する控えめな操作（吹き出し下・左寄せ）。
+// 収集済みは store 由来で、リロード・カルテ往復後も復元される。色だけでなく文字でも状態を示す。
+function CollectButton({
+  collected,
+  onCollect,
 }: {
-  added: boolean;
-  onAdd: () => void;
+  collected: boolean;
+  onCollect: () => void;
 }) {
-  if (added) {
+  if (collected) {
     return (
       <span
         className="mt-0.5 -mb-1 inline-flex min-h-[44px] items-center gap-1 px-1 text-[11px] font-semibold text-[#34C759]"
-        aria-label="この発言はノートへ追加済みです"
+        aria-label="この発言は収集済みです"
       >
         <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
-        追加済み
+        収集済み
       </span>
     );
   }
   return (
     <button
       type="button"
-      onClick={onAdd}
-      aria-label="この患者の発言をノートへ追加する"
+      onClick={onCollect}
+      aria-label="この患者の発言を収集する"
       className="mt-0.5 -mb-1 inline-flex min-h-[44px] items-center gap-1 px-1 text-[11px] font-medium text-[#8E8E93] transition hover:text-[#0A84FF]"
     >
       <Plus className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
-      ノートへ追加
+      収集する
     </button>
   );
 }

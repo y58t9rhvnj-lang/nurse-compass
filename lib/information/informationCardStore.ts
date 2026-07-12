@@ -172,19 +172,43 @@ export function addCardPersistent(card: InformationCard): InformationCard {
   return card;
 }
 
-// ===== 重複判定（会話エントリID基準） =====
+// ===== 重複判定（出所参照 kind + id 基準） =====
+
+// 出所参照（sourceReference）の kind と id が一致するカードを探す。
+// cards は患者別配列のため、patientId の分離は呼び出し側（患者別スナップショット）で担保される。
+// 同じ本文でも参照ID（会話エントリID / Note ID）が違えば別カードとして扱う。
+export function findCardBySource(
+  cards: InformationCard[],
+  kind: string,
+  id: string,
+): InformationCard | undefined {
+  return cards.find(
+    (c) => c.sourceReference?.kind === kind && c.sourceReference.id === id,
+  );
+}
+
+export function hasCardForSource(
+  cards: InformationCard[],
+  kind: string,
+  id: string,
+): boolean {
+  return findCardBySource(cards, kind, id) !== undefined;
+}
 
 // 患者発言カードの重複は、本文ではなく sourceReference の会話エントリIDで判定する。
-// 同じ内容でも別エントリ（別ID）なら別カードとして追加できる。
 export function hasCardForEntry(
   cards: InformationCard[],
   entryId: string,
 ): boolean {
-  return cards.some(
-    (c) =>
-      c.sourceReference?.kind === "patient_conversation" &&
-      c.sourceReference.id === entryId,
-  );
+  return hasCardForSource(cards, "patient_conversation", entryId);
+}
+
+// 一時メモカードの重複は、Note ID で判定する。
+export function hasCardForNote(
+  cards: InformationCard[],
+  noteId: string,
+): boolean {
+  return hasCardForSource(cards, "student_note", noteId);
 }
 
 // ===== React 購読用リアクティブ層（useSyncExternalStore） =====
@@ -252,6 +276,28 @@ export function updateCardPersistent(
 
 export function deleteCardPersistent(patientId: string, id: string): void {
   saveStore(deleteCard(loadStore(), patientId, id));
+}
+
+// 収集データの content 等を更新し、キャッシュ更新＋購読者へ通知する（リアクティブ）。
+// id / patientId は不変。updatedAt を付与して「収集後に整えた」ことを保持する。
+export function updateCardForPatient(
+  patientId: string,
+  id: string,
+  patch: Partial<Omit<InformationCard, "id" | "patientId">>,
+): void {
+  const next = updateCard(loadStore(), patientId, id, patch);
+  saveStore(next);
+  cache.set(patientId, getCards(next, patientId));
+  emit();
+}
+
+// 収集解除：収集データ（カード）を store から取り除き、購読者へ通知する。
+// 元の患者発言・一時メモ（Note）は別ストアのため、ここでは一切削除しない。
+export function removeCardForPatient(patientId: string, id: string): void {
+  const next = deleteCard(loadStore(), patientId, id);
+  saveStore(next);
+  cache.set(patientId, getCards(next, patientId));
+  emit();
 }
 
 export function getCardsPersistent(patientId: string): InformationCard[] {
