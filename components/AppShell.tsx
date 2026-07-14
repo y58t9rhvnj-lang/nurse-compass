@@ -16,10 +16,7 @@ import NoteZone from "@/components/patient/notes/NoteZone";
 import ClinicalThinkingWorkspace from "@/components/thinking-workspace/ClinicalThinkingWorkspace";
 import type { ChartTabId } from "@/lib/chartTabs";
 import type { ChartFocus } from "@/lib/chartNav";
-import {
-  type FacingConvoState,
-  initialFacingState,
-} from "@/lib/patientFacingData";
+import { useFacingConvo } from "@/hooks/useFacingConvo";
 import { DEFAULT_PATIENT_ID, PATIENTS } from "@/lib/wardData";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 
@@ -43,15 +40,12 @@ export default function AppShell() {
   const [chartInitialFocus, setChartInitialFocus] = useState<
     ChartFocus | undefined
   >(undefined);
-  // 「患者と向き合う」会話状態を患者別に保持。カルテ往復しても維持し、患者ごとに独立。
-  const [facingConvos, setFacingConvos] = useState<
-    Record<string, FacingConvoState>
-  >({});
 
   const selectedPatient = PATIENTS[selectedId];
-  const facingState = facingConvos[selectedId] ?? initialFacingState();
-  const setFacingState = (next: FacingConvoState) =>
-    setFacingConvos((prev) => ({ ...prev, [selectedId]: next }));
+  // 患者会話（Compass Coach の状態を含む）は端末内（localStorage）へ永続化。
+  // 患者ごとに独立し、同じ端末・同じブラウザで再訪すると「続きから」復元される。
+  const { state: facingState, setState: setFacingState } =
+    useFacingConvo(selectedId);
 
   const goPatientTop = () => {
     setNotice(null);

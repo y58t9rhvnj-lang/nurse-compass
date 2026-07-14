@@ -125,11 +125,16 @@ npx tsx scripts/validate-clinical-timeline.ts
 
 | データ | 保存先 | localStorage キー |
 | --- | --- | --- |
+| 患者会話履歴（Compass Coach の状態を含む） | localStorage | `compass:v1:patient-conversation:<患者ID>` |
 | 気づきメモ | localStorage | `nc:notes:<患者ID>` |
 | 課題シートの既読状態 | localStorage | `compass:firstAssignment:<患者ID>` |
 | 情報カード（V2・非表示） | localStorage | `nc:information-cards` |
 | 情報整理（V2・非表示） | localStorage | `nc:organized-information` |
-| 患者会話・画面状態 | React state（更新で消える） | — |
+| 画面遷移・下書き等の一時状態 | React state（更新で消える） | — |
+
+患者会話は、同じ端末・同じブラウザでページを再読み込み・再訪問すると復元されます
+（バージョン付きで保存し、壊れた/旧形式データは安全に初期状態へ戻します）。
+Compass Coach は会話状態から表示が導出されるため、専用の保存領域は持ちません。
 
 ### 学生データの初期化方法
 
