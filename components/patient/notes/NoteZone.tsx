@@ -5,9 +5,13 @@ import { NotebookPen } from "lucide-react";
 import { useNotes } from "@/hooks/useNotes";
 import { useInformationCards } from "@/hooks/useInformationCards";
 import CollectionDialog from "@/components/collection/CollectionDialog";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 import type { Note } from "@/lib/notes";
 import NoteComposer from "./NoteComposer";
 import NoteList from "./NoteList";
+
+// Version1（第1回講義）では一時メモの収集操作を学生画面から完全に非表示にする。
+const COLLECTION_ENABLED = isFeatureEnabled("collection");
 
 // 患者トップ中央の第3ゾーン「気づきメモ」。
 // localStorage 由来のため、hydrated までは一覧をプレースホルダにしてハイドレーション不整合を避ける。
@@ -68,8 +72,8 @@ export default function NoteZone({
             notes={notes}
             onUpdate={updateNote}
             onDelete={deleteNote}
-            isCollected={isNoteCollected}
-            onCollect={setCollectTarget}
+            isCollected={COLLECTION_ENABLED ? isNoteCollected : undefined}
+            onCollect={COLLECTION_ENABLED ? setCollectTarget : undefined}
           />
         ) : (
           <p className="rounded-2xl border border-dashed border-[#E0E0E5] bg-[#FAFAFC] px-4 py-6 text-center text-[12px] text-[#AEAEB5]">
@@ -78,32 +82,34 @@ export default function NoteZone({
         )}
       </div>
 
-      {/* 共通収集ダイアログ（一時メモの収集） */}
-      <CollectionDialog
-        key={collectTarget?.id ?? "closed"}
-        open={collectTarget !== null}
-        mode="add"
-        originalText={collectTarget?.text ?? ""}
-        initialContent={collectTarget?.text ?? ""}
-        sourceLabel="一時メモ"
-        timestamp={
-          collectTarget
-            ? new Date(collectTarget.createdAt).toISOString()
-            : undefined
-        }
-        onCancel={() => setCollectTarget(null)}
-        onConfirm={(content) => {
-          if (collectTarget) {
-            collectTemporaryMemo(
-              collectTarget.id,
-              content,
-              collectTarget.text,
-              new Date(collectTarget.createdAt).toISOString(),
-            );
+      {/* 共通収集ダイアログ（一時メモの収集）。Version1 では非表示。 */}
+      {COLLECTION_ENABLED && (
+        <CollectionDialog
+          key={collectTarget?.id ?? "closed"}
+          open={collectTarget !== null}
+          mode="add"
+          originalText={collectTarget?.text ?? ""}
+          initialContent={collectTarget?.text ?? ""}
+          sourceLabel="一時メモ"
+          timestamp={
+            collectTarget
+              ? new Date(collectTarget.createdAt).toISOString()
+              : undefined
           }
-          setCollectTarget(null);
-        }}
-      />
+          onCancel={() => setCollectTarget(null)}
+          onConfirm={(content) => {
+            if (collectTarget) {
+              collectTemporaryMemo(
+                collectTarget.id,
+                content,
+                collectTarget.text,
+                new Date(collectTarget.createdAt).toISOString(),
+              );
+            }
+            setCollectTarget(null);
+          }}
+        />
+      )}
     </section>
   );
 }

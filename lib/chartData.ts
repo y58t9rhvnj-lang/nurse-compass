@@ -2,8 +2,25 @@
 // 受け持ち3名（A・E・F）を詳細記述。他患者は wardData から最小データを生成。
 
 import { PATIENTS, type Patient } from "./wardData";
+import { PATIENT_A_PHYSICIAN_RECORDS } from "./chart/patientAPhysicianRecords";
+import {
+  PATIENT_A_NURSING_CLINICAL_RECORDS,
+  PATIENT_A_NURSING_RECORDS,
+} from "./chart/patientANursingRecords";
+import { PATIENT_A_NURSING_PLAN } from "./chart/patientANursingPlan";
+import { PATIENT_A_NURSING_SUMMARIES } from "./chart/patientANursingSummaries";
+import { PATIENT_A_FORM_DOCUMENTS } from "./chart/patientADocuments";
+import type { NursingPlanItem, NursingSummaryRecord } from "./nursingChart";
 
 // ── 型定義 ──────────────────────────────────────────
+
+// 医師記録の SOAP 構造（POS 内の個別記載用）。
+export interface PhysicianSoap {
+  s?: string;
+  o?: string;
+  a?: string;
+  p?: string;
+}
 
 export interface ClinicalRecord {
   id?: string; // 一意な記録ID（外部導線から特定の1件へ厳密にリンクするため）
@@ -12,8 +29,19 @@ export interface ClinicalRecord {
   profession: string;
   author: string;
   content: string;
+  // Sprint A-3.1: 医師記録の POS 番号（安定した問題リスト #1〜#9）。
+  problems?: number[];
+  // SOAP 構造（表示用。content は検索・後方互換のため併記）。
+  soap?: PhysicianSoap;
   medicationChangeId?: string; // 対応する処方オーダーと共有するID（処方開始・変更・中止に関連する記録）
+  orderId?: string; // 検査・処置オーダーと共有するID（結果レビュー記録と対）
   nursingRecordId?: string; // フローシート特記事項と共有するID（大元の看護記録）
+  // 看護記録の形式（診療録タブ内の看護エントリ用）
+  nursingFormat?: NursingRecordFormat;
+  nursingFocus?: string;
+  nursingObservation?: string;
+  nursingIntervention?: string;
+  nursingEvaluation?: string;
   restrictionEventId?: string; // 行動制限イベントの原記録を束ねる共通ID
   restrictionType?: string; // 隔離 / 身体拘束
   restrictionPhase?: "開始" | "観察" | "再評価" | "解除"; // フェーズ（マーク導出に使用）
@@ -49,13 +77,37 @@ export interface EpisodeItem {
   description: string;
 }
 
+// 看護記録の記載形式（状況に応じて使い分け）。
+export type NursingRecordFormat = "soap" | "pos" | "chronological" | "narrative";
+
 export interface NursingRecord {
+  id?: string;
   date: string;
   time: string;
   author: string;
-  observation: string;
-  intervention: string;
-  evaluation: string;
+  /** 推奨: type。format / narrative は後方互換 */
+  type?: "soap" | "pos" | "chronological";
+  format?: NursingRecordFormat;
+  nursingRecordId?: string;
+  problemNumber?: string; // 看護問題番号 例: P2
+  focus?: string;
+  // SOAP（S/O/A/P）
+  s?: string;
+  o?: string;
+  a?: string;
+  p?: string;
+  /** 旧SOAP（観察・対応・評価）— 表示時に S/O/A/P へフォールバック */
+  observation?: string;
+  intervention?: string;
+  evaluation?: string;
+  // POS
+  body?: string;
+  course?: string;
+  posEvaluation?: string;
+  posPlan?: string;
+  // 経時
+  narrative?: string;
+  content?: string;
 }
 
 export interface OTRecord {
@@ -166,6 +218,8 @@ export interface RpGroup {
 
 export type PrescriptionCategory = "定期" | "頓服" | "注射" | "臨時";
 
+export type PrescriptionStatus = "active" | "discontinued" | "completed";
+
 export interface PrescriptionOrder {
   datetime: string; // 例: 2025/07/09 09:32
   doctor: string; // 例: 精神科 鈴木 一郎 医師
@@ -174,6 +228,8 @@ export interface PrescriptionOrder {
   comment?: string; // コメント（眠気に注意 等）
   groups: RpGroup[];
   medicationChangeId?: string; // 対応する診療録記録と共有するID
+  status?: PrescriptionStatus; // 省略時は active とみなす
+  endDate?: string; // 中止・完了日（臨時処方など）
 }
 
 export interface PrescriptionHistoryItem {
@@ -206,12 +262,59 @@ export interface ClinicalDocument {
   sections: ClinicalDocumentSection[];
 }
 
+// 記載済みのA4帳票（入院診療計画書・各種アセスメントシート）。
+// 電子カルテの文書フォルダに保存された「PDF文書」として一覧・閲覧するためのデータ。
+export type FormDocStatus = "確定" | "評価済" | "説明済";
+
+export interface FormFieldItem {
+  label: string;
+  value: string;
+}
+
+export interface FormTable {
+  headers: string[];
+  rows: string[][];
+  // 列ごとの寄せ（省略時は左寄せ）。チェック欄・点数欄は "center"。
+  align?: ("left" | "center")[];
+  caption?: string;
+}
+
+// 帳票本文を構成するブロック。表・記述欄・チェック/点数表などを表現。
+export type FormBlock =
+  | { kind: "fields"; columns?: 1 | 2 | 3; items: FormFieldItem[] }
+  | { kind: "table"; table: FormTable }
+  | { kind: "text"; label?: string; body: string }
+  | { kind: "list"; label?: string; items: string[] };
+
+export interface FormSection {
+  title: string;
+  blocks: FormBlock[];
+}
+
+export interface FormDocument {
+  id: string;
+  documentName: string; // 文書名（帳票名）
+  documentType: string; // 文書種別（診療計画 / アセスメント 等）
+  department: string; // 作成部署
+  author: string; // 作成者
+  createdDate: string; // 作成日
+  evaluationDate: string; // 評価日
+  pageCount: number; // ページ数
+  status: FormDocStatus; // 状態（確定 / 評価済 / 説明済）
+  hospitalName: string; // 架空病院名（帳票ヘッダ用）
+  headerFields: FormFieldItem[]; // 患者基本情報欄
+  sections: FormSection[]; // 本文セクション
+  signature: FormFieldItem[]; // 署名・確認欄
+}
+
 export interface ChartData {
   clinicalRecords: ClinicalRecord[];
   patientInfo: PatientInfoFields;
   lifeHistory: LifeHistoryItem[];
   episodes: EpisodeItem[];
   nursingRecords: NursingRecord[];
+  nursingPlanItems: NursingPlanItem[];
+  nursingSummaries: NursingSummaryRecord[];
   otRecords: OTRecord[];
   pswRecords: PSWRecord[];
   flowsheet: FlowsheetDay[];
@@ -220,6 +323,7 @@ export interface ChartData {
   prescriptionHistory: PrescriptionHistoryItem[];
   summaries: SummaryRecord[];
   clinicalDocuments: ClinicalDocument[];
+  formDocuments: FormDocument[];
 }
 
 // バイタル文字列（例: "T36.5 P72 R16 BP118/72"）を数値へ分解。グラフ用。
@@ -249,60 +353,9 @@ export function parseVitals(vitals: string): ParsedVitals {
 
 const CHART_A: ChartData = {
   clinicalRecords: [
-    {
-      id: "clinical-a-conference-20250707",
-      date: "2025/07/07",
-      time: "14:00",
-      profession: "医師",
-      author: "鈴木 一郎 医師",
-      content:
-        "【精神科 経過記録】多職種カンファレンス。症状は概ね安定。残遺する幻聴と入眠困難、日中活動の低下が継続課題。最近はSSTへの参加が定着し、体重管理も進行。服薬の自己管理には関心が芽生えつつある。退院支援としてグループホーム等の地域生活を段階的に検討する方針を共有。GAF 50。",
-    },
-    {
-      id: "clinical-a-problemlist",
-      date: "2025/07/01",
-      time: "10:00",
-      profession: "医師",
-      author: "鈴木 一郎 医師",
-      content:
-        "【問題リスト（POS）】#1 統合失調症（維持療法中）／#2 残遺する幻聴（夜間に「だめな人間だ」等）／#3 不眠（入眠困難、幻聴と関連）／#4 過体重・以前の脂質異常（改善傾向）／#5 便秘（3〜5日間隔）／#6 日中活動の低下（OT辞退が多い）／#7 服薬自己管理の困難（必要性は理解、自信に乏しい）／#8 退院・地域生活への不安。以上を継続評価する。",
-    },
-    {
-      id: "clinical-a-sleep-voices",
-      date: "2025/07/06",
-      time: "09:20",
-      profession: "医師",
-      author: "鈴木 一郎 医師",
-      content:
-        "【精神科 経過記録】#2#3 夜間に幻聴が強まり入眠困難が続く。「だめな人間だ」「怠け者」といった声を自覚。ラジオを聴いて対処し、不眠時は頓用睡眠薬（ブロチゾラム）を使用。翌朝に持ち越しの眠気と起床の遅れあり。日中活動の低下と関連。頓用は連用を避け経過観察とする。",
-    },
-    {
-      date: "2025/07/06",
-      time: "07:00",
-      profession: "看護",
-      author: "看護師 佐々木",
-      nursingRecordId: "nursing-a-night-voices",
-      content:
-        "【看護記録】夜間、幻聴により入眠困難。「だめな人間だ、と聞こえる」と表出。ラジオを小音で流して対処。0時過ぎに不眠時ブロチゾラムを使用し2時頃入眠。翌朝は促しで起床、やや眠気が残る。",
-    },
-    {
-      date: "2025/07/05",
-      time: "15:40",
-      profession: "看護",
-      author: "田中 花子",
-      nursingRecordId: "nursing-a-courtyard-i",
-      content:
-        "【看護記録】午後、同室のIさんに誘われ中庭で過ごす。菓子を一つずつ分け合い、穏やかに会話。Aさんが自分から人と過ごす数少ない場面。「Iさんといると落ち着く」と話す。",
-    },
-    {
-      date: "2025/07/04",
-      time: "11:10",
-      profession: "看護",
-      author: "田中 花子",
-      nursingRecordId: "nursing-a-med-interest",
-      content:
-        "【看護記録】Iさんが自分で服薬を管理している様子を見て、「Iさんがやっているなら自分にもできるかな」「うらやましいなぁ」と発言。服薬の必要性は理解しているが自己管理には自信がない様子。関心の芽生えとして共有。",
-    },
+    ...PATIENT_A_PHYSICIAN_RECORDS,
+    ...PATIENT_A_NURSING_CLINICAL_RECORDS,
+    // 薬剤・栄養・PSW
     {
       id: "clinical-a-med-selfmgmt",
       date: "2025/07/04",
@@ -314,51 +367,6 @@ const CHART_A: ChartData = {
         "【服薬指導】定期薬（ロフラゼプ酸エチル・リスペリドン・クエチアピン・ゾピクロン）の効果と副作用を再説明。飲み忘れなし。同室者の様子から自己管理に関心を示す。段階的な服薬自己管理（まず就寝前薬から）を医師・看護と検討する方針。",
     },
     {
-      id: "clinical-a-cold-20250703",
-      date: "2025/07/03",
-      time: "13:20",
-      profession: "医師",
-      author: "鈴木 一郎 医師",
-      medicationChangeId: "rx-a-20250703-kanbou",
-      content:
-        "【精神科 経過記録】咽頭痛・鼻汁の訴えで診察。体温37.2℃の微熱。咽頭発赤軽度、呼吸音清、肺炎を疑う所見なし。感冒として対症療法（カルボシステイン・トラネキサム酸、発熱時アセトアミノフェン）を臨時処方。数日で軽快を見込み、悪化時は再診とする。",
-    },
-    {
-      date: "2025/07/03",
-      time: "10:00",
-      profession: "看護",
-      author: "看護師 佐々木",
-      nursingRecordId: "nursing-a-cold",
-      content:
-        "【看護記録】朝より咽頭痛と鼻汁。微熱あり。水分摂取を促す。食事はやや減量したが摂取可能。診察の結果、感冒として臨時処方開始。安静と水分補給を説明。",
-    },
-    {
-      date: "2025/07/02",
-      time: "16:10",
-      profession: "看護",
-      author: "田中 花子",
-      nursingRecordId: "nursing-a-uncle",
-      content:
-        "【看護記録】面会の話題から、叔父の面会が最近減っていることに触れる。「嫌われてしまったのかな」と沈んだ表情。電話で確認したかを尋ねると「していない」との返答。自己評価の低下がうかがえ、傾聴した。",
-    },
-    {
-      date: "2025/07/01",
-      time: "11:30",
-      profession: "看護",
-      author: "田中 花子",
-      nursingRecordId: "nursing-a-20250701-weight",
-      content:
-        "【看護記録】体重測定70.2kg（前回より微減）。間食は一つ・非甘味飲料を継続できている。以前の脂質異常も改善傾向。本人は「少し軽くなった」と前向きな反応。",
-    },
-    {
-      date: "2025/06/25",
-      time: "10:30",
-      profession: "医師",
-      author: "鈴木 一郎 医師",
-      content:
-        "【精神科 経過記録】症状は概ね安定。残遺する幻聴は持続するが日中の被害的訴えは目立たない。OTは気が向かず辞退する日が多いが、SSTには継続参加。退院に向けた自己管理能力の向上を目標に支援を継続する。",
-    },
-    {
       date: "2025/06/20",
       time: "11:00",
       profession: "栄養",
@@ -367,63 +375,12 @@ const CHART_A: ChartData = {
         "【栄養指導】間食は一つ・非甘味飲料の継続を確認。体重は約70kg、腹囲約85cmまで減少。以前の脂質異常は改善。BMIは過体重域が続くため、間食制限と活動量確保の継続を助言。",
     },
     {
-      id: "clinical-a-orders-20250620",
-      date: "2025/06/20",
-      time: "09:40",
-      profession: "医師",
-      author: "鈴木 一郎 医師",
-      content:
-        "【指示記録】定期採血（CBC・生化学・脂質・HbA1c・肝腎機能）をオーダー。抗精神病薬使用中のため心電図（QT評価）も併せて依頼。体重・腹囲の定期測定を継続する。",
-    },
-    {
       date: "2025/06/15",
       time: "13:30",
       profession: "PSW",
       author: "MSW 伊藤",
       content:
         "【ソーシャルワーク記録】退院後の生活の場としてグループホームやアパート生活の情報提供。キーパーソンの叔父は高齢で協力は限定的。障害年金と生活保護の併用を含め、経済・住居面の支援を継続検討。",
-    },
-    {
-      id: "clinical-a-discharge",
-      date: "2025/06/10",
-      time: "10:20",
-      profession: "医師",
-      author: "鈴木 一郎 医師",
-      content:
-        "【精神科 経過記録】#8 退院・地域生活について本人と面談。「ここにいる方が安心」との発言。単なる退院拒否ではなく、地域生活への自信のなさ・不安、入院環境の安心感が背景にある。焦らず段階的に外の生活のイメージづくりを進める。",
-    },
-    {
-      date: "2023/07/10",
-      time: "11:00",
-      profession: "医師",
-      author: "鈴木 一郎 医師",
-      content:
-        "【精神科 経過記録】症状が安定し、病識も一定程度得られている。本人の同意のもと、医療保護入院から任意入院へ移行する。退院先は未定であり、今後、地域生活に向けた支援を進める方針。",
-    },
-    {
-      date: "2021/09/15",
-      time: "10:00",
-      profession: "医師",
-      author: "鈴木 一郎 医師",
-      content:
-        "【精神科 指示記録】就寝前のクロルプロマジンで過鎮静と起床困難がみられたため中止し、就寝前をクエチアピン50mgへ変更する。日中の眠気と朝の遅寝の改善を期待し経過をみる。",
-    },
-    {
-      id: "clinical-a-admission",
-      date: "2021/06/18",
-      time: "14:00",
-      profession: "医師",
-      author: "鈴木 一郎 医師",
-      content:
-        "【精神科 入院時記録】5回目の入院。幻覚妄想の増悪と生活の破綻、自宅退去により住居を喪失。自傷他害の防止と安定化を目的に医療保護入院とする。保護的環境で薬物療法を開始し、まず生活の立て直しを図る。入院時処方開始。",
-    },
-    {
-      date: "2021/06/19",
-      time: "10:30",
-      profession: "看護",
-      author: "田中 花子",
-      content:
-        "【看護記録】入院時アセスメント実施。表情硬く、被害的な訴えあり。セルフケアは促しを要する。睡眠・食事・保清の状況を継続観察とする。",
     },
   ],
   patientInfo: {
@@ -490,248 +447,9 @@ const CHART_A: ChartData = {
     { date: "2000/12/15", type: "退院", facility: "本院", description: "初回入院から退院。デイケア通所を開始。" },
     { date: "2000/05/22", type: "入院", facility: "本院 精神科", description: "初回入院（22歳）。統合失調症と診断。" },
   ],
-  nursingRecords: [
-    {
-      date: "2025/07/09",
-      time: "16:00",
-      author: "田中 花子",
-      observation: "午後、Iさんに誘われ中庭で過ごす。表情は穏やか。「Iさんといると落ち着く」と話す。",
-      intervention: "見守り。無理のない範囲での交流を尊重。",
-      evaluation: "自発的な対人交流の場面。強みとして継続支援。",
-    },
-    {
-      date: "2025/07/09",
-      time: "10:00",
-      author: "田中 花子",
-      observation: "午前のOTに参加。革細工に取り組む。集中は続くが「疲れる」と早めに切り上げる。",
-      intervention: "参加を肯定し、活動量は本人のペースに合わせる。",
-      evaluation: "OT参加は良好。日により気が向かない日もあり継続観察。",
-    },
-    {
-      date: "2025/07/09",
-      time: "07:30",
-      author: "看護師 佐々木",
-      observation: "23:30入眠、6:30起床。中途覚醒なし。朝食全量摂取。",
-      intervention: "起床時に体調確認。",
-      evaluation: "睡眠は良好な日。日々の変動を継続観察。",
-    },
-    {
-      date: "2025/07/08",
-      time: "09:30",
-      author: "田中 花子",
-      observation: "SSTに参加。ロールプレイでは緊張するが最後まで参加。「少しは言えた」と発言。",
-      intervention: "参加できたことを一緒に振り返り肯定。",
-      evaluation: "SST参加は定着傾向。自己効力感の高まりを支援。",
-    },
-    {
-      date: "2025/07/08",
-      time: "07:40",
-      author: "看護師 佐々木",
-      observation: "入浴日。促しで入浴・洗濯を実施。歯みがきは声かけで実施。",
-      intervention: "セルフケアは促しを継続。できた点を伝える。",
-      evaluation: "促しで保清は保たれる。自発性の向上が課題。",
-    },
-    {
-      date: "2025/07/07",
-      time: "08:30",
-      author: "看護師 佐々木",
-      observation: "前夜の頓用睡眠薬使用の影響か、8時頃までやや遅く起床。眠気と身体の重さを訴える。",
-      intervention: "日中の傾眠に注意し、無理のない範囲で活動を促す。",
-      evaluation: "翌朝への持ち越しあり。頓用の連用回避を継続。",
-    },
-    {
-      date: "2025/07/07",
-      time: "14:00",
-      author: "田中 花子",
-      observation: "OTは「気が向かない」と辞退。室内でラジオを聴いて過ごす。感冒症状は軽快傾向。",
-      intervention: "辞退を尊重しつつ、SSTなど参加できる活動を確認。",
-      evaluation: "活動の低下は残るが強要はしない。関心のある活動を糸口に支援。",
-    },
-    {
-      date: "2025/07/06",
-      time: "07:00",
-      author: "看護師 佐々木",
-      observation: "夜間、幻聴により入眠困難。「だめな人間だ、と聞こえる」と表出。ラジオで対処し0時過ぎに頓用薬使用、2時頃入眠。",
-      intervention: "傾聴し安心できる環境を整える。頓用薬の使用を確認。",
-      evaluation: "幻聴と不眠の関連が明確。翌朝の眠気に留意。",
-    },
-    {
-      date: "2025/07/05",
-      time: "15:40",
-      author: "田中 花子",
-      observation: "午後、Iさんと中庭で菓子を分け合い過ごす。会話は穏やか。",
-      intervention: "自然な交流を見守る。",
-      evaluation: "安心できる関係の中での交流。回復の資源として支援。",
-    },
-    {
-      date: "2025/07/05",
-      time: "10:30",
-      author: "田中 花子",
-      observation: "昼食全量摂取。間食は一つ・非甘味の飲み物を選択できている。",
-      intervention: "本人の取り組みを肯定。",
-      evaluation: "食事・間食管理は良好に継続。",
-    },
-    {
-      date: "2025/07/04",
-      time: "11:10",
-      author: "田中 花子",
-      observation: "Iさんの服薬自己管理を見て「自分にもできるかな」「うらやましい」と発言。",
-      intervention: "関心を受け止め、段階的な自己管理の可能性を医師・薬剤師と共有。",
-      evaluation: "服薬自己管理への動機づけの芽。強みとして関わる。",
-    },
-    {
-      date: "2025/07/04",
-      time: "07:30",
-      author: "看護師 佐々木",
-      observation: "3日ぶりに排便あり（前日センノシド使用）。腹部症状の訴えなし。",
-      intervention: "排便間隔を観察。水分・活動を促す。",
-      evaluation: "便秘は3〜5日間隔。頓用で対応可能。",
-    },
-    {
-      date: "2025/07/03",
-      time: "10:00",
-      author: "看護師 佐々木",
-      observation: "咽頭痛・鼻汁と微熱(37.2℃)。食事はやや減量したが摂取可能。",
-      intervention: "水分補給・安静を促す。診察につなぐ。臨時処方を確認。",
-      evaluation: "感冒症状。悪化なく経過観察。",
-    },
-    {
-      date: "2025/07/02",
-      time: "16:10",
-      author: "田中 花子",
-      observation: "叔父の面会が減っていることに触れ「嫌われたのかな」と沈む。電話確認はしていない。",
-      intervention: "気持ちを傾聴。事実確認を急かさず受け止める。",
-      evaluation: "対人関係と自己評価の低下が関連。継続的な傾聴が必要。",
-    },
-    {
-      date: "2025/07/02",
-      time: "07:30",
-      author: "看護師 佐々木",
-      observation: "前夜、幻聴で入眠がやや遅れる。頓用薬は使用せず経過。朝食全量。",
-      intervention: "睡眠状況を確認。日中の活動を促す。",
-      evaluation: "軽度の入眠困難。頓用なしで経過した日。",
-    },
-    {
-      date: "2025/07/01",
-      time: "11:30",
-      author: "田中 花子",
-      observation: "体重測定70.2kg。「少し軽くなった」と前向きな反応。間食制限を継続。",
-      intervention: "体重減少を一緒に確認し肯定。",
-      evaluation: "体重管理は順調。動機づけを維持。",
-    },
-    {
-      date: "2025/07/01",
-      time: "09:30",
-      author: "田中 花子",
-      observation: "SSTに参加。挨拶の練習に取り組む。",
-      intervention: "参加を肯定。",
-      evaluation: "SST参加が定着。",
-    },
-    {
-      date: "2025/06/30",
-      time: "10:00",
-      author: "看護師 佐々木",
-      observation: "洗濯を実施。入浴後にため込んでいた下着をまとめて洗う様子。",
-      intervention: "洗濯物のため込みに気づき、こまめに行えるよう声かけ。",
-      evaluation: "保清行動は促しで維持。生活動作の自立度を継続評価。",
-    },
-    {
-      date: "2025/06/29",
-      time: "08:30",
-      author: "看護師 佐々木",
-      observation: "前夜の頓用薬の影響で午前は臥床がち。午後はIさんと中庭へ。",
-      intervention: "日中の活動を無理なく促す。",
-      evaluation: "睡眠薬使用翌日の活動低下。交流はできている。",
-    },
-    {
-      date: "2025/06/28",
-      time: "07:00",
-      author: "看護師 佐々木",
-      observation: "夜間、幻聴で入眠困難。0時過ぎに頓用ブロチゾラム使用。",
-      intervention: "ラジオでの対処を確認。頓用薬の使用を記録。",
-      evaluation: "幻聴による不眠。頓用で対応。",
-    },
-    {
-      date: "2025/06/27",
-      time: "09:30",
-      author: "田中 花子",
-      observation: "SST参加。入浴・洗濯も促しで実施。",
-      intervention: "参加とセルフケアを肯定。",
-      evaluation: "活動・保清ともに促しで維持。",
-    },
-    {
-      date: "2025/06/26",
-      time: "14:00",
-      author: "田中 花子",
-      observation: "OTは辞退し室内でラジオを聴く。日中の活動量は少なめ。",
-      intervention: "辞退を尊重。関心のある活動を確認。",
-      evaluation: "OT辞退が多い。活動低下は継続課題。",
-    },
-    {
-      date: "2025/06/25",
-      time: "10:30",
-      author: "看護師 佐々木",
-      observation: "日中は病室で過ごすことが多い。促しでデイルームへ短時間。",
-      intervention: "無理のない範囲で日中活動を促す。",
-      evaluation: "日中活動の低下が続く。段階的な働きかけを継続。",
-    },
-    {
-      date: "2025/06/22",
-      time: "20:30",
-      author: "看護師 佐々木",
-      observation: "「お金が足りなくなった」と2週間分の前借りを希望。金銭管理に困難。",
-      intervention: "金銭管理の状況を確認し、計画的な使い方を一緒に整理。",
-      evaluation: "金銭管理は支援を要する。継続的な関わりが必要。",
-    },
-    {
-      date: "2025/06/20",
-      time: "11:00",
-      author: "田中 花子",
-      observation: "栄養指導を受ける。間食・飲み物の選び方を確認。",
-      intervention: "取り組みを肯定し継続を励ます。",
-      evaluation: "体重・脂質改善への意欲は保たれている。",
-    },
-    {
-      date: "2025/06/18",
-      time: "21:00",
-      author: "看護師 佐々木",
-      observation: "便秘の訴えあり。「お腹が張る」とセンノシドを希望。",
-      intervention: "頓用センノシドを確認し使用。水分・活動を促す。",
-      evaluation: "便秘は自ら訴え頓用を希望できる。セルフモニタリングは可能。",
-    },
-    {
-      date: "2025/06/15",
-      time: "10:00",
-      author: "田中 花子",
-      observation: "心理教育の案内をするが「今日はいい」と辞退。SSTには参加すると話す。",
-      intervention: "本人の選択を尊重。参加できる活動を確認。",
-      evaluation: "心理教育は辞退が多い。参加できる活動を糸口に支援。",
-    },
-    {
-      date: "2025/06/10",
-      time: "14:30",
-      author: "田中 花子",
-      observation: "退院の話題に「ここにいる方が安心」と発言。表情は穏やか。",
-      intervention: "気持ちを傾聴し、焦らせない関わりを心がける。",
-      evaluation: "地域生活への不安が背景。段階的な支援を継続。",
-    },
-    {
-      date: "2025/06/05",
-      time: "08:00",
-      author: "看護師 佐々木",
-      observation: "歯みがきを忘れがち。声かけで実施。洗面は自立。",
-      intervention: "セルフケアの声かけを継続。",
-      evaluation: "口腔ケアは促しを要する。習慣化を支援。",
-    },
-    {
-      date: "2025/05/28",
-      time: "13:30",
-      author: "田中 花子",
-      observation: "Iさんと将棋盤を挟んで過ごす。穏やかな時間。",
-      intervention: "交流を見守る。",
-      evaluation: "安心できる関係が活動の広がりにつながる。",
-    },
-  ],
+  nursingRecords: PATIENT_A_NURSING_RECORDS,
+  nursingPlanItems: PATIENT_A_NURSING_PLAN,
+  nursingSummaries: PATIENT_A_NURSING_SUMMARIES,
   otRecords: [
     {
       date: "2025/07/09",
@@ -954,6 +672,8 @@ const CHART_A: ChartData = {
       doctor: "精神科 鈴木 一郎 医師",
       category: "臨時",
       medicationChangeId: "rx-a-20250703-kanbou",
+      status: "completed",
+      endDate: "2025/07/07",
       reason: "感冒症状（咽頭痛・鼻汁・微熱）に対する対症療法",
       comment: "数日で軽快を見込む。発熱時のみアセトアミノフェンを使用。悪化時は再診。",
       groups: [
@@ -979,6 +699,7 @@ const CHART_A: ChartData = {
       doctor: "精神科 鈴木 一郎 医師",
       category: "定期",
       medicationChangeId: "rx-a-teiki-current",
+      status: "active",
       reason: "統合失調症の維持療法（幻覚・妄想の再燃予防と睡眠の確保）",
       comment: "眠気・ふらつきに注意。起床困難が強い場合は報告。",
       groups: [
@@ -1007,7 +728,8 @@ const CHART_A: ChartData = {
       doctor: "精神科 鈴木 一郎 医師",
       category: "頓服",
       medicationChangeId: "rx-a-tonpuku",
-      reason: "不眠時・便秘時の頓用",
+      status: "active",
+      reason: "不眠時・便秘時・発熱時の頓用",
       comment: "睡眠薬は連用を避け、ふらつき・転倒に注意。便秘時は排便状況に応じて使用。",
       groups: [
         {
@@ -1022,15 +744,83 @@ const CHART_A: ChartData = {
           usage: "便秘時",
           days: "10回分",
         },
+        {
+          no: 3,
+          drugs: [{ name: "アセトアミノフェン錠300mg", amount: "1錠" }],
+          usage: "発熱・疼痛時",
+          days: "10回分",
+        },
+      ],
+    },
+    {
+      datetime: "2021/09/15 10:00",
+      doctor: "精神科 鈴木 一郎 医師",
+      category: "定期",
+      medicationChangeId: "rx-a-quetiapine-202109",
+      status: "discontinued",
+      endDate: "2021/10/01",
+      reason: "就寝前の過鎮静・起床困難の改善（クロルプロマジン→クエチアピン）",
+      comment: "日中の眠気と起床の改善を期待。",
+      groups: [
+        {
+          no: 1,
+          drugs: [
+            { name: "ロフラゼプ酸エチル錠1mg", amount: "1錠" },
+            { name: "リスペリドン錠2mg", amount: "2錠" },
+          ],
+          usage: "分1　朝食後",
+          days: "28日分",
+        },
+        {
+          no: 2,
+          drugs: [
+            { name: "クエチアピン錠50mg", amount: "1錠" },
+            { name: "ゾピクロン錠7.5mg", amount: "1錠" },
+          ],
+          usage: "分1　就寝前",
+          days: "28日分",
+        },
+      ],
+    },
+    {
+      datetime: "2021/06/18 14:30",
+      doctor: "精神科 鈴木 一郎 医師",
+      category: "定期",
+      medicationChangeId: "rx-a-admission-2021",
+      status: "discontinued",
+      endDate: "2021/09/15",
+      reason: "5回目入院時の薬物療法開始（医療保護入院）",
+      comment: "安定化を優先。副作用・眠気に注意。",
+      groups: [
+        {
+          no: 1,
+          drugs: [
+            { name: "ロフラゼプ酸エチル錠1mg", amount: "1錠" },
+            { name: "リスペリドン錠2mg", amount: "2錠" },
+          ],
+          usage: "分1　朝食後",
+          days: "28日分",
+        },
+        {
+          no: 2,
+          drugs: [
+            { name: "クロルプロマジン錠25mg", amount: "2錠" },
+            { name: "ゾピクロン錠7.5mg", amount: "1錠" },
+          ],
+          usage: "分1　就寝前",
+          days: "28日分",
+        },
       ],
     },
   ],
   prescriptionHistory: [
+    { date: "2025/07/07", label: "臨時処方（感冒）終了。症状軽快のため完了" },
     { date: "2025/07/03", label: "臨時処方（感冒症状：カルボシステイン・トラネキサム酸・発熱時アセトアミノフェン）" },
-    { date: "2025/07/01", label: "定期・頓服処方 継続（維持量）" },
+    { date: "2025/07/01", label: "定期・頓服処方 継続（維持量）。頓服に発熱時アセトアミノフェンを追加" },
     { date: "2023/07/10", label: "任意入院への移行。定期・頓服処方を継続確認" },
+    { date: "2021/10/01", label: "クロルプロマジン変更後の現行処方（クエチアピン就寝前）で安定" },
     { date: "2021/09/15", label: "クロルプロマジンを中止し、就寝前をクエチアピン50mgへ変更（過鎮静・起床困難のため）" },
-    { date: "2021/06/18", label: "入院時処方 開始（医療保護入院）" },
+    { date: "2021/06/18", label: "入院時処方 開始（ロフラゼプ酸エチル・リスペリドン・クロルプロマジン・ゾピクロン）" },
   ],
   summaries: [
     {
@@ -1079,15 +869,6 @@ const CHART_A: ChartData = {
         "症状は概ね安定。残遺する幻聴（夜間）と不眠、日中活動の低下は継続。一方で、SST参加の定着、体重管理の進行、同室Iさんの影響による服薬自己管理への関心など、回復のサインがみられる。退院支援として、自己管理能力の向上と、グループホーム等の地域生活の検討を進める。",
     },
     {
-      id: "sum-a-nursing",
-      date: "2025/07/01",
-      timepoint: "現在",
-      title: "看護サマリー",
-      author: "田中 花子",
-      content:
-        "セルフケア（入浴・洗濯・口腔ケア）は促しで維持。夜間の幻聴と不眠に対しラジオでの対処や頓用薬を使用。翌朝の眠気に留意。数少ない安心できる関係であるIさんとの交流が活動の広がりにつながっている。強みは、便秘や体調を自ら訴えられること、体重管理に取り組めること。課題は日中活動の低下と服薬・金銭の自己管理。",
-    },
-    {
       id: "sum-a-ot",
       date: "2025/06/24",
       timepoint: "現在",
@@ -1115,21 +896,9 @@ const CHART_A: ChartData = {
         "帰る家がないため住居確保が退院支援の前提。グループホームやアパート生活を段階的に検討中。キーパーソンの叔父は高齢で協力は限定的。自己管理能力（服薬・金銭・生活）の向上が地域生活の鍵。『ここにいる方が安心』という思いに配慮し、焦らず進める。",
     },
   ],
+  // 入院診療計画書・転倒/褥瘡/栄養アセスメントは記載済みA4帳票（formDocuments）として
+  // 文書フォルダに保存。ここでは重複を避けるため掲載しない。
   clinicalDocuments: [
-    {
-      id: "doc-a-treatment-plan",
-      date: "2021/06/18",
-      category: "入院診療計画書",
-      title: "入院診療計画書",
-      author: "鈴木 一郎 医師",
-      sections: [
-        { heading: "病名", body: "統合失調症" },
-        { heading: "入院の目的", body: "幻覚妄想の増悪に対する安全確保と安定化、生活の立て直し。" },
-        { heading: "治療計画", body: "薬物療法（抗精神病薬の調整）、保護的環境の提供、生活リズムの再構築。" },
-        { heading: "推定入院期間", body: "状態に応じて調整（当面は安定化を優先）。" },
-        { heading: "特記事項", body: "医療保護入院。キーパーソンは高齢の叔父。住居喪失のため退院先の調整を要する。" },
-      ],
-    },
     {
       id: "doc-a-nursing-admission",
       date: "2021/06/19",
@@ -1148,51 +917,13 @@ const CHART_A: ChartData = {
       id: "doc-a-nursing-plan",
       date: "2025/07/01",
       category: "看護計画",
-      title: "看護計画",
+      title: "看護計画（参照）",
       author: "田中 花子",
       sections: [
-        { heading: "#1 睡眠と幻聴", body: "夜間の幻聴・不眠に対し、ラジオ等の対処を支持し、頓用薬の適切な使用と翌朝の眠気を観察する。" },
-        { heading: "#2 セルフケア", body: "入浴・洗濯・口腔ケアを促しで維持し、できた点を伝えて自発性を育てる。" },
-        { heading: "#3 日中活動", body: "OT辞退を尊重しつつ、SST等参加できる活動を糸口に活動量を保つ。" },
-        { heading: "#4 服薬自己管理", body: "関心の芽（Iさんの影響）を活かし、就寝前薬から段階的な自己管理を検討する。" },
-        { heading: "#5 退院・地域生活", body: "『ここが安心』という思いに配慮し、多職種と退院支援を進める。" },
-      ],
-    },
-    {
-      id: "doc-a-fall-risk",
-      date: "2025/07/01",
-      category: "転倒転落リスクアセスメント",
-      title: "転倒転落リスクアセスメント",
-      author: "田中 花子",
-      sections: [
-        { heading: "総合評価", body: "低〜中リスク。歩行は自立しており、日常的な転倒リスクは高くない。" },
-        { heading: "リスク要因", body: "就寝前の睡眠薬・頓用睡眠薬の使用、翌朝の眠気・ふらつきの可能性、過体重。" },
-        { heading: "対策", body: "夜間・早朝の移動時に注意喚起。頓用薬使用翌朝は特に見守る。環境整備を行う。" },
-      ],
-    },
-    {
-      id: "doc-a-pressure-injury",
-      date: "2025/07/01",
-      category: "褥瘡リスクアセスメント",
-      title: "褥瘡リスクアセスメント",
-      author: "田中 花子",
-      sections: [
-        { heading: "総合評価", body: "低リスク。" },
-        { heading: "根拠", body: "自力体動・歩行が保たれ、栄養状態・皮膚状態も良好。持続的な圧迫の要因なし。" },
-        { heading: "対策", body: "定期的な皮膚観察を継続。特別な予防具は不要。" },
-      ],
-    },
-    {
-      id: "doc-a-nutrition",
-      date: "2025/06/20",
-      category: "栄養スクリーニング・アセスメント",
-      title: "栄養スクリーニング・アセスメント",
-      author: "管理栄養士 林",
-      sections: [
-        { heading: "体格", body: "身長165cm、体重約70kg、腹囲約85cm。BMIは過体重域。" },
-        { heading: "経過", body: "以前は約80kg・腹囲約90cm。間食制限と活動で減量、脂質異常も改善。" },
-        { heading: "食事摂取", body: "概ね全量摂取。間食は一つ・非甘味の飲み物を選択できている。" },
-        { heading: "計画", body: "間食制限と活動量確保を継続。急激な減量は避け、緩やかな管理を行う。" },
+        {
+          heading: "参照先",
+          body: "看護計画の本体（問題番号 #N1〜、長期・短期目標、OP/TP/EP、開始日・評価日・状態）は「看護記録 › 看護計画」で管理しています。ここでは書類上の参照のみを掲載します。",
+        },
       ],
     },
     {
@@ -1282,6 +1013,7 @@ const CHART_A: ChartData = {
       ],
     },
   ],
+  formDocuments: PATIENT_A_FORM_DOCUMENTS,
 };
 
 // ── Eさん ──────────────────────────────────────────
@@ -1340,6 +1072,8 @@ const CHART_E: ChartData = {
     { date: "2025/07/05", time: "12:45", author: "看護師 佐々木", observation: "昼食後、他患者と園芸の話題で会話。毛糸の購入を家族に依頼したいと発言。", intervention: "売店の場所を案内し、家族への連絡方法を確認。", evaluation: "趣味への関心が戻りつつある。活動の広がりを支援。" },
     { date: "2025/07/04", time: "11:20", author: "田中 花子", observation: "栄養指導を受ける。「昔は家族に煮物を作っていた」と話す。表情は穏やか。", intervention: "本人の得意だった料理の話題を傾聴。", evaluation: "過去の役割への肯定的な想起。強みとして共有。" },
   ],
+  nursingPlanItems: [],
+  nursingSummaries: [],
   otRecords: [
     { date: "2025/07/09", participation: "参加", activity: "園芸プログラム", concentration: "良好", social: "他参加者1名と短い会話", staffNote: "笑顔が見られた。手先の動きは巧み。" },
     { date: "2025/07/07", participation: "参加", activity: "編み物・手芸", concentration: "良好（45分持続）", social: "スタッフとの会話", staffNote: "以前の趣味を活かした活動。達成感あり。" },
@@ -1486,6 +1220,7 @@ const CHART_E: ChartData = {
   ],
   summaries: [],
   clinicalDocuments: [],
+  formDocuments: [],
 };
 
 // ── Fさん ──────────────────────────────────────────
@@ -1542,6 +1277,8 @@ const CHART_F: ChartData = {
     { date: "2025/07/05", time: "14:15", author: "田中 花子", observation: "デイルームで音楽の話題を他患者に紹介。活動的だが逸脱や多弁はなし。売店で雑誌購入。", intervention: "活動と休息のバランスを一緒に確認。", evaluation: "適度な活動量を維持。躁転の兆候なく経過。" },
     { date: "2025/07/04", time: "11:00", author: "看護師 佐々木", observation: "休職延長の書類について「早く復職したい」と焦りを表出。", intervention: "焦りを傾聴し、PSWへ相談をつなぐ。", evaluation: "復職への思いを受け止めつつ、段階的な準備を支援。" },
   ],
+  nursingPlanItems: [],
+  nursingSummaries: [],
   otRecords: [
     { date: "2025/07/09", participation: "参加", activity: "音楽療法プログラム", concentration: "良好", social: "他参加者と積極的に交流", staffNote: "「気分が良くなった」との発言。" },
     { date: "2025/07/07", participation: "参加", activity: "レクリエーション（ボードゲーム）", concentration: "良好", social: "他参加者3名と会話", staffNote: "社交性は回復傾向。" },
@@ -1683,6 +1420,7 @@ const CHART_F: ChartData = {
   ],
   summaries: [],
   clinicalDocuments: [],
+  formDocuments: [],
 };
 
 // ── データ取得 ──────────────────────────────────────
@@ -1729,8 +1467,10 @@ function buildFallback(patient: Patient): ChartData {
       { date: patient.admit, type: "入院", facility: "本院 精神科3病棟", description: `${patient.diagnosis}で入院。` },
     ],
     nursingRecords: [
-      { date: patient.admit, time: "09:00", author: patient.nurse ?? "担当看護師", observation: patient.observations.join("。"), intervention: "観察継続。", evaluation: "経過観察中。" },
+      { date: patient.admit, time: "09:00", author: patient.nurse ?? "担当看護師", format: "soap", observation: patient.observations.join("。"), intervention: "観察継続。", evaluation: "経過観察中。" },
     ],
+    nursingPlanItems: [],
+    nursingSummaries: [],
     otRecords: [
       { date: patient.admit, participation: "未参加", activity: "—", concentration: "—", social: "—", staffNote: "評価予定。" },
     ],
@@ -1777,6 +1517,7 @@ function buildFallback(patient: Patient): ChartData {
     prescriptionHistory: [{ date: patient.admit, label: "入院時処方 開始" }],
     summaries: [],
     clinicalDocuments: [],
+    formDocuments: [],
   };
 }
 

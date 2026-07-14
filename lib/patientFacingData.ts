@@ -7,6 +7,16 @@
 
 import type { ChartTabId } from "./chartTabs";
 import type { ChartFocus } from "./chartNav";
+import {
+  type PatientPersona,
+  PATIENT_A_PERSONA,
+  composeReply,
+  detectSmalltalkKind,
+  hasEmpathyWord,
+  hasOvergeneralization,
+  hasReflectiveMarker,
+  pickDeterministic,
+} from "./conversation/naturalness";
 
 export interface FacingObservation {
   avatar: string;
@@ -23,6 +33,7 @@ export type RelatedResource =
   | { type: "看護記録"; recordId: string; title: string }
   | { type: "フローシート"; date: string; title: string }
   | { type: "処方"; orderId: string; title: string }
+  | { type: "サマリー"; title: string }
   | { type: "生活歴"; title: string };
 
 // 関連情報 → 電子カルテ遷移（既存のフォーカス機構を利用）
@@ -41,6 +52,8 @@ export function resourceToNav(
       };
     case "処方":
       return { tab: "処方", focus: { type: "rxId", id: res.orderId } };
+    case "サマリー":
+      return { tab: "医療サマリー" };
     case "生活歴":
       return { tab: "生活歴" };
   }
@@ -100,6 +113,8 @@ interface PatientConvo {
   topics: Record<string, TopicDef>;
   unknownReplies: string[];
   alreadyReplies: string[];
+  // Sprint A-2.1: 話し方（ペルソナ）。持つ患者のみ自然さレイヤーが有効になる（A のみ）。
+  persona?: PatientPersona;
 }
 
 // ===== 話題キーワード（全患者共通・strong=具体/優先, weak=一般） =====
@@ -118,15 +133,30 @@ const TOPIC_KW: Record<string, { strong: string[]; weak: string[] }> = {
   greeting: { strong: GREETING_KW, weak: [] },
   condition: {
     strong: ["体調", "気分", "調子", "具合", "意欲", "やる気", "気力"],
-    weak: ["いかが", "どうです", "元気", "様子", "加減", "活動"],
+    weak: ["いかが", "どうです", "元気", "様子", "加減"],
   },
   sleep: {
-    strong: ["睡眠", "眠れ", "寝れ", "眠り", "中途覚醒", "不眠", "夜中", "目が覚", "何度も起き", "早朝"],
+    strong: ["睡眠", "眠れ", "寝れ", "眠り", "寝つけ", "中途覚醒", "不眠", "夜中", "目が覚", "何度も起き", "早朝"],
     weak: ["眠", "寝", "ねむ", "夜は", "休め"],
   },
+  // 幻聴（Aの中核症状）。声・幻聴・幻覚を独立話題として扱う。
+  hallucination: {
+    strong: ["幻聴", "幻覚", "声が聞こえ", "声が", "聞こえる声", "声のこと"],
+    weak: ["声", "聞こえ"],
+  },
+  // ラジオ（Aの対処行動・楽しみ）。
+  radio: {
+    strong: ["ラジオ", "らじお", "深夜番組"],
+    weak: [],
+  },
+  // 朝の様子・目覚め（睡眠と関連する午前の倦怠感）。
+  morning: {
+    strong: ["起床", "寝起き", "寝覚め", "朝方", "朝の", "朝は"],
+    weak: ["朝"],
+  },
   daytime: {
-    strong: ["日中", "昼間", "昼寝"],
-    weak: ["昼", "過ごし", "眠気", "だるさ"],
+    strong: ["日中", "昼間", "昼寝", "活動量"],
+    weak: ["昼", "過ごし", "眠気", "だるさ", "活動"],
   },
   meal: {
     strong: ["食事", "食欲", "ご飯", "ごはん", "食べ", "朝食", "昼食", "夕食"],
@@ -136,21 +166,81 @@ const TOPIC_KW: Record<string, { strong: string[]; weak: string[] }> = {
     strong: ["薬", "服薬", "内服", "くすり", "服用", "副作用"],
     weak: ["飲み", "飲む", "効か", "効き"],
   },
+  // 服薬の自己管理（Iさんを見ての関心）。medication より具体的。
+  med_selfmgmt: {
+    strong: ["自己管理", "自分で管理", "自分で薬", "自分で飲", "薬の管理", "服薬管理"],
+    weak: [],
+  },
+  // 同室Iさんとの関係（安心できる相手・回復のモデル）。
+  roommate: {
+    strong: ["iさん", "同室", "相部屋", "ルームメイト", "中庭", "同じ部屋"],
+    weak: [],
+  },
+  // SST（対人技能訓練・参加が改善傾向）。
+  sst: {
+    strong: ["sst", "エスエスティー", "ソーシャルスキル", "スキル訓練", "対人技能"],
+    weak: [],
+  },
+  ot: {
+    strong: ["作業療法", "ot", "リハビリ", "リハ"],
+    weak: ["プログラム", "活動療法"],
+  },
   family: {
-    strong: ["家族", "面会", "お母", "母さん", "息子", "娘", "孫", "奥さん", "旦那", "妻", "夫", "父"],
+    strong: ["家族", "面会", "きょうだい", "兄弟", "姉妹", "親戚", "身内", "お母", "母さん", "息子", "娘", "孫", "奥さん", "旦那", "妻", "夫", "父"],
     weak: ["母", "家の人"],
+  },
+  // 叔父（キーパーソン）。family の「父」より具体的に優先させる。
+  uncle: {
+    strong: ["叔父さん", "叔父", "おじさん", "おじ"],
+    weak: [],
+  },
+  // 母（入院中に死去）。family と競合するため mother を先に定義して優先。
+  mother: {
+    strong: ["お母さん", "母さん", "母親", "お母", "亡くなった母", "母"],
+    weak: [],
+  },
+  // 金銭・生活費への不安。
+  money: {
+    strong: ["金銭", "お金", "生活費", "小遣い", "こづかい", "前借り"],
+    weak: [],
   },
   discharge: {
     strong: ["退院", "帰宅", "家に帰", "帰りたい", "いつ出", "出られ", "退院後"],
     weak: ["帰り", "帰る", "家に"],
   },
+  // 入院生活・病院という環境（安心できる場）。
+  hospital: {
+    strong: ["入院生活", "病院", "病棟", "入院は", "入院して", "ここにいる", "ここが"],
+    weak: ["入院"],
+  },
+  // 体重・間食（向精神薬の影響を意識）。
+  weight: {
+    strong: ["体重", "間食", "太", "痩", "肥満", "ダイエット"],
+    weak: [],
+  },
+  // 便秘・排便（緩下剤の使用）。
+  constipation: {
+    strong: ["便秘", "便通", "お通じ", "排便", "お腹が張", "下剤"],
+    weak: [],
+  },
+  // 清潔・整容（入浴・身だしなみ）。
+  hygiene: {
+    strong: ["入浴", "お風呂", "風呂", "歯みがき", "歯磨き", "洗濯", "清潔", "身だしなみ", "シャワー", "整容"],
+    weak: [],
+  },
+  // 得意なこと・強み（自己肯定感は低い）。
+  strengths: {
+    strong: ["得意", "できること", "強み", "長所", "いいところ", "自信のある"],
+    weak: [],
+  },
   hobby: {
-    strong: ["趣味", "好きなこと", "楽しみ", "詰将棋", "将棋", "盆栽", "編み物", "アプリ"],
+    strong: ["趣味", "好きなこと", "楽しみ", "楽しみに"],
     weak: ["好き", "過ごし方", "休みの日"],
   },
-  ot: {
-    strong: ["作業療法", "ot", "リハビリ", "リハ"],
-    weak: ["プログラム", "活動療法"],
+  // 大切にしていること・価値観。
+  values: {
+    strong: ["大切", "価値観", "大事にして", "こだわり", "信条"],
+    weak: [],
   },
   anxiety: {
     strong: ["不安", "心配", "気がかり", "こわい", "怖い"],
@@ -176,16 +266,31 @@ const TOPIC_KW: Record<string, { strong: string[]; weak: string[] }> = {
 
 // 複数候補時の優先度（先頭ほど優先＝より具体的/臨床的に取り違えを避けたい話題）
 const PRIORITY = [
+  "hallucination",
   "paranoia",
   "self_blame",
+  "med_selfmgmt",
   "medication",
+  "constipation",
+  "weight",
+  "sleep",
+  "morning",
+  "radio",
   "discharge",
+  "hospital",
+  "money",
+  "uncle",
+  "mother",
+  "roommate",
+  "sst",
+  "ot",
   "hope",
   "plan",
   "meal",
-  "sleep",
-  "ot",
+  "hygiene",
   "hobby",
+  "strengths",
+  "values",
   "daytime",
   "anxiety",
   "family",
@@ -198,13 +303,37 @@ function pIdx(id: string): number {
   return i < 0 ? 999 : i;
 }
 
+// キーワードを持たない一般的なフォローアップ（「その時はどうしていますか」「もう少し詳しく」等）。
+// 話題語ではなく、直前の話題を続けたい合図。現在の話題が進行中のときだけ継続に用いる。
+// 新しい返答テンプレートは追加しない（既存の開示レベルを続けるだけ）。
+const CONTINUATION_MARKERS = [
+  "どうし", // どうして / どうしている / どうします / どうしたら
+  "どうやって",
+  "どうなる",
+  "どうなり",
+  "くわしく",
+  "詳しく",
+  "たとえば",
+  "例えば",
+  "ほかに",
+  "他に",
+  "それから",
+  "そのあと",
+  "そのとき",
+  "その時",
+];
+
+function isContinuationFollowup(normalizedText: string): boolean {
+  return CONTINUATION_MARKERS.some((m) => normalizedText.includes(normalize(m)));
+}
+
 // ===== 患者別会話定義 =====
 const CONVO: Record<string, PatientConvo> = {
   // Aさん（統合失調症・長期入院／回復期）: 物静かで控えめ。夜間の残遺幻聴、服薬自己管理への関心、
   //   叔父との関係、退院・地域生活への不安が背景。同室Iさんは安心できる存在で回復のモデル。
   // 重要テーマ: 睡眠・幻聴 / 服薬自己管理 / 退院と地域生活への不安 / 叔父との関係。
   A: {
-    coreThemes: ["sleep", "paranoia", "medication", "discharge"],
+    coreThemes: ["sleep", "hallucination", "medication", "discharge"],
     mainRoute: [
       {
         topic: "greeting",
@@ -252,8 +381,15 @@ const CONVO: Record<string, PatientConvo> = {
       excuse: "はい、どうぞ。",
       casual: "……どうも。",
     },
+    // 話題は患者ごとに独立して検出される（この患者が持つ話題だけが候補）。
+    // 母・叔父は family より前に並べ、キーワード競合時に優先して当たるようにする。
     topics: {
-      condition: { levels: [{ reply: "だいぶ落ち着いています。ただ、夜になると声が聞こえることがあって。", fact: "本人：全体的に安定、夜間の幻聴が残る" }] },
+      condition: {
+        levels: [
+          { reply: "……だいぶ、落ち着いています。ただ、夜になると、声が聞こえることがあって。", fact: "本人：全体的に安定、夜間の幻聴が残る" },
+          { reply: "昼間は、わりと穏やかに過ごせています。", fact: "本人：日中は比較的安定" },
+        ],
+      },
       sleep: {
         levels: [
           { reply: "夜、なかなか寝つけないことがあります。", fact: "本人：入眠困難あり" },
@@ -268,8 +404,57 @@ const CONVO: Record<string, PatientConvo> = {
           { type: "処方", orderId: "rx-a-tonpuku", title: "頓用睡眠薬" },
         ],
       },
-      daytime: { levels: [{ reply: "昼間は、部屋で過ごすことが多いです。作業療法は、気が向かない日もあって。", fact: "本人：日中活動の低下・OT辞退あり" }] },
-      meal: { levels: [{ reply: "食事は、毎回きちんと食べています。間食は、一つだけにしているんです。", fact: "本人：食事は全量・間食制限に取り組む" }] },
+      hallucination: {
+        levels: [
+          { reply: "……夜になると、声が聞こえることがあります。", fact: "本人：夜間中心の幻聴" },
+          { reply: "「怠け者だ」とか、責めるような声で……。でも、気のせいかもしれません。", fact: "本人：自己否定的な幻聴（半信半疑）" },
+          { reply: "昼間は、あまり気になりません。ラジオを聴いていると、少し紛れるんです。", fact: "本人：日中は軽減・ラジオで対処" },
+        ],
+        sufficientAt: 3,
+        relatedResources: [
+          { type: "診療録", recordId: "clinical-a-sleep-voices", title: "幻聴と不眠の経過" },
+          { type: "看護記録", recordId: "nursing-a-night-voices", title: "夜間の観察" },
+          { type: "フローシート", date: "2025/07/06", title: "夜間の幻聴・頓服" },
+        ],
+      },
+      radio: {
+        levels: [
+          { reply: "夜は、ラジオを小さくかけて聴いています。声が気になる時も、少し楽になるので。", fact: "本人：ラジオが幻聴・不眠への対処" },
+          { reply: "……深夜番組を、よく聴きます。それくらいが、ちょうどいいんです。", fact: "本人：深夜ラジオを好む" },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "看護記録", recordId: "nursing-a-night-voices", title: "夜間の過ごし方" },
+          { type: "生活歴", title: "生活歴" },
+        ],
+      },
+      morning: {
+        levels: [
+          { reply: "朝は……少し、だるいことが多いです。夜、眠れないと、なおさらで。", fact: "本人：朝の倦怠感（睡眠と関連）" },
+          { reply: "起きるのは、6時半くらいです。朝は、ぼんやりしていることが多くて。", fact: "本人：起床6時半・午前は不活発" },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "フローシート", date: "2025/07/06", title: "起床・睡眠" },
+        ],
+      },
+      daytime: {
+        levels: [
+          { reply: "昼間は、部屋で過ごすことが多いです。ラジオを聴いたり、横になったり。", fact: "本人：日中は室内中心・活動量低下" },
+          { reply: "夕方に、少し中庭を歩くくらいで……。", fact: "本人：軽い活動はあるが少ない" },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "フローシート", date: "2025/07/05", title: "日中の活動" },
+        ],
+      },
+      meal: {
+        levels: [
+          { reply: "食事は、毎回きちんと食べています。間食は、一つだけにしているんです。", fact: "本人：食事は全量・間食制限に取り組む" },
+          { reply: "体重のことがあるので、少し気をつけています。", fact: "本人：体重を意識した食事管理" },
+        ],
+        sufficientAt: 1,
+      },
       medication: {
         levels: [
           { reply: "薬は、きちんと飲んでいます。今は、看護師さんが管理してくれています。", fact: "本人：服薬遵守・現在は看護管理" },
@@ -281,57 +466,185 @@ const CONVO: Record<string, PatientConvo> = {
           { type: "診療録", recordId: "clinical-a-med-selfmgmt", title: "服薬指導の記録" },
         ],
       },
-      family: {
+      med_selfmgmt: {
         levels: [
-          { reply: "叔父が、時々面会に来てくれます。……最近は、少し減っていて。", fact: "本人：キーパーソンは叔父・面会は減少" },
-          { reply: "……嫌われてしまったのかな、と思うことがあります。電話で確かめたわけではないのですが。", fact: "本人：叔父に嫌われた不安（未確認）" },
+          { reply: "いつか、自分で薬を管理できるようになりたいと思っています。Iさんみたいに。", fact: "本人：服薬自己管理への意欲（Iさんがモデル）" },
+          { reply: "……でも、間違えたら怖いな、とも思って。まだ、自信はないです。", fact: "本人：自己管理への不安・自信のなさ" },
         ],
         sufficientAt: 2,
         relatedResources: [
-          { type: "生活歴", title: "家族背景" },
-          { type: "看護記録", recordId: "nursing-a-uncle", title: "叔父の話題の記録" },
+          { type: "診療録", recordId: "clinical-a-med-selfmgmt", title: "服薬自己管理の記録" },
+          { type: "看護記録", recordId: "nursing-a-med-interest", title: "服薬への関心の記録" },
         ],
+      },
+      roommate: {
+        levels: [
+          { reply: "同室のIさんとは、時々、中庭で一緒に過ごします。", fact: "本人：Iさんと中庭で過ごす" },
+          { reply: "Iさんは、自分よりずっと長く入院していて……。落ち着いていて、尊敬しています。", fact: "本人：Iさんを回復のモデルとして見ている" },
+          { reply: "Iさんと話していると、少し気が楽になります。……数少ない、話せる人です。", fact: "本人：Iさんが数少ない安心できる相手" },
+        ],
+        sufficientAt: 2,
+        relatedResources: [
+          { type: "看護記録", recordId: "nursing-a-courtyard-i", title: "Iさんと過ごす様子" },
+          { type: "生活歴", title: "生活歴" },
+        ],
+      },
+      sst: {
+        levels: [
+          { reply: "SSTには、最近は出るようにしています。", fact: "本人：SST参加が改善傾向" },
+          { reply: "人と話す練習は、緊張しますが……。少しずつ、慣れてきた気がします。", fact: "本人：対人場面に緊張も改善を自覚" },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "フローシート", date: "2025/07/04", title: "SST参加" },
+        ],
+      },
+      ot: {
+        levels: [
+          { reply: "作業療法は……気が向かない日も、多くて。", fact: "本人：OT辞退が多い" },
+          { reply: "人が多い場所は、少し疲れてしまうんです。", fact: "本人：集団場面での易疲労" },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "フローシート", date: "2025/07/06", title: "OTの参加状況" },
+        ],
+      },
+      uncle: {
+        levels: [
+          { reply: "叔父が、時々面会に来てくれます。……最近は、少し減っていて。", fact: "本人：キーパーソンは叔父・面会は減少" },
+          { reply: "……嫌われてしまったのかな、と思うことがあります。電話で確かめたわけではないのですが。", fact: "本人：叔父に嫌われた不安（未確認）" },
+          { reply: "昔は、よく面倒を見てもらいました。感謝は、しているんです。", fact: "本人：叔父への感謝と複雑な思い" },
+        ],
+        sufficientAt: 2,
+        relatedResources: [
+          { type: "看護記録", recordId: "nursing-a-uncle", title: "叔父の話題の記録" },
+          { type: "生活歴", title: "家族背景" },
+        ],
+      },
+      mother: {
+        levels: [
+          { reply: "母は……もう、亡くなりました。入院している間に。", fact: "本人：母は入院中に死去" },
+          { reply: "……最期に、あまり何もできなくて。それが、心残りです。", fact: "本人：母の死への心残り" },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "生活歴", title: "生活歴" },
+        ],
+      },
+      family: {
+        levels: [
+          { reply: "家族は……もう、叔父くらいです。両親は、亡くなりました。", fact: "本人：近親者は叔父のみ・両親死去" },
+          { reply: "きょうだいは、いません。ずっと、母と二人でした。", fact: "本人：同胞なし・母と二人暮らしだった" },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "生活歴", title: "家族背景" },
+          { type: "看護記録", recordId: "nursing-a-uncle", title: "家族・叔父の記録" },
+        ],
+      },
+      money: {
+        levels: [
+          { reply: "お金のことは……あまり、余裕はないです。", fact: "本人：金銭的余裕が乏しい" },
+          { reply: "退院後の生活費のことは、少し心配です。", fact: "本人：退院後の生活費への不安" },
+        ],
+        sufficientAt: 1,
       },
       discharge: {
         levels: [
           { reply: "正直、ここにいる方が安心なんです。", fact: "本人：入院環境に安心感（単なる退院拒否ではない）" },
           { reply: "外で一人でやっていける自信が、まだなくて。", fact: "本人：地域生活への自信のなさ" },
+          { reply: "少しずつ、練習していけたら……とは、思っています。", fact: "本人：段階的な退院準備への意欲の芽生え" },
         ],
         sufficientAt: 2,
         relatedResources: [
+          { type: "サマリー", title: "現在サマリー" },
           { type: "生活歴", title: "退院への思い" },
           { type: "診療録", recordId: "clinical-a-discharge", title: "退院に関する経過" },
         ],
       },
+      hospital: {
+        levels: [
+          { reply: "入院生活は……もう、長いです。ここは、落ち着きます。", fact: "本人：長期入院・院内に安心感" },
+          { reply: "決まった時間に、決まったことをするのが、性に合っているのかもしれません。", fact: "本人：構造化された環境を好む" },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "サマリー", title: "現在サマリー" },
+          { type: "生活歴", title: "生活歴" },
+        ],
+      },
+      weight: {
+        levels: [
+          { reply: "体重は、少し多めで……。間食は、一つだけにしているんです。", fact: "本人：体重やや多め・間食制限に取り組む" },
+          { reply: "薬の影響も、あるみたいで。気をつけるように、言われています。", fact: "本人：向精神薬による体重増加を意識" },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "フローシート", date: "2025/07/01", title: "体重測定" },
+          { type: "看護記録", recordId: "nursing-a-20250701-weight", title: "体重・間食の記録" },
+        ],
+      },
+      constipation: {
+        levels: [
+          { reply: "……お通じは、あまり良くないです。時々、薬をもらっています。", fact: "本人：便秘傾向・緩下剤の使用あり" },
+          { reply: "お腹が張ると、少しつらいです。", fact: "本人：腹部膨満の訴え" },
+        ],
+        sufficientAt: 1,
+        relatedResources: [
+          { type: "フローシート", date: "2025/07/06", title: "排便・緩下剤" },
+        ],
+      },
+      hygiene: {
+        levels: [
+          { reply: "お風呂は、決まった日に入っています。", fact: "本人：入浴は定期的" },
+          { reply: "身だしなみは……あまり、気が回らない時もあります。", fact: "本人：整容への関心が低下する時がある" },
+        ],
+        sufficientAt: 1,
+      },
+      strengths: {
+        levels: [
+          { reply: "得意なこと……あまり、思いつかないです。", fact: "本人：自己肯定感が低い" },
+          { reply: "……決めたことは、こつこつ続けられる方かもしれません。間食を一つにする、とか。", fact: "本人：地道な継続はできる（自覚は乏しい）" },
+        ],
+        sufficientAt: 1,
+      },
       hobby: {
-        levels: [{ reply: "夜は、ラジオを聴いて過ごすことが多いです。中庭で、Iさんと過ごすこともあります。", fact: "本人：ラジオを好む・Iさんと過ごす" }],
+        levels: [
+          { reply: "楽しみ……ラジオを聴いている時間は、好きです。", fact: "本人：ラジオを楽しみにしている" },
+          { reply: "中庭で、Iさんと静かに過ごすのも、いいものです。", fact: "本人：Iさんと過ごす時間を楽しむ" },
+        ],
         sufficientAt: 1,
         relatedResources: [
           { type: "生活歴", title: "生活歴" },
           { type: "看護記録", recordId: "nursing-a-courtyard-i", title: "Iさんと過ごす様子" },
         ],
       },
-      ot: { levels: [{ reply: "作業療法は……気が向かない日も多くて。SSTには、最近は出るようにしています。", fact: "本人：OT辞退が多い・SSTは参加" }] },
-      anxiety: { levels: [
+      values: {
+        levels: [
+          { reply: "大切にしていること……Iさんと過ごす、静かな時間、でしょうか。", fact: "本人：静かな時間・Iさんとの関係を大切にする" },
+          { reply: "……あまり、人に迷惑をかけたくない、とは思っています。", fact: "本人：他者に迷惑をかけたくない価値観" },
+        ],
+        sufficientAt: 1,
+      },
+      anxiety: {
+        levels: [
           { reply: "……少し、落ち着かないことはあります。", fact: "本人：漠然とした不安" },
           { reply: "夜に、声が気になるときがあって。", fact: "本人：夜間の幻聴への不安" },
-        ] },
-      paranoia: { levels: [
-          { reply: "……声が、聞こえることがあります。", fact: "本人：幻聴の訴え" },
-          { reply: "「怠け者だ」とか、責めるような声で……。でも、気のせいかもしれません。", fact: "本人：自己否定的な幻聴の内容" },
-        ] },
+        ],
+      },
     },
     unknownReplies: [
-      "……すみません、うまく答えられません。",
-      "もう少し具体的に聞いてもらえますか。",
-      "そのことは、今はよく分かりません。",
-      "えっと……何を聞きたいのでしょうか。",
+      "うーん……ちょっと、分からないですね。",
+      "もう少し、詳しく聞いてもらえますか。",
+      "それは、どういう意味ですか？",
+      "あまり、考えたことがなくて……。",
     ],
     alreadyReplies: [
-      "それは、さきほどお話しした通りです。",
-      "……その話は、もうお伝えしたかと。",
-      "同じことになりますが、変わりはありません。",
+      "そうですね……、さっきと同じで、あまり変わらないです。",
+      "……さっき話したのと、同じ感じです。",
+      "同じことになりますが……、変わりはないです。",
     ],
+    persona: PATIENT_A_PERSONA,
   },
 
   // Eさん（うつ病）: 返答が短く、自責的。開示はゆっくり。
@@ -654,7 +967,7 @@ export const TAB_LABEL: Record<ChartTabId, string> = {
   患者情報: "基本情報",
   生活歴: "生活歴",
   エピソード: "エピソード",
-  サマリー: "サマリー",
+  医療サマリー: "医療サマリー",
   看護記録: "看護記録",
   OT: "OT",
   PSW: "PSW",
@@ -716,6 +1029,15 @@ export interface FacingConvoState {
   history: FacingEntry[];
   unknownTotal: number;
   alreadyTotal: number;
+  // Sprint A-2.1: 自然さレイヤー用の状態（既存の保存データには無くてよい）。
+  // reflectionStreak: 探索（新開示）を伴わない反射・共感・雑談が連続した回数。
+  reflectionStreak: number;
+  // lastAck: 直前に使ったあいづち（連続で同じものを避けるため）。
+  lastAck: string | null;
+  // turnCount: 学生の発話ターン数（決定的な変化とタイミング判定に使う）。
+  turnCount: number;
+  // reciprocalCount: 患者からの逆質問を返した回数（会話全体でごく稀にする）。
+  reciprocalCount: number;
 }
 
 export function initialFacingState(): FacingConvoState {
@@ -735,6 +1057,10 @@ export function initialFacingState(): FacingConvoState {
     history: [],
     unknownTotal: 0,
     alreadyTotal: 0,
+    reflectionStreak: 0,
+    lastAck: null,
+    turnCount: 0,
+    reciprocalCount: 0,
   };
 }
 
@@ -800,6 +1126,13 @@ const COACH_MATCH_PHRASES: Record<string, string[]> = {
   ],
   hope: ["楽しみにしていること", "これからの希望", "希望"],
   paranoia: ["その感じは", "いつ頃からあります", "見られている"],
+  hallucination: ["その声", "声のこと", "どんな声", "いつ頃聞こえ", "幻聴"],
+  radio: ["どんな番組", "ラジオ"],
+  roommate: ["iさんとは", "iさんと", "同室の"],
+  med_selfmgmt: ["自分で管理", "自分で薬"],
+  uncle: ["叔父さん", "叔父"],
+  mother: ["お母さんのこと", "お母さん"],
+  hospital: ["入院生活", "ここでの生活"],
 };
 
 function topicMatchPhrases(id: string): string[] {
@@ -870,7 +1203,81 @@ function detectTopic(
     if (asked.length) return byPriority(asked);
     return byPriority(weak);
   }
+
+  // キーワードが無くても、現在の話題が進行中なら、一般的なフォローアップは現在の話題を続ける。
+  // 例:「その時はどうしていますか」→ 現在の話題の次のレベル（対処など）を開示する。
+  // 話題が一区切り済み、または現在の話題が無い場合は従来どおり unknown（曖昧入力は unknown のまま）。
+  const cur = state.currentTopic;
+  if (cur && convo.topics[cur]) {
+    const level = state.topicLevels[cur] ?? 0;
+    if (level < convo.topics[cur].levels.length && isContinuationFollowup(text)) {
+      return cur;
+    }
+  }
   return "unknown";
+}
+
+// 正規化済みテキスト中に strong キーワードが現れる話題の集合（要約検出に使う）。
+// weak は含めない（誤検出を避けるため）。
+function strongTopicsPresent(convo: PatientConvo, norm: string): string[] {
+  const found: string[] = [];
+  for (const id of Object.keys(convo.topics)) {
+    const strong = TOPIC_KW[id]?.strong ?? [];
+    if (strong.some((kw) => kw && norm.includes(normalize(kw)))) found.push(id);
+  }
+  return found;
+}
+
+// 学生の入力を会話的クラスへ分類する（persona を持つ患者のみ使用）。
+// 反射・共感・要約・雑談を、臨床話題より前に自然に処理するための判定。
+type ConversationalKind =
+  | { kind: "summary"; overgeneralized: boolean; topic: string | null }
+  | { kind: "reflection_on_topic"; topic: string }
+  | { kind: "empathy" }
+  | { kind: "generic_reflection" }
+  | { kind: "smalltalk"; sub: string }
+  | { kind: "none" };
+
+function classifyConversational(
+  convo: PatientConvo,
+  persona: PatientPersona,
+  rawInput: string,
+  topic: string,
+): ConversationalKind {
+  const norm = normalize(rawInput);
+  const reflective = hasReflectiveMarker(norm);
+  const strongTopics = strongTopicsPresent(convo, norm);
+  const overgen = hasOvergeneralization(norm);
+
+  // 要約：反射表現かつ（過度な一般化 or 複数の具体話題）。
+  if (reflective && (overgen || strongTopics.length >= 2)) {
+    const primary = topic !== "unknown" ? topic : (strongTopics[0] ?? null);
+    return { kind: "summary", overgeneralized: overgen, topic: primary };
+  }
+
+  // 反射（話題あり）：反射表現＋話題が特定できる → 現在の話題を少しだけ進める。
+  if (reflective && topic !== "unknown" && convo.topics[topic]) {
+    return { kind: "reflection_on_topic", topic };
+  }
+
+  // 雑談：天気・テレビ・実習など（話題語ではない・低stakes）。
+  // 「今日は暑いですね」のように反射表現を伴っても、まず雑談として扱う。
+  if (topic === "unknown") {
+    const sub = detectSmalltalkKind(norm, persona);
+    if (sub) return { kind: "smalltalk", sub };
+  }
+
+  // 共感：反射表現＋共感語（話題語なし）。
+  if (reflective && hasEmpathyWord(norm)) {
+    return { kind: "empathy" };
+  }
+
+  // 一般的な反射：反射表現のみ（話題語も共感語もなし）。
+  if (reflective) {
+    return { kind: "generic_reflection" };
+  }
+
+  return { kind: "none" };
 }
 
 interface Acc {
@@ -885,6 +1292,14 @@ interface Acc {
   currentTopic: string | null;
   lastMeaningfulTopic: string | null;
   unlockedResourcesByTopic: Record<string, RelatedResource[]>;
+  // Sprint A-2.1: このターンが探索（新開示）を伴わない反射・共感・雑談だったか。
+  reflectionTurn: boolean;
+  // 新規開示は無いが「成功した傾聴」として扱うターン（要約の確認・訂正など）。
+  softSuccess: boolean;
+  // このターンで使ったあいづち（連続重複回避のため次ターンへ持ち越す）。
+  ackUsed: string | null;
+  // このターンで逆質問を返したか。
+  reciprocalUsed: boolean;
 }
 
 // 話題が「十分に深まった」とみなすしきい値（sufficientAt があればそれ、無ければ全レベル）。
@@ -921,6 +1336,7 @@ export function advanceConversation(
   pushEntry({ role: "student", text });
   const greetingKind = detectGreeting(text);
   const topic = detectTopic(convo, text, state);
+  const turnCount = (state.turnCount ?? 0) + 1;
 
   const acc: Acc = {
     topicLevels: { ...state.topicLevels },
@@ -934,6 +1350,34 @@ export function advanceConversation(
     currentTopic: state.currentTopic,
     lastMeaningfulTopic: state.lastMeaningfulTopic,
     unlockedResourcesByTopic: { ...(state.unlockedResourcesByTopic ?? {}) },
+    reflectionTurn: false,
+    softSuccess: false,
+    ackUsed: null,
+    reciprocalUsed: false,
+  };
+
+  // あいづちを決定的に選ぶ（直前と同じものは避ける）。
+  const pickAck = (seed: number): string => {
+    if (!convo.persona) return "";
+    const ack = pickDeterministic(convo.persona.acks, seed, state.lastAck);
+    acc.ackUsed = ack;
+    return ack;
+  };
+
+  // Version1（第1回講義）では患者からの逆質問を行わない。
+  // 面接は「聞かれたことに答える」ことに集中させ、学生が戸惑う逆質問を避ける。
+  // persona.reciprocal のデータは将来のために残すが、ここでは常に無効化する。
+  const RECIPROCAL_ENABLED: boolean = false;
+  const maybeReciprocal = (id: string): string | undefined => {
+    if (!RECIPROCAL_ENABLED) return undefined;
+    const persona = convo.persona;
+    if (!persona) return undefined;
+    const q = persona.reciprocal[id];
+    if (!q) return undefined;
+    if ((state.reciprocalCount ?? 0) >= 1) return undefined;
+    if (turnCount < 6) return undefined;
+    acc.reciprocalUsed = true;
+    return q;
   };
 
   const completeGreetingNode = () => {
@@ -946,7 +1390,12 @@ export function advanceConversation(
     }
   };
 
-  const discloseTopic = (id: string) => {
+  // discloseTopic は最大3レイヤー（あいづち・本文・逆質問）を1発話に合成する。
+  // opts を渡さなければ従来どおり本文のみ（既存の通常Q&Aは不変）。
+  const discloseTopic = (
+    id: string,
+    opts?: { ack?: string; reciprocal?: string },
+  ) => {
     const def = convo.topics[id];
     if (!def) return;
     acc.currentTopic = id;
@@ -955,14 +1404,22 @@ export function advanceConversation(
     if (level >= def.levels.length) {
       acc.alreadyTotal += 1;
       acc.repeated = true;
+      // 繊細な話題（母 等）は、繰り返し時に自然な境界表現を用いる。
+      const boundary = convo.persona?.boundary?.[id];
+      const body =
+        boundary ??
+        convo.alreadyReplies[(acc.alreadyTotal - 1) % convo.alreadyReplies.length];
       pushEntry({
         role: "patient",
-        text: convo.alreadyReplies[(acc.alreadyTotal - 1) % convo.alreadyReplies.length],
+        text: composeReply([opts?.ack, body, opts?.reciprocal]),
       });
       return;
     }
     const disc = def.levels[level];
-    pushEntry({ role: "patient", text: disc.reply });
+    pushEntry({
+      role: "patient",
+      text: composeReply([opts?.ack, disc.reply, opts?.reciprocal]),
+    });
     const newLevel = level + 1;
     acc.topicLevels[id] = newLevel;
     acc.disclosedNew = true;
@@ -988,13 +1445,30 @@ export function advanceConversation(
   };
 
   const finalize = (opts: { unknown: boolean }): FacingConvoState => {
-    const stalledTurns = acc.advancedMain || acc.disclosedNew ? 0 : state.stalledTurns + 1;
+    const explored = acc.advancedMain || acc.disclosedNew || acc.softSuccess;
+    // 反射・共感・雑談・要約はいずれも「不作為の沈黙」ではなく生産的なやり取り。
+    const productive = explored || acc.reflectionTurn;
+    const stalledTurns = productive ? 0 : state.stalledTurns + 1;
+    // 探索があれば streak をリセット。反射・共感が続く間だけ加算する。
+    const prevStreak = state.reflectionStreak ?? 0;
+    const reflectionStreak = explored
+      ? 0
+      : acc.reflectionTurn
+        ? prevStreak + 1
+        : prevStreak;
     let hintLevel: 0 | 1 | 2;
     if (opts.unknown) {
       hintLevel = computeHint(state.hintLevel, state.unknownStreak + 1, stalledTurns);
-    } else if (acc.advancedMain || acc.disclosedNew) {
-      // 成功ターン（主ルート進行 or 新レベル開示）は Coach を idle へ戻す（Bug1）。
+    } else if (explored) {
+      // 成功ターン（主ルート進行・新レベル開示・要約の確認/訂正）は Coach を idle へ。
       hintLevel = 0;
+    } else if (acc.reflectionTurn) {
+      // 反射・共感・雑談は即座に Coach を出さない（自然に進む思考を中断しない）。
+      // 探索を伴わない反射が3回以上続いたときだけ、やんわり促す。
+      hintLevel =
+        reflectionStreak >= 3
+          ? (Math.max(state.hintLevel, 1) as 0 | 1 | 2)
+          : state.hintLevel;
     } else {
       const base = acc.repeated ? (Math.max(state.hintLevel, 1) as 0 | 1 | 2) : state.hintLevel;
       hintLevel = computeHint(base, 0, stalledTurns);
@@ -1029,6 +1503,10 @@ export function advanceConversation(
       stalledTurns,
       hintLevel,
       history,
+      reflectionStreak,
+      lastAck: acc.ackUsed ?? state.lastAck ?? null,
+      turnCount,
+      reciprocalCount: (state.reciprocalCount ?? 0) + (acc.reciprocalUsed ? 1 : 0),
     };
   };
 
@@ -1039,6 +1517,70 @@ export function advanceConversation(
       discloseTopic(topic);
     }
     return finalize({ unknown: false });
+  }
+
+  // Sprint A-2.1: 自然さレイヤー（persona を持つ患者のみ）。
+  // 反射・共感・要約・雑談を、臨床話題判定より前に自然に処理する。
+  // 反射マーカー（「〜ですね」等）を伴わない通常の質問は、この分岐を素通りして
+  // 従来どおりの話題開示に進む（既存の会話・検証は不変）。
+  if (convo.persona) {
+    const persona = convo.persona;
+    const cls = classifyConversational(convo, persona, text, topic);
+    const seed = turnCount;
+
+    if (cls.kind === "summary") {
+      // 要約：正確なら確認、過度な一般化ならやんわり訂正（患者として、教師としてではなく）。
+      if (cls.topic) {
+        acc.currentTopic = cls.topic;
+        acc.lastMeaningfulTopic = cls.topic;
+      }
+      const body = cls.overgeneralized
+        ? (persona.summaryCorrect[cls.topic ?? "_"] ?? persona.summaryCorrect._)
+        : pickDeterministic(persona.summaryConfirm, seed);
+      pushEntry({ role: "patient", text: body });
+      acc.softSuccess = true;
+      return finalize({ unknown: false });
+    }
+
+    if (cls.kind === "reflection_on_topic") {
+      // 反射（話題あり）：あいづち＋現在の話題を一段だけ進める。
+      const ack = pickAck(seed);
+      const reciprocal = maybeReciprocal(cls.topic);
+      acc.reflectionTurn = true;
+      discloseTopic(cls.topic, { ack, reciprocal });
+      return finalize({ unknown: false });
+    }
+
+    if (cls.kind === "empathy") {
+      // 共感：短い受け止め・控えめな打ち消し・不確かさ。話題は変えない。
+      pushEntry({
+        role: "patient",
+        text: pickDeterministic(persona.empathy, seed),
+      });
+      acc.reflectionTurn = true;
+      acc.currentTopic = state.currentTopic;
+      return finalize({ unknown: false });
+    }
+
+    if (cls.kind === "generic_reflection") {
+      pushEntry({
+        role: "patient",
+        text: pickDeterministic(persona.genericReflection, seed),
+      });
+      acc.reflectionTurn = true;
+      acc.currentTopic = state.currentTopic;
+      return finalize({ unknown: false });
+    }
+
+    if (cls.kind === "smalltalk") {
+      pushEntry({
+        role: "patient",
+        text: pickDeterministic(persona.smalltalk[cls.sub] ?? [], seed),
+      });
+      acc.reflectionTurn = true;
+      acc.currentTopic = state.currentTopic;
+      return finalize({ unknown: false });
+    }
   }
 
   if (topic === "unknown" || !convo.topics[topic]) {
@@ -1119,20 +1661,32 @@ export function getDisplayTopicResources(
 
 /** 話題に応じた関連情報メッセージ（結論を示さない中立表現）。 */
 export function getResourceMessage(topicId: string): string {
+  // 結論は示さず、根拠（カルテ）へ目を向けるよう促す中立的な表現にする。
   const messages: Record<string, string> = {
-    sleep: "睡眠について確認できる情報があります。",
-    medication: "服薬について確認できる情報があります。",
-    hobby: "生活や活動について確認できる情報があります。",
-    ot: "生活や活動について確認できる情報があります。",
-    daytime: "生活や活動について確認できる情報があります。",
-    family: "家族との関係について確認できる情報があります。",
-    condition: "気分や心理状態について確認できる情報があります。",
-    self_blame: "気分や心理状態について確認できる情報があります。",
-    anxiety: "気分や心理状態について確認できる情報があります。",
-    hope: "気分や心理状態について確認できる情報があります。",
-    meal: "食事について確認できる情報があります。",
-    discharge: "退院や将来について確認できる情報があります。",
-    plan: "退院や将来について確認できる情報があります。",
+    sleep: "睡眠については、看護記録やフローシートも見てみると、何か気付くことがあるかもしれません。",
+    hallucination: "声（幻聴）については、看護記録や診療録も見てみると、気付くことがあるかもしれません。",
+    radio: "夜の過ごし方については、看護記録も見てみると、背景が見えてくるかもしれません。",
+    morning: "朝の様子については、フローシートの睡眠・起床も見てみると、つながりが見えるかもしれません。",
+    medication: "服薬については、処方や診療録も見てみると、確認できることがあるかもしれません。",
+    med_selfmgmt: "服薬の自己管理については、診療録や看護記録も見てみるとよいかもしれません。",
+    roommate: "Iさんとの関わりについては、看護記録や生活歴も見てみるとよいかもしれません。",
+    sst: "SSTの様子については、フローシートや看護記録も見てみるとよいかもしれません。",
+    hobby: "生活や活動については、生活歴や看護記録も見てみるとよいかもしれません。",
+    ot: "作業療法や日中の活動については、フローシートも見てみるとよいかもしれません。",
+    daytime: "日中の過ごし方については、フローシートも見てみるとよいかもしれません。",
+    uncle: "叔父さんとの関係については、看護記録や生活歴も見てみるとよいかもしれません。",
+    mother: "ご家族のことについては、生活歴も見てみるとよいかもしれません。",
+    family: "ご家族のことについては、生活歴や看護記録も見てみるとよいかもしれません。",
+    weight: "体重については、フローシートや看護記録も見てみるとよいかもしれません。",
+    constipation: "お通じについては、フローシートも見てみるとよいかもしれません。",
+    condition: "気分や様子については、看護記録も見てみるとよいかもしれません。",
+    self_blame: "気持ちの背景については、看護記録や診療録も見てみるとよいかもしれません。",
+    anxiety: "気がかりなことについては、看護記録も見てみるとよいかもしれません。",
+    hope: "支えや楽しみについては、生活歴も見てみるとよいかもしれません。",
+    meal: "食事については、フローシートも見てみるとよいかもしれません。",
+    discharge: "退院について話されていますが、生活歴や現在サマリーを見ると、背景も考えられるかもしれません。",
+    hospital: "入院生活については、現在サマリーや生活歴も見てみるとよいかもしれません。",
+    plan: "退院後の生活については、生活歴や現在サマリーも見てみるとよいかもしれません。",
   };
   return (
     messages[topicId] ??
@@ -1225,6 +1779,81 @@ const TOPIC_META: Record<
     deepen: "急がず、患者さんのペースに合わせて聞いてみましょう。",
     example: "例えば「その感じは、いつ頃からありますか？」と尋ねられます。",
   },
+  hallucination: {
+    label: "幻聴",
+    deepen: "声について、いつ・どんな内容かを、患者さんのペースで聞けそうです。",
+    example: "例えば「その声は、いつ頃聞こえますか？」と尋ねられます。",
+  },
+  radio: {
+    label: "ラジオ",
+    deepen: "ラジオが、患者さんにとってどんな意味を持つか聞けそうです。",
+    example: "例えば「ラジオは、どんな番組を聴きますか？」と尋ねられます。",
+  },
+  morning: {
+    label: "朝の様子",
+    deepen: "朝の目覚めや、午前中の調子について聞けそうです。",
+    example: "例えば「朝は、すっきり起きられますか？」と尋ねられます。",
+  },
+  med_selfmgmt: {
+    label: "服薬の自己管理",
+    deepen: "薬を自分で管理することへの思いを、聞けそうです。",
+    example: "例えば「お薬を自分で管理してみたいですか？」と尋ねられます。",
+  },
+  roommate: {
+    label: "Iさんとの関係",
+    deepen: "同室のIさんとの関わりが、患者さんにとってどんな意味を持つか聞けそうです。",
+    example: "例えば「Iさんとは、どんなふうに過ごしますか？」と尋ねられます。",
+  },
+  sst: {
+    label: "SST",
+    deepen: "SSTでの様子や、参加してみての気持ちを聞けそうです。",
+    example: "例えば「SSTには参加していますか？」と尋ねられます。",
+  },
+  uncle: {
+    label: "叔父との関係",
+    deepen: "叔父さんとの関係を、患者さん自身がどう感じているか聞けそうです。",
+    example: "例えば「叔父さんは、面会に来られますか？」と尋ねられます。",
+  },
+  mother: {
+    label: "お母さんのこと",
+    deepen: "お母さんのことを、患者さんのペースでそっと聞けそうです。",
+    example: "例えば「お母さんのことを、聞いてもいいですか？」と尋ねられます。",
+  },
+  money: {
+    label: "お金のこと",
+    deepen: "生活費や金銭面での心配について、聞けそうです。",
+    example: "例えば「金銭面で、困っていることはありますか？」と尋ねられます。",
+  },
+  hospital: {
+    label: "入院生活",
+    deepen: "入院生活を、患者さんがどう感じているか聞けそうです。",
+    example: "例えば「入院生活は、いかがですか？」と尋ねられます。",
+  },
+  weight: {
+    label: "体重",
+    deepen: "体重や間食について、患者さんがどう受けとめているか聞けそうです。",
+    example: "例えば「体重のことは、気になりますか？」と尋ねられます。",
+  },
+  constipation: {
+    label: "排便",
+    deepen: "お通じの様子について、聞けそうです。",
+    example: "例えば「お通じは、いかがですか？」と尋ねられます。",
+  },
+  hygiene: {
+    label: "清潔・整容",
+    deepen: "入浴や身だしなみの様子について、聞けそうです。",
+    example: "例えば「お風呂には、入れていますか？」と尋ねられます。",
+  },
+  strengths: {
+    label: "得意なこと",
+    deepen: "患者さん自身の得意なことや、続けられていることを聞けそうです。",
+    example: "例えば「得意なことは、ありますか？」と尋ねられます。",
+  },
+  values: {
+    label: "大切にしていること",
+    deepen: "患者さんが大切にしていることを、聞けそうです。",
+    example: "例えば「大切にしていることは、何ですか？」と尋ねられます。",
+  },
 };
 
 function topicLabel(id: string): string {
@@ -1259,7 +1888,9 @@ function deepenView(
 // 未完了の重要テーマ（pending）へ自然に戻すときの、押し付けにならない文面。
 // 患者ごとの臨床像に配慮した中立表現。定義がなければ汎用文にフォールバックする。
 const RETURN_GUIDANCE: Record<string, string> = {
-  sleep: "先ほどのお話で気になった睡眠についても、もう少し確認できそうですね。",
+  sleep: "睡眠については、看護記録やフローシートも見てみると、何か気付くことがあるかもしれません。",
+  hallucination: "先ほどの声（幻聴）のお話について、看護記録や診療録も見ると、気付くことがあるかもしれません。",
+  discharge: "退院について話されていますが、生活歴や現在サマリーを見ると、背景も考えられるかもしれません。",
   medication: "先ほど話されていた薬への思いにも、まだ聞けそうなことがありそうです。",
   anxiety: "先ほど触れられていた不安なお気持ちにも、もう少し寄り添えそうです。",
   paranoia: "先ほどのお話にあった気がかりについて、まだ伺えることがありそうです。",
@@ -1321,6 +1952,17 @@ export function getCoachFocus(
   const cur = getMeaningfulTopic(state);
   const curDef = cur ? convo.topics[cur] : undefined;
   const curLevel = cur ? state.topicLevels[cur] ?? 0 : 0;
+
+  // 0. 反射・共感だけが続いているとき（探索を伴わない傾聴が3回以上）に限り、
+  //    やんわりと次の一歩を促す（受け止めを否定せず、探索を促す）。即座には出さない。
+  if ((state.reflectionStreak ?? 0) >= 3) {
+    return {
+      kind: "broaden",
+      direction:
+        "患者さんの話を、しっかり受け止められています。次は、その時どのように過ごしているかを聞いてみてもよいかもしれません。",
+      example: cur ? TOPIC_META[cur]?.example ?? "" : "",
+    };
+  }
 
   // 1. 現在の話題が進行中（一区切り前）なら深める。前の話題へ戻す提案はしない。
   if (cur && curDef && curLevel < sufficientThreshold(curDef)) {

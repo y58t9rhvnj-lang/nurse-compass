@@ -2,9 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Pill } from "lucide-react";
-import type { ChartData, ClinicalRecord } from "@/lib/chartData";
+import type { ChartData } from "@/lib/chartData";
 import type { ChartTabId } from "@/lib/chartTabs";
 import type { ChartFocus, ChartNavRequest } from "@/lib/chartNav";
+import {
+  buildClinicalTimeline,
+  RECORD_TYPE_LABEL,
+  type TimelineRecord,
+} from "@/lib/chartTimeline";
 import {
   ChartPanel,
   ChartTable,
@@ -17,20 +22,24 @@ import {
   TabCount,
 } from "./ChartUi";
 import DateSelect from "./DateSelect";
+import DocumentsView from "./DocumentsView";
 import ExamsView from "./ExamsView";
 import FlowsheetView from "./FlowsheetView";
 import PrescriptionsView from "./PrescriptionsView";
+import NursingRecordView from "./NursingRecordView";
 
 const CLINICAL_PAGE_SIZE = 20;
 
 export default function ChartTabContent({
   tab,
   data,
+  patientId,
   nav,
   onNavigate,
 }: {
   tab: ChartTabId;
   data: ChartData;
+  patientId: string;
   nav: ChartNavRequest | null;
   onNavigate: (tab: ChartTabId, focus: ChartFocus) => void;
 }) {
@@ -39,6 +48,7 @@ export default function ChartTabContent({
       return (
         <ClinicalRecordsTab
           data={data}
+          patientId={patientId}
           focus={nav && nav.tab === "診療録" ? nav : null}
           onNavigate={onNavigate}
         />
@@ -49,10 +59,10 @@ export default function ChartTabContent({
       return <LifeHistoryTab data={data} />;
     case "エピソード":
       return <EpisodesTab data={data} />;
-    case "サマリー":
+    case "医療サマリー":
       return <SummariesTab data={data} />;
     case "看護記録":
-      return <NursingTab data={data} />;
+      return <NursingRecordView data={data} patientId={patientId} />;
     case "OT":
       return <OTTab data={data} />;
     case "PSW":
@@ -76,7 +86,7 @@ export default function ChartTabContent({
         />
       );
     case "書類":
-      return <DocumentsTab data={data} />;
+      return <DocumentsView data={data} />;
   }
 }
 
@@ -84,20 +94,24 @@ type Highlight = { kind: "key" | "date" | "event"; value: string } | null;
 
 function ClinicalRecordsTab({
   data,
+  patientId,
   focus,
   onNavigate,
 }: {
   data: ChartData;
+  patientId: string;
   focus: ChartNavRequest | null;
   onNavigate: (tab: ChartTabId, focus: ChartFocus) => void;
 }) {
-  // 古い→新しい順に並べ替え（時系列が自然に追える表示）
+  // 診療録（看護以外）と看護記録を、表示時に共通形式へ変換して混在表示する。
+  // 元データは複製・統合しない（buildClinicalTimeline 内で変換するのみ）。
+  // 新しい記録が上になる降順（記録日時順）。同一日時は記録種別・記録者で判別できる。
   const all = useMemo(
     () =>
-      [...data.clinicalRecords].sort((a, b) =>
-        `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`),
+      buildClinicalTimeline(data, patientId).sort((a, b) =>
+        `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`),
       ),
-    [data.clinicalRecords],
+    [data, patientId],
   );
   const [filter, setFilter] = useState("すべて");
   const [page, setPage] = useState(0);
@@ -109,12 +123,7 @@ function ClinicalRecordsTab({
   const listRef = useRef<HTMLDivElement>(null);
   const recordRefs = useRef(new Map<string, HTMLElement>());
 
-  const indexByRecord = useMemo(() => {
-    const m = new Map<ClinicalRecord, number>();
-    all.forEach((r, i) => m.set(r, i));
-    return m;
-  }, [all]);
-  const keyOf = (r: ClinicalRecord) => `c${indexByRecord.get(r)}`;
+  const keyOf = (r: TimelineRecord) => r.id;
 
   const professions = useMemo(() => {
     const seen: string[] = [];
@@ -141,7 +150,7 @@ function ClinicalRecordsTab({
     listRef.current?.scrollTo({ top: 0, behavior: "smooth" });
 
   // 対象記録へフィルタ調整・ページ移動・強調をまとめて実行
-  const runFocus = (target: ClinicalRecord, hl: Highlight) => {
+  const runFocus = (target: TimelineRecord, hl: Highlight) => {
     let f = filter;
     if (f !== "すべて" && target.profession !== f) {
       f = "すべて";
@@ -173,9 +182,9 @@ function ClinicalRecordsTab({
         runFocus(target, { kind: "event", value: f.id });
         return;
       }
-      let target: ClinicalRecord | undefined;
+      let target: TimelineRecord | undefined;
       if (f.type === "recordId")
-        target = all.find((r) => r.id === f.id);
+        target = all.find((r) => r.recordId === f.id || r.id === f.id);
       else if (f.type === "clinicalId")
         target = all.find((r) => r.medicationChangeId === f.id);
       else if (f.type === "nursingId")
@@ -235,7 +244,7 @@ function ClinicalRecordsTab({
     if (target) runFocus(target, { kind: "date", value: d });
   };
 
-  const isHighlighted = (r: ClinicalRecord) =>
+  const isHighlighted = (r: TimelineRecord) =>
     highlight !== null &&
     ((highlight.kind === "key" && keyOf(r) === highlight.value) ||
       (highlight.kind === "date" && r.date === highlight.value) ||
@@ -284,8 +293,15 @@ function ClinicalRecordsTab({
                   else recordRefs.current.delete(keyOf(r));
                 }}
                 className={[
-                  "border-b border-[#E5E5EA] px-3.5 py-2.5 transition-colors duration-500 last:border-b-0",
-                  isHighlighted(r) ? "bg-[#EAF3FF]" : "bg-white",
+                  "border-b border-[#E5E5EA] border-l-[3px] px-3.5 py-2.5 transition-colors duration-500 last:border-b-0",
+                  r.recordType === "nursing"
+                    ? "border-l-[#2E7D32]"
+                    : "border-l-transparent",
+                  isHighlighted(r)
+                    ? "bg-[#EAF3FF]"
+                    : r.recordType === "nursing"
+                      ? "bg-[#F7FBF8]"
+                      : "bg-white",
                 ].join(" ")}
               >
                 <div className="mb-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
@@ -295,20 +311,106 @@ function ClinicalRecordsTab({
                   <span className="text-[12px] tabular-nums text-[#6E6E73]">
                     {r.time}
                   </span>
+                  <span
+                    className={[
+                      "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                      r.recordType === "nursing"
+                        ? "bg-[#E7F4EA] text-[#2E7D32]"
+                        : "bg-[#EAF3FF] text-[#0A5FCC]",
+                    ].join(" ")}
+                  >
+                    {RECORD_TYPE_LABEL[r.recordType]}
+                  </span>
                   <ProfessionBadge profession={r.profession} />
+                  <span className="text-[11px] text-[#8E8E93]">{r.department}</span>
+                  {r.problems && r.problems.length > 0 && (
+                    <span className="inline-flex flex-wrap gap-1">
+                      {r.problems.map((n) => (
+                        <span
+                          key={n}
+                          className="inline-flex items-center rounded-md bg-[#EAF3FF] px-1.5 py-0.5 text-[10px] font-semibold text-[#0A5FCC]"
+                        >
+                          #{n}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                   {r.restrictionEventId && (
                     <span className="inline-flex items-center gap-1 rounded-md bg-[#F4EBFB] px-1.5 py-0.5 text-[10px] font-semibold text-[#7B3FA0]">
                       行動制限
                       {r.restrictionType ? `・${r.restrictionType}` : ""}
                     </span>
                   )}
+                  {r.orderId && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-[#FFF2E1] px-1.5 py-0.5 text-[10px] font-semibold text-[#C93400]">
+                      オーダー
+                    </span>
+                  )}
                   <span className="ml-auto text-[11px] text-[#8E8E93]">
                     {r.author}
                   </span>
                 </div>
-                <p className="text-[12.5px] leading-[1.55] text-[#3A3A3C]">
-                  {r.content}
-                </p>
+                {r.recordType === "nursing" ? (
+                  <div className="space-y-1.5 text-[12.5px] leading-[1.55] text-[#3A3A3C]">
+                    {r.focus && (
+                      <p className="text-[11px] font-semibold text-[#2E7D32]">
+                        #{r.focus}
+                      </p>
+                    )}
+                    {r.soap ? (
+                      (["s", "o", "a", "p"] as const).map((k) => {
+                        const val = (r.soap?.[k] ?? "").trim();
+                        return (
+                          <p key={k}>
+                            <span className="mr-1 font-semibold text-[#2E7D32]">
+                              {k.toUpperCase()}:
+                            </span>
+                            <span
+                              className={`whitespace-pre-line ${
+                                val === "" ? "text-[#8E8E93]" : ""
+                              }`}
+                            >
+                              {val === "" ? "記載なし" : val}
+                            </span>
+                          </p>
+                        );
+                      })
+                    ) : (
+                      <p className="whitespace-pre-line">{r.content}</p>
+                    )}
+                  </div>
+                ) : r.soap ? (
+                  <div className="space-y-1.5 text-[12.5px] leading-[1.55] text-[#3A3A3C]">
+                    {r.soap.s && (
+                      <p>
+                        <span className="mr-1 font-semibold text-[#0A5FCC]">S:</span>
+                        <span className="whitespace-pre-line">{r.soap.s}</span>
+                      </p>
+                    )}
+                    {r.soap.o && (
+                      <p>
+                        <span className="mr-1 font-semibold text-[#0A5FCC]">O:</span>
+                        <span className="whitespace-pre-line">{r.soap.o}</span>
+                      </p>
+                    )}
+                    {r.soap.a && (
+                      <p>
+                        <span className="mr-1 font-semibold text-[#0A5FCC]">A:</span>
+                        <span className="whitespace-pre-line">{r.soap.a}</span>
+                      </p>
+                    )}
+                    {r.soap.p && (
+                      <p>
+                        <span className="mr-1 font-semibold text-[#0A5FCC]">P:</span>
+                        <span className="whitespace-pre-line">{r.soap.p}</span>
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-line text-[12.5px] leading-[1.55] text-[#3A3A3C]">
+                    {r.content}
+                  </p>
+                )}
                 {r.medicationChangeId && (
                   <button
                     type="button"
@@ -458,78 +560,6 @@ function SummariesTab({ data }: { data: ChartData }) {
           </article>
         ))}
       </div>
-    </ChartPanel>
-  );
-}
-
-function DocumentsTab({ data }: { data: ChartData }) {
-  if (data.clinicalDocuments.length === 0) {
-    return (
-      <ChartPanel>
-        <EmptyState text="この患者の書類はありません" />
-      </ChartPanel>
-    );
-  }
-  const sorted = [...data.clinicalDocuments].sort((a, b) =>
-    b.date.localeCompare(a.date),
-  );
-  return (
-    <ChartPanel>
-      <TabCount count={data.clinicalDocuments.length} />
-      <div className="space-y-2.5">
-        {sorted.map((doc) => (
-          <article
-            key={doc.id}
-            className="overflow-hidden rounded-xl border border-[#E5E5EA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
-          >
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-[#F0F0F2] bg-[#FAFAFC] px-3.5 py-2.5">
-              <span className="inline-flex rounded-md bg-[#F4EBFB] px-2 py-0.5 text-[11px] font-semibold text-[#7B3FA0]">
-                {doc.category}
-              </span>
-              <h4 className="text-[13px] font-bold text-[#1D1D1F]">
-                {doc.title}
-              </h4>
-              <time className="text-[12px] tabular-nums text-[#6E6E73]">
-                {doc.date}
-              </time>
-              <span className="ml-auto text-[11px] text-[#8E8E93]">
-                {doc.author}
-              </span>
-            </div>
-            <dl className="divide-y divide-[#F0F0F2] px-3.5 py-1">
-              {doc.sections.map((sec, i) => (
-                <div key={i} className="py-2">
-                  <dt className="mb-0.5 text-[11.5px] font-semibold text-[#6E6E73]">
-                    {sec.heading}
-                  </dt>
-                  <dd className="text-[12.5px] leading-[1.55] text-[#3A3A3C]">
-                    {sec.body}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </article>
-        ))}
-      </div>
-    </ChartPanel>
-  );
-}
-
-function NursingTab({ data }: { data: ChartData }) {
-  return (
-    <ChartPanel>
-      <TabCount count={data.nursingRecords.length} />
-      <ChartTable
-        headers={["日付", "時間", "記録者", "観察", "対応", "評価"]}
-        rows={data.nursingRecords.map((r) => [
-          r.date,
-          r.time,
-          r.author,
-          r.observation,
-          r.intervention,
-          r.evaluation,
-        ])}
-      />
     </ChartPanel>
   );
 }

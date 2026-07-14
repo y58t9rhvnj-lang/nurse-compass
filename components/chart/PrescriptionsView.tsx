@@ -131,6 +131,24 @@ function CategoryBadge({ category }: { category: PrescriptionCategory }) {
   );
 }
 
+function StatusBadge({ status }: { status: NonNullable<PrescriptionOrder["status"]> }) {
+  const style: Record<NonNullable<PrescriptionOrder["status"]>, string> = {
+    active: "bg-[#E7F8ED] text-[#1E7A3D]",
+    discontinued: "bg-[#F2F2F7] text-[#6E6E73]",
+    completed: "bg-[#EAF3FF] text-[#0A5FCC]",
+  };
+  const label: Record<NonNullable<PrescriptionOrder["status"]>, string> = {
+    active: "継続中",
+    discontinued: "中止",
+    completed: "完了",
+  };
+  return (
+    <span className={["rounded-md px-2 py-0.5 text-[10.5px] font-semibold", style[status]].join(" ")}>
+      {label[status]}
+    </span>
+  );
+}
+
 function OrderBlock({
   order,
   onSeeClinical,
@@ -145,6 +163,10 @@ function OrderBlock({
           {order.datetime}
         </time>
         <CategoryBadge category={order.category} />
+        {order.status && <StatusBadge status={order.status} />}
+        {order.endDate && (
+          <span className="text-[11px] text-[#8E8E93]">〜{order.endDate}</span>
+        )}
         <span className="ml-auto text-[12px] text-[#3A3A3C]">
           {order.doctor}
         </span>

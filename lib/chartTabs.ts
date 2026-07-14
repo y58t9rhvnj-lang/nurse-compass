@@ -5,7 +5,7 @@ export type ChartTabId =
   | "患者情報"
   | "生活歴"
   | "エピソード"
-  | "サマリー"
+  | "医療サマリー"
   | "看護記録"
   | "OT"
   | "PSW"
@@ -19,7 +19,7 @@ export const CHART_TABS: ChartTabId[] = [
   "患者情報",
   "生活歴",
   "エピソード",
-  "サマリー",
+  "医療サマリー",
   "看護記録",
   "OT",
   "PSW",

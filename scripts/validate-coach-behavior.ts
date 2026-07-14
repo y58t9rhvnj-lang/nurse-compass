@@ -63,13 +63,13 @@ function displayedTopic(state: FacingConvoState): string | null {
   s = say(s, "お薬で困っていることはありますか？");
   check("服薬深掘り後に服薬リソース表示", displayedTopic(s) === "medication");
 
-  // 趣味へ切替・深掘り（sufficientAt 1）
-  s = say(s, "詰将棋");
-  check("趣味切替後は服薬カードが消える", displayedTopic(s) !== "medication");
-  check("趣味深掘り後に趣味リソース表示", displayedTopic(s) === "hobby");
+  // 楽しみ（hobby）へ切替・深掘り（sufficientAt 1）
+  s = say(s, "好きなことは、ありますか？");
+  check("楽しみ切替後は服薬カードが消える", displayedTopic(s) !== "medication");
+  check("楽しみ深掘り後に楽しみリソース表示", displayedTopic(s) === "hobby");
 
   // 家族を深掘り（sufficientAt 1）
-  s = say(s, "お母さんは面会に来ますか？");
+  s = say(s, "ご家族について教えてください");
   check("家族深掘り後に家族リソース表示", displayedTopic(s) === "family");
 
   // 再び睡眠へ戻る（解放済み）

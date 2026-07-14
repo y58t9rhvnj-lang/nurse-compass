@@ -18,7 +18,12 @@ import {
 } from "@/lib/patientFacingData";
 import { useInformationCards } from "@/hooks/useInformationCards";
 import CollectionDialog from "@/components/collection/CollectionDialog";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 import PatientPresence from "./PatientPresence";
+
+// Version1（第1回講義）では収集ワークフローを学生画面から完全に非表示にする。
+// 収集ボタン・収集済み表示・収集ダイアログは、このフラグが true のときだけ描画する。
+const COLLECTION_ENABLED = isFeatureEnabled("collection");
 
 // Sprint10.8A: 中央は患者との対話に専念する。
 // Compass Coach とヒント・関連情報は右ペイン（FacingCoachPanel）へ移設済み。
@@ -121,7 +126,7 @@ export default function FacingPatient({
               return (
                 <li key={entryId} className="flex flex-col items-start">
                   <Bubble role="patient" name={patient.name} text={item.text} />
-                  {hydrated && (
+                  {COLLECTION_ENABLED && hydrated && (
                     <CollectButton
                       collected={isEntryCollected(entryId)}
                       onCollect={() =>
@@ -163,26 +168,28 @@ export default function FacingPatient({
         </form>
       </div>
 
-      {/* 共通収集ダイアログ（患者発言の収集） */}
-      <CollectionDialog
-        key={collectTarget?.entryId ?? "closed"}
-        open={collectTarget !== null}
-        mode="add"
-        originalText={collectTarget?.text ?? ""}
-        initialContent={collectTarget?.text ?? ""}
-        sourceLabel="患者との会話"
-        onCancel={() => setCollectTarget(null)}
-        onConfirm={(content) => {
-          if (collectTarget) {
-            collectPatientUtterance(
-              collectTarget.entryId,
-              content,
-              collectTarget.text,
-            );
-          }
-          setCollectTarget(null);
-        }}
-      />
+      {/* 共通収集ダイアログ（患者発言の収集）。Version1 では非表示。 */}
+      {COLLECTION_ENABLED && (
+        <CollectionDialog
+          key={collectTarget?.entryId ?? "closed"}
+          open={collectTarget !== null}
+          mode="add"
+          originalText={collectTarget?.text ?? ""}
+          initialContent={collectTarget?.text ?? ""}
+          sourceLabel="患者との会話"
+          onCancel={() => setCollectTarget(null)}
+          onConfirm={(content) => {
+            if (collectTarget) {
+              collectPatientUtterance(
+                collectTarget.entryId,
+                content,
+                collectTarget.text,
+              );
+            }
+            setCollectTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -247,7 +254,7 @@ function Bubble({
       >
         {name}
       </p>
-      <p className="text-[13px] leading-relaxed">{text}</p>
+      <p className="whitespace-pre-line text-[13px] leading-relaxed">{text}</p>
     </div>
   );
 }

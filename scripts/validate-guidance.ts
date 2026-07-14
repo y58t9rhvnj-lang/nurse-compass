@@ -3,6 +3,7 @@ import {
   getCoachFocus,
   getDisplayTopicResources,
   getGuidanceState,
+  getResourceMessage,
   initialFacingState,
   type FacingConvoState,
 } from "../lib/patientFacingData";
@@ -36,7 +37,7 @@ function displayedTopic(state: FacingConvoState): string | null {
   s = sayA(s, "おはようございます");
   s = sayA(s, "昨日はよく眠れましたか？"); // sleep level1 (< sufficientAt 3)
   check("睡眠を1段階だけ聞いた直後は現在focus（pendingでない）", !pending(s).includes("sleep"));
-  s = sayA(s, "詰将棋"); // 趣味へ移動
+  s = sayA(s, "好きなことは、ありますか？"); // 楽しみへ移動
   check("睡眠を途中で離れると pending に入る", pending(s).includes("sleep"));
 }
 
@@ -56,7 +57,7 @@ function displayedTopic(state: FacingConvoState): string | null {
   let s = initialFacingState();
   s = sayA(s, "おはようございます");
   s = sayA(s, "昨日はよく眠れましたか？");
-  s = sayA(s, "詰将棋"); // 離脱→sleep pending
+  s = sayA(s, "好きなことは、ありますか？"); // 離脱→sleep pending
   s = sayA(s, "夜中に目が覚めることはありましたか？"); // sleepへ戻り再び1段階
   s = sayA(s, "作業療法には出ていますか？"); // 再離脱
   check(
@@ -70,7 +71,7 @@ function displayedTopic(state: FacingConvoState): string | null {
   let s = initialFacingState();
   s = sayA(s, "おはようございます");
   s = sayA(s, "昨日はよく眠れましたか？");
-  s = sayA(s, "詰将棋");
+  s = sayA(s, "好きなことは、ありますか？");
   check("離脱後 pending に睡眠あり", pending(s).includes("sleep"));
   s = sayA(s, "夜中に目が覚めることはありましたか？");
   s = sayA(s, "眠れないとき、気になることはありますか？"); // sleep sufficient
@@ -136,6 +137,61 @@ function displayedTopic(state: FacingConvoState): string | null {
   s = advanceConversation("F", s, "お薬は飲めていますか？"); // medication level1 (<2)
   s = advanceConversation("F", s, "昨日はどのくらい眠れましたか？"); // 睡眠へ移動
   check("F: 服薬が pending に入る", getGuidanceState(s).pendingImportantTopics.includes("medication"));
+}
+
+// ---- Task 6: Coach は根拠（カルテ）へ導き、結論（診断/アセスメント）を言わない ----
+{
+  // 根拠へ導く語（看護記録・フローシート・診療録・サマリー・生活歴 など）を含む。
+  const evidenceWords = ["看護記録", "フローシート", "診療録", "サマリー", "生活歴", "処方"];
+  const sleepMsg = getResourceMessage("sleep");
+  check(
+    "睡眠の関連メッセージが根拠（看護記録/フローシート）へ導く",
+    sleepMsg.includes("看護記録") || sleepMsg.includes("フローシート"),
+  );
+  const dischargeMsg = getResourceMessage("discharge");
+  check(
+    "退院の関連メッセージが生活歴・現在サマリーへ導く",
+    dischargeMsg.includes("生活歴") && dischargeMsg.includes("サマリー"),
+  );
+
+  // 禁止：結論的な診断・アセスメント表現（例：睡眠障害ですね／自己効力感が低いですね）。
+  const forbidden = ["障害ですね", "自己効力感", "アセスメント", "看護問題", "と診断"];
+  const topics = [
+    "sleep",
+    "hallucination",
+    "medication",
+    "med_selfmgmt",
+    "discharge",
+    "hospital",
+    "roommate",
+    "uncle",
+    "weight",
+  ];
+  let anyForbidden = false;
+  for (const t of topics) {
+    const msg = getResourceMessage(t);
+    if (forbidden.some((f) => msg.includes(f))) anyForbidden = true;
+    // 各メッセージは少なくとも一つの根拠語を含む（結論ではなく根拠へ導く）。
+    check(`関連メッセージが根拠へ導く（${t}）`, evidenceWords.some((w) => msg.includes(w)));
+  }
+  check("関連メッセージに結論的な診断/アセスメント表現がない", !anyForbidden);
+
+  // return guidance（一区切り→pending睡眠へ戻す）も根拠へ導く表現である。
+  let s = initialFacingState();
+  s = sayA(s, "おはようございます");
+  s = sayA(s, "昨日はよく眠れましたか？");
+  s = sayA(s, "お薬は飲めていますか？");
+  s = sayA(s, "お薬で困っていることはありますか？");
+  const rf = getCoachFocus("A", s);
+  check(
+    "睡眠へのreturn guidanceが根拠（看護記録/フローシート）へ導く",
+    rf.kind === "return" &&
+      (rf.direction.includes("看護記録") || rf.direction.includes("フローシート")),
+  );
+  check(
+    "return guidanceに結論的表現がない",
+    !forbidden.some((f) => rf.direction.includes(f)),
+  );
 }
 
 console.log(`\nConversation guidance validation: ${failures} failed`);

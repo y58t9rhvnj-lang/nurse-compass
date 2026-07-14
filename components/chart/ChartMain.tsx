@@ -21,6 +21,7 @@ export default function ChartMain({
     <ChartTabContent
       tab={activeTab}
       data={data}
+      patientId={patientId}
       nav={nav}
       onNavigate={onNavigate}
     />

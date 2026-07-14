@@ -3,12 +3,14 @@
 import {
   ArrowRight,
   BookOpen,
+  Compass,
   Eye,
   HeartPulse,
   Lightbulb,
   LineChart,
   MessageCircle,
   Pill,
+  ScrollText,
   Sparkles,
   Stethoscope,
 } from "lucide-react";
@@ -81,7 +83,7 @@ export default function FacingCoachPanel({
         ) : (
           <div className="space-y-2">
             <p className="text-[11px] leading-relaxed text-[#8E8E93]">
-              必要なときに、Compass Coachへ相談できます。
+              必要なときにCompass Coachへ相談できます。
             </p>
             <button
               type="button"
@@ -108,6 +110,14 @@ export default function FacingCoachPanel({
             言葉だけでなく、表情・姿勢・視線にも注目してみましょう。
           </p>
         </div>
+      </div>
+
+      {/* Task 8: 指導者からの小さな固定メッセージ（常時・控えめ） */}
+      <div className="flex items-start gap-1.5 border-t border-[#EBEBF0] bg-[#FBFAFF] px-4 py-2">
+        <Compass className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#AF52DE]" strokeWidth={1.75} />
+        <p className="text-[10.5px] leading-relaxed text-[#6E6E73]">
+          一つの情報だけで結論を出さず、患者さんの言葉・生活歴・カルテをつなげて考えてみましょう。
+        </p>
       </div>
     </div>
   );
@@ -150,6 +160,7 @@ const RESOURCE_ICON: Record<RelatedResource["type"], typeof Stethoscope> = {
   看護記録: HeartPulse,
   フローシート: LineChart,
   処方: Pill,
+  サマリー: ScrollText,
   生活歴: BookOpen,
 };
 

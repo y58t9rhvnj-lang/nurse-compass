@@ -11,6 +11,7 @@ import ChartAside from "@/components/chart/ChartAside";
 import ChartSideNav from "@/components/chart/ChartSideNav";
 import FacingPatient from "@/components/patient/facing/FacingPatient";
 import FacingCoachPanel from "@/components/patient/facing/FacingCoachPanel";
+import FirstAssignmentSheet from "@/components/patient/FirstAssignmentSheet";
 import NoteZone from "@/components/patient/notes/NoteZone";
 import ClinicalThinkingWorkspace from "@/components/thinking-workspace/ClinicalThinkingWorkspace";
 import type { ChartTabId } from "@/lib/chartTabs";
@@ -188,6 +189,8 @@ export default function AppShell() {
                       onOpenWorkspace={NOTEBOOK_ENABLED ? goWorkspace : undefined}
                     />
                   </div>
+                  {/* 受け持ち患者を初めて開いたときの課題シート（一度だけ・端末に永続化） */}
+                  <FirstAssignmentSheet patientId={selectedId} />
                 </div>
               )}
             </main>

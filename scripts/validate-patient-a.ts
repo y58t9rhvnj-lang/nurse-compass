@@ -70,7 +70,9 @@ check("以前約80kg・現在約70kgの記載", chartText.includes("80kg") && ch
 check("以前の脂質異常が改善した記載", chartText.includes("脂質") && chartText.includes("改善"));
 
 // ── 5. 服薬の一貫性 ───────────────────────────
-const teiki = chart.prescriptionOrders.filter((o) => o.category === "定期");
+const teiki = chart.prescriptionOrders.filter(
+  (o) => o.category === "定期" && (o.status === "active" || o.status === undefined),
+);
 const teikiDrugs = teiki.flatMap((o) => o.groups.flatMap((g) => g.drugs.map((d) => d.name))).join(" ");
 for (const drug of ["ロフラゼプ酸エチル", "リスペリドン", "クエチアピン", "ゾピクロン"]) {
   check(`定期処方に ${drug} が含まれる`, teikiDrugs.includes(drug), teikiDrugs);
@@ -108,7 +110,10 @@ check(
 // ── 8. 幻聴と睡眠の関連 ───────────────────────
 const voicesSleep =
   chart.clinicalRecords.some((r) => r.content.includes("幻聴") && (r.content.includes("入眠") || r.content.includes("不眠"))) ||
-  chart.nursingRecords.some((r) => (r.observation + r.evaluation).includes("幻聴"));
+  chart.nursingRecords.some((r) => {
+    const t = [r.observation, r.evaluation, r.body, r.content].filter(Boolean).join(" ");
+    return t.includes("幻聴");
+  });
 check("幻聴と不眠/入眠の関連が記録されている", voicesSleep);
 check("幻聴の内容（自己否定的）が記載されている", chartText.includes("だめな人間") || chartText.includes("怠け者"));
 check("ラジオでの対処が記載されている", chartText.includes("ラジオ"));
@@ -124,8 +129,14 @@ check(
   chartText.includes("グループホーム") || chartText.includes("地域生活") || chartText.includes("退院支援"),
 );
 
-// ── 11. サマリー（9本・時点整合・後知恵なし） ──
-check("サマリーが9本以上", chart.summaries.length >= 9, `${chart.summaries.length}本`);
+// ── 11. サマリー（医師・多職種。看護サマリーは看護記録タブ） ──
+check("一般サマリーが8本以上", chart.summaries.length >= 8, `${chart.summaries.length}本`);
+check(
+  "看護サマリーは看護記録エリアに移動",
+  chart.nursingSummaries.length >= 5 &&
+    !chart.summaries.some((s) => s.id === "sum-a-nursing"),
+  `nursingSummaries=${chart.nursingSummaries.length}`,
+);
 const admissionSummary = chart.summaries.find((s) => s.id === "sum-a-admission");
 check("入院時サマリーの日付が入院日と一致", admissionSummary?.date === ADMIT);
 check(
@@ -138,12 +149,41 @@ check(
 const timepoints = new Set(chart.summaries.map((s) => s.timepoint));
 check("サマリーの時点が複数（時間変化を示す）", timepoints.size >= 3);
 
-// ── 12. 臨床文書（複数の視点） ─────────────────
-check("臨床文書が10件以上", chart.clinicalDocuments.length >= 10, `${chart.clinicalDocuments.length}件`);
-check("転倒転落リスク文書が存在", chart.clinicalDocuments.some((d) => d.category.includes("転倒転落")));
-const fall = chart.clinicalDocuments.find((d) => d.category.includes("転倒転落"));
-check("転倒リスクを過大評価していない（低〜中）", !!fall && fall.sections.some((s) => s.body.includes("低") || s.body.includes("中")));
-check("褥瘡リスクは低リスク", chart.clinicalDocuments.some((d) => d.category.includes("褥瘡") && d.sections.some((s) => s.body.includes("低"))));
+// ── 12. 臨床文書（複数の視点）＋記載済み帳票 ─────────────────
+const totalDocs = chart.clinicalDocuments.length + chart.formDocuments.length;
+check("文書（臨床文書＋帳票）が10件以上", totalDocs >= 10, `${totalDocs}件`);
+check("記載済み帳票が4件", chart.formDocuments.length === 4, `${chart.formDocuments.length}件`);
+const formText = JSON.stringify(chart.formDocuments);
+check(
+  "入院診療計画書の帳票が存在",
+  chart.formDocuments.some((d) => d.documentName === "入院診療計画書"),
+);
+const fall = chart.formDocuments.find(
+  (d) => d.documentName === "転倒・転落アセスメントシート",
+);
+check("転倒・転落アセスメント帳票が存在", !!fall);
+check(
+  "転倒リスクを過大評価していない（危険度Ⅰ／低〜中）",
+  !!fall && JSON.stringify(fall).includes("危険度Ⅰ"),
+);
+const pressure = chart.formDocuments.find(
+  (d) => d.documentName === "褥瘡リスクアセスメントシート",
+);
+check(
+  "褥瘡リスクは低リスク",
+  !!pressure && JSON.stringify(pressure).includes("低リスク"),
+);
+const nutrition = chart.formDocuments.find(
+  (d) => d.documentName === "栄養スクリーニング・アセスメントシート",
+);
+check(
+  "栄養リスクは低リスク（食事良好と整合）",
+  !!nutrition && JSON.stringify(nutrition).includes("低リスク"),
+);
+check(
+  "帳票に架空値の検査結果を追加していない（未測定表記）",
+  formText.includes("未測定"),
+);
 check("多職種カンファレンス記録が存在", chart.clinicalDocuments.some((d) => d.category.includes("多職種")));
 
 // ── 13. 日付の妥当性（未来日なし） ─────────────
