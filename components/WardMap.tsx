@@ -23,6 +23,13 @@ interface WardMapProps {
   onSelectPatient: (id: string) => void;
 }
 
+/* 現在地が facility のエリアにいる患者名（例: デイルーム・面談室） */
+function namesByLoc(loc: Loc): string[] {
+  return Object.values(PATIENTS)
+    .filter((p) => p.loc === loc)
+    .map((p) => p.name);
+}
+
 /* ---------- ベッド ---------- */
 function PatientBed({
   patientId,
@@ -42,29 +49,37 @@ function PatientBed({
         e.stopPropagation();
         onSelect(patientId);
       }}
+      title={`${p.name}（${c.label}）`}
       className={[
-        "flex flex-col items-center justify-center gap-1 rounded-xl bg-white p-1.5 transition-all",
+        "relative flex h-full w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-lg bg-white px-1 py-1.5 transition-all",
         selected
           ? "ring-2 ring-[#0A84FF] ring-offset-1"
-          : "border border-[#EBEBF0] hover:border-[#C7D8F5]",
+          : "border border-[#DCDCE2] hover:border-[#9BC0F5]",
       ].join(" ")}
     >
+      {/* ヘッドボード（現在地カラー） */}
+      <span
+        className="absolute inset-x-0 top-0 h-[3px]"
+        style={{ background: c.color }}
+      />
       <div
         className="flex h-9 w-9 items-center justify-center rounded-full"
-        style={{ background: c.soft, border: `1.5px solid ${c.color}` }}
+        style={{ background: c.soft, border: `2px solid ${c.color}` }}
       >
         <User className="h-5 w-5" strokeWidth={1.75} style={{ color: c.color }} />
       </div>
-      <span className="text-[11px] font-semibold text-[#1D1D1F]">{p.name}</span>
+      <span className="max-w-full truncate text-[11px] font-semibold text-[#1D1D1F]">
+        {p.name}
+      </span>
     </button>
   );
 }
 
 function EmptyBed() {
   return (
-    <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-[#D9D9DE] bg-[#FBFBFD] p-1.5">
-      <BedDouble className="h-5 w-5 text-[#C7C7CC]" strokeWidth={1.5} />
-      <span className="text-[10px] text-[#B0B0B8]">空床</span>
+    <div className="flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-[#D2D2D8] bg-[#F6F6F8] px-1 py-1.5">
+      <BedDouble className="h-5 w-5 text-[#C2C2C8]" strokeWidth={1.5} />
+      <span className="text-[10px] text-[#AEAEB5]">空床</span>
     </div>
   );
 }
@@ -88,11 +103,13 @@ function Room({
     <div
       style={style}
       className={[
-        "flex min-h-0 min-w-0 flex-col rounded-2xl bg-white p-2",
-        hasSelected ? "ring-[1.5px] ring-[#0A84FF]" : "border border-[#E5E5EA]",
+        "flex min-h-0 min-w-0 flex-col rounded-xl bg-white p-2",
+        hasSelected
+          ? "ring-2 ring-[#0A84FF]"
+          : "border border-[#CFCFD6]",
       ].join(" ")}
     >
-      <div className="mb-1.5 flex shrink-0 items-baseline gap-1.5">
+      <div className="mb-1.5 flex shrink-0 items-baseline gap-1.5 border-b border-[#F0F0F3] pb-1">
         <span className="text-[13px] font-bold text-[#1D1D1F]">{no}</span>
         <span className="text-[10px] text-[#8E8E93]">{type}</span>
       </div>
@@ -112,8 +129,16 @@ function Room({
           )}
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <BedDouble className="h-6 w-6 text-[#C7C7CC]" strokeWidth={1.5} />
+        <div className="min-h-0 flex-1">
+          {beds[0] ? (
+            <PatientBed
+              patientId={beds[0]}
+              selected={beds[0] === selectedId}
+              onSelect={onSelectPatient}
+            />
+          ) : (
+            <EmptyBed />
+          )}
         </div>
       )}
     </div>
@@ -123,7 +148,6 @@ function Room({
 /* ---------- 施設 ---------- */
 function Facility({
   title,
-  icon,
   tone = "gray",
   style,
   className = "",
@@ -131,7 +155,6 @@ function Facility({
   children,
 }: {
   title: string;
-  icon?: ReactNode;
   tone?: "gray" | "blue" | "green" | "purple" | "bath";
   style?: CSSProperties;
   className?: string;
@@ -139,11 +162,11 @@ function Facility({
   children?: ReactNode;
 }) {
   const tones: Record<string, string> = {
-    gray: "bg-[#FAFAFC] border-[#E5E5EA]",
-    blue: "bg-[#EEF5FF] border-[#DCEBFB]",
-    green: "bg-[#EEFAF1] border-[#D7F0DE]",
-    purple: "bg-[#F5EFFB] border-[#E9DBF6]",
-    bath: "bg-[#E7F3FB] border-[#D3E9F6]",
+    gray: "bg-[#F7F7F9] border-[#CFCFD6]",
+    blue: "bg-[#EEF5FF] border-[#C9DEF9]",
+    green: "bg-[#EEFAF1] border-[#CBE9D4]",
+    purple: "bg-[#F5EFFB] border-[#E1CDF2]",
+    bath: "bg-[#E7F3FB] border-[#C6E1F2]",
   };
   return (
     <button
@@ -151,15 +174,14 @@ function Facility({
       onClick={onClick}
       style={style}
       className={[
-        "flex min-h-0 min-w-0 flex-col rounded-2xl border p-2 text-left transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]",
+        "flex min-h-0 min-w-0 flex-col rounded-xl border p-2 text-left transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]",
         tones[tone],
         className,
       ].join(" ")}
     >
-      <div className="flex shrink-0 items-center gap-1.5">
-        {icon}
-        <span className="text-[11px] font-semibold text-[#1D1D1F]">{title}</span>
-      </div>
+      <span className="shrink-0 text-[11px] font-semibold text-[#1D1D1F]">
+        {title}
+      </span>
       {children && (
         <div className="flex min-h-0 flex-1 items-center justify-center">
           {children}
@@ -169,17 +191,79 @@ function Facility({
   );
 }
 
-function Corridor({ style }: { style: CSSProperties }) {
+/* 右側水回りの1マス（アイコン中心・視認性重視） */
+function UtilityRoom({
+  title,
+  icon,
+  tone = "gray",
+  className = "",
+  onClick,
+  chips,
+}: {
+  title: string;
+  icon: ReactNode;
+  tone?: "gray" | "purple" | "bath";
+  className?: string;
+  onClick: () => void;
+  chips?: { label: string; color: string; soft: string }[];
+}) {
+  const tones: Record<string, string> = {
+    gray: "bg-[#F7F7F9] border-[#CFCFD6]",
+    purple: "bg-[#F5EFFB] border-[#E1CDF2]",
+    bath: "bg-[#E7F3FB] border-[#C6E1F2]",
+  };
   return (
-    <div style={style} className="flex items-center justify-center">
-      <span className="text-[9px] font-medium tracking-[0.4em] text-[#C7C7CC]">
-        廊下
-      </span>
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "flex min-h-0 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border p-1.5 text-center transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]",
+        tones[tone],
+        className,
+      ].join(" ")}
+    >
+      {icon}
+      <span className="text-[11px] font-semibold text-[#1D1D1F]">{title}</span>
+      {chips?.map((ch) => (
+        <span
+          key={ch.label}
+          className="rounded-full px-1.5 py-[1px] text-[10px] font-medium"
+          style={{ background: ch.soft, color: ch.color }}
+        >
+          {ch.label}
+        </span>
+      ))}
+    </button>
+  );
+}
+
+/* デイルームの簡略家具 */
+function Furniture({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1 text-[#9C7B45]">
+      {icon}
+      <span className="text-[10px] font-medium">{label}</span>
     </div>
   );
 }
 
-const LEGEND: Loc[] = ["room", "dayroom", "bath", "interview", "out", "rest"];
+/* 廊下（点線のセンターライン＋ラベル） */
+function Corridor({ style }: { style: CSSProperties }) {
+  return (
+    <div
+      style={style}
+      className="flex items-center justify-center gap-2 rounded-full bg-[#F4F1EA]"
+    >
+      <span className="h-px flex-1 border-t border-dashed border-[#D0C8B8]" />
+      <span className="shrink-0 text-[9px] font-medium tracking-widest text-[#B4AA98]">
+        廊下
+      </span>
+      <span className="h-px flex-1 border-t border-dashed border-[#D0C8B8]" />
+    </div>
+  );
+}
+
+const LEGEND: Loc[] = ["room", "dayroom", "interview", "out", "exam"];
 
 export default function WardMap({ selectedId, onSelectPatient }: WardMapProps) {
   const [toast, setToast] = useState<string | null>(null);
@@ -189,33 +273,43 @@ export default function WardMap({ selectedId, onSelectPatient }: WardMapProps) {
     (ping as { _t?: number })._t = window.setTimeout(() => setToast(null), 1600);
   };
 
+  const dayroomNames = namesByLoc("dayroom");
+  const interviewNames = namesByLoc("interview");
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* 平面図 */}
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-[#D8D8DE] bg-[#F1EDE4] shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+      {/* 平面図（外壁） */}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border-2 border-[#B9B9C1] bg-[#EAE6DE] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <div
           className="grid min-h-0 flex-1 gap-2 p-3"
           style={{
             gridTemplateColumns: "168px repeat(10, 1fr) 116px",
-            gridTemplateRows: "1fr 20px 1.3fr 20px 1fr",
+            gridTemplateRows: "1fr 22px 1.3fr 22px 1fr",
           }}
         >
-          {/* 左上：ナースステーション */}
+          {/* 左上：ナースステーション（L字カウンター・PC・スタッフ） */}
           <Facility
             title="ナースステーション"
             tone="blue"
-            icon={<Monitor className="h-4 w-4 text-[#0A84FF]" strokeWidth={2} />}
             onClick={() => ping("ナースステーション")}
             style={{ gridColumn: "1 / 2", gridRow: "1 / 4" }}
           >
-            <div className="flex w-full flex-col items-center gap-2">
-              <div className="flex items-end gap-2 text-[#0A84FF]">
-                <Users className="h-7 w-7" strokeWidth={1.5} />
-                <Monitor className="h-5 w-5 text-[#7FB2F0]" strokeWidth={1.5} />
+            <div className="flex w-full flex-col items-center gap-2 px-1">
+              {/* PC 2台 */}
+              <div className="flex gap-2 text-[#0A84FF]">
+                <Monitor className="h-5 w-5" strokeWidth={1.75} />
+                <Monitor className="h-5 w-5" strokeWidth={1.75} />
               </div>
-              <div className="h-2 w-4/5 rounded-full bg-[#D6E6FB]" />
+              {/* L字カウンター＋スタッフ */}
+              <div className="relative h-9 w-[78%]">
+                <span className="absolute inset-x-0 top-0 h-2 rounded-full bg-[#BBD5F7]" />
+                <span className="absolute bottom-0 left-0 top-0 w-2 rounded-full bg-[#BBD5F7]" />
+                <span className="absolute bottom-0 right-1 flex items-center gap-0.5 text-[#0A84FF]">
+                  <Users className="h-5 w-5" strokeWidth={1.75} />
+                </span>
+              </div>
               <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-[#0A84FF]">
-                日勤 6名
+                日勤スタッフ 6名
               </span>
             </div>
           </Facility>
@@ -231,69 +325,81 @@ export default function WardMap({ selectedId, onSelectPatient }: WardMapProps) {
             className="flex flex-col gap-2"
             style={{ gridColumn: "12 / 13", gridRow: "1 / 6" }}
           >
-            <Facility
+            <UtilityRoom
               title="浴室"
               tone="bath"
               className="flex-[1.3]"
-              icon={<Bath className="h-4 w-4 text-[#32ADE6]" strokeWidth={2} />}
+              icon={<Bath className="h-6 w-6 text-[#32ADE6]" strokeWidth={1.6} />}
               onClick={() => ping("浴室")}
-            >
-              <Bath className="h-6 w-6 text-[#7CC4E8]" strokeWidth={1.4} />
-            </Facility>
-            <Facility
+            />
+            <UtilityRoom
               title="洗濯室"
               className="flex-1"
-              icon={<WashingMachine className="h-4 w-4 text-[#8E8E93]" strokeWidth={2} />}
+              icon={<WashingMachine className="h-5 w-5 text-[#6E6E73]" strokeWidth={1.6} />}
               onClick={() => ping("洗濯室")}
             />
-            <Facility
+            <UtilityRoom
               title="トイレ"
               className="flex-1"
-              icon={<Toilet className="h-4 w-4 text-[#8E8E93]" strokeWidth={2} />}
+              icon={<Toilet className="h-5 w-5 text-[#6E6E73]" strokeWidth={1.6} />}
               onClick={() => ping("トイレ")}
             />
-            <Facility
+            <UtilityRoom
               title="物品庫"
               className="flex-1"
-              icon={<Archive className="h-4 w-4 text-[#8E8E93]" strokeWidth={2} />}
+              icon={<Archive className="h-5 w-5 text-[#6E6E73]" strokeWidth={1.6} />}
               onClick={() => ping("物品庫")}
             />
-            <Facility
+            <UtilityRoom
               title="面談室"
               tone="purple"
               className="flex-[1.3]"
-              icon={<Users className="h-4 w-4 text-[#AF52DE]" strokeWidth={2} />}
+              icon={<Users className="h-6 w-6 text-[#AF52DE]" strokeWidth={1.6} />}
               onClick={() => ping("面談室")}
-            >
-              <Table2 className="h-6 w-6 text-[#C79BE6]" strokeWidth={1.4} />
-            </Facility>
+              chips={interviewNames.map((n) => ({
+                label: n,
+                color: LOC.interview.color,
+                soft: LOC.interview.soft,
+              }))}
+            />
           </div>
 
           {/* 廊下 */}
           <Corridor style={{ gridColumn: "2 / 12", gridRow: "2 / 3" }} />
 
-          {/* 中央：デイルーム・食堂 */}
+          {/* 中央：デイルーム・食堂（TV・ソファ・テーブル） */}
           <button
             type="button"
             onClick={() => ping("デイルーム・食堂")}
-            className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-[#E8DCC5] bg-[#F5EEE0] p-2.5 text-left transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
+            className="flex min-h-0 min-w-0 flex-col rounded-xl border border-[#E0D3BC] bg-[#F5EEDF] p-2.5 text-left transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
             style={{ gridColumn: "2 / 12", gridRow: "3 / 4" }}
           >
             <span className="shrink-0 text-center text-[13px] font-bold text-[#8A6D42]">
               デイルーム・食堂
             </span>
-            <div className="flex min-h-0 flex-1 items-center justify-center gap-8 text-[#B58A4B]">
-              <Tv className="h-8 w-8" strokeWidth={1.3} />
-              <Sofa className="h-8 w-8" strokeWidth={1.3} />
-              <Table2 className="h-8 w-8" strokeWidth={1.3} />
-              <div className="flex items-center gap-1.5">
-                <span className="rounded-full bg-[#E7F8ED] px-2.5 py-0.5 text-[10px] font-medium text-[#34C759]">
-                  Iさん
-                </span>
-                <span className="rounded-full bg-[#E7F8ED] px-2.5 py-0.5 text-[10px] font-medium text-[#34C759]">
-                  Gさん
-                </span>
-              </div>
+            <div className="flex min-h-0 flex-1 items-center justify-center gap-8">
+              <Furniture icon={<Tv className="h-7 w-7" strokeWidth={1.4} />} label="TV" />
+              <Furniture icon={<Sofa className="h-7 w-7" strokeWidth={1.4} />} label="ソファ" />
+              <Furniture icon={<Table2 className="h-7 w-7" strokeWidth={1.4} />} label="テーブル" />
+              {dayroomNames.length > 0 && (
+                <div className="flex flex-col items-start gap-1 border-l border-[#E0D3BC] pl-4">
+                  <span className="text-[10px] text-[#8A6D42]">在室</span>
+                  <div className="flex flex-wrap gap-1">
+                    {dayroomNames.map((n) => (
+                      <span
+                        key={n}
+                        className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                        style={{
+                          background: LOC.dayroom.soft,
+                          color: LOC.dayroom.color,
+                        }}
+                      >
+                        {n}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </button>
 
@@ -304,13 +410,15 @@ export default function WardMap({ selectedId, onSelectPatient }: WardMapProps) {
           <Facility
             title="病棟入口"
             tone="green"
-            icon={<DoorOpen className="h-4 w-4 text-[#34C759]" strokeWidth={2} />}
             onClick={() => ping("病棟入口 ／ エレベーター")}
             style={{ gridColumn: "1 / 2", gridRow: "4 / 6" }}
           >
-            <div className="flex items-center gap-1.5 rounded-xl bg-white px-2 py-1.5 text-[#48484A]">
-              <ArrowUpDown className="h-4 w-4" strokeWidth={1.75} />
-              <span className="text-[10px] font-medium">エレベーター</span>
+            <div className="flex flex-col items-center gap-1.5">
+              <DoorOpen className="h-6 w-6 text-[#34C759]" strokeWidth={1.6} />
+              <div className="flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-[#48484A]">
+                <ArrowUpDown className="h-4 w-4" strokeWidth={1.75} />
+                <span className="text-[10px] font-medium">エレベーター</span>
+              </div>
             </div>
           </Facility>
 

@@ -1,9 +1,43 @@
 @import "tailwindcss";
 
+/* iPad Safari: ビューポート＝実画面に固定し、ページ全体のスクロール/バウンスを止める。
+   これにより自動縮小や座標ズレを防ぎ、タップ位置が正確になる。 */
+html,
+body {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   background: #fafbfc;
   color: #1f2937;
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* iPad Safari のタップ挙動を安定させる（300ms遅延・ダブルタップズーム抑止、確実にclick発火） */
+button,
+[role="button"],
+a,
+label,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role="button"],
+label {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button:disabled {
+  cursor: default;
 }

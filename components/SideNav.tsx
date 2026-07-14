@@ -1,3 +1,5 @@
+"use client";
+
 import {
   BookOpen,
   Calendar,
@@ -6,21 +8,32 @@ import {
   Home,
   MessageCircle,
   Network,
+  NotebookPen,
   Settings,
   StickyNote,
   User,
   Users,
 } from "lucide-react";
+import { isFeatureEnabled } from "@/lib/featureFlags";
+
+export type AppView = "ward" | "patient" | "chart" | "workspace";
 
 const navItems: {
   label: string;
   icon: typeof Home;
-  active?: boolean;
+  view?: AppView;
   badge?: number;
+  flag?: "informationNotebook";
 }[] = [
-  { label: "病棟ホーム", icon: Home, active: true },
-  { label: "患者トップ", icon: Users },
-  { label: "電子カルテ", icon: FileText },
+  { label: "病棟ホーム", icon: Home, view: "ward" },
+  { label: "患者トップ", icon: Users, view: "patient" },
+  { label: "電子カルテ", icon: FileText, view: "chart" },
+  {
+    label: "情報整理ノート",
+    icon: NotebookPen,
+    view: "workspace",
+    flag: "informationNotebook",
+  },
   { label: "情報BOX", icon: MessageCircle, badge: 2 },
   { label: "申し送り", icon: MessageCircle },
   { label: "スケジュール", icon: Calendar },
@@ -30,7 +43,13 @@ const navItems: {
   { label: "設定", icon: Settings },
 ];
 
-export default function SideNav() {
+export default function SideNav({
+  activeView,
+  onNavigate,
+}: {
+  activeView: AppView;
+  onNavigate: (view: AppView) => void;
+}) {
   return (
     <nav className="flex h-full w-full flex-col px-3 py-4">
       {/* ロゴ */}
@@ -50,12 +69,19 @@ export default function SideNav() {
 
       {/* ナビ */}
       <ul className="flex flex-1 flex-col gap-1">
-        {navItems.map(({ label, icon: Icon, active, badge }) => (
+        {navItems
+          .filter((item) => !item.flag || isFeatureEnabled(item.flag))
+          .map(({ label, icon: Icon, view, badge }) => {
+          const active = view !== undefined && view === activeView;
+          const clickable = view !== undefined;
+          return (
           <li key={label}>
             <button
               type="button"
+              onClick={clickable ? () => onNavigate(view) : undefined}
+              aria-current={active ? "page" : undefined}
               className={[
-                "flex min-h-[38px] w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] transition-colors",
+                "flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] transition-colors",
                 active
                   ? "bg-[#0A84FF] font-semibold text-white shadow-[0_2px_8px_rgba(10,132,255,0.3)]"
                   : "font-medium text-[#3A3A3C] hover:bg-[#F2F2F5]",
@@ -80,7 +106,8 @@ export default function SideNav() {
               )}
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       {/* 看護師プロフィール */}

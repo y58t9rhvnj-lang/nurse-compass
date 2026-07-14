@@ -155,3 +155,32 @@ Gray
 派手さではなく
 
 教育効果を優先する。
+
+---
+
+## iPad Safari対応
+
+Next.js 16ではLAN経由(iPad実機)で開発サーバーへアクセスする場合、
+next.config.ts の allowedDevOrigins にMacのLAN IPを追加する。
+
+例
+
+allowedDevOrigins: [
+  "192.168.1.65"
+]
+
+設定変更後は
+
+1. npm run dev を停止
+2. rm -rf .next
+3. npm run dev -- --hostname 0.0.0.0
+
+で開発サーバーを再起動すること。
+
+設定が無い場合、
+
+・画面は表示される
+・ボタンとして認識される
+・Reactイベント(onClick)が動作しない
+
+という現象が発生する。
