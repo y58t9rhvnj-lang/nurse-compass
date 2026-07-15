@@ -1,11 +1,9 @@
-import {
-  FORM2_TREATMENT_LABEL,
-} from "@/lib/form2/form2Fields";
 import { FORM2_HISTORY_KEYS, type Form2Data } from "@/lib/form2/form2Types";
 
-const EMPTY_MARK = "";
-// 学校名は実在名を転載しない教育様式のためプレースホルダとする。
-const SCHOOL_NAME = "（学校名）";
+// 原本（受け持ち対象記録・精神様式2）の書式を維持する。
+const SHEET_TITLE = "受け持ち対象記録";
+const FORM_NO = "精神様式２";
+const SCHOOL_LINE = "熊本市医師会看護専門学校　第 1 看護学科";
 
 // セル内テキスト（空欄でも罫線が保てるよう最小高さを持たせる）。
 function CellText({
@@ -23,7 +21,7 @@ function CellText({
         minHeightClass,
       ].join(" ")}
     >
-      {text.length > 0 ? text : EMPTY_MARK}
+      {text}
     </div>
   );
 }
@@ -36,6 +34,10 @@ export default function Form2SheetView({ data }: { data: Form2Data }) {
     .filter((text) => text.length > 0)
     .join("\n\n");
 
+  const period = `${data.period.start || "　月　日"} ～ ${
+    data.period.end || "　月　日"
+  }`;
+
   const cell = "border border-black px-2 py-1.5 align-top";
   const label =
     "border border-black bg-white px-2 py-1.5 align-top text-[12px] font-semibold text-black whitespace-nowrap";
@@ -43,24 +45,33 @@ export default function Form2SheetView({ data }: { data: Form2Data }) {
   return (
     <div className="form2-print-root">
       <div className="form2-sheet mx-auto w-full max-w-[794px] bg-white p-8 text-black shadow-[0_1px_4px_rgba(0,0,0,0.12)] ring-1 ring-[#E5E5EA] print:ring-0">
+        {/* 右上：様式番号 */}
+        <div className="mb-1 text-right text-[11px] font-semibold text-black">
+          {FORM_NO}
+        </div>
+
+        {/* タイトル */}
+        <h2 className="mb-2 text-center text-[17px] font-bold tracking-[0.3em] text-black">
+          {SHEET_TITLE}
+        </h2>
+
         <table className="w-full table-fixed border-collapse text-[12px] text-black">
           <colgroup>
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "32%" }} />
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "32%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "34%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "34%" }} />
           </colgroup>
           <tbody>
-            {/* タイトル行 ＋ 右上「精神様式2」 */}
+            {/* 学籍番号 / 氏名（学生） */}
             <tr>
-              <td
-                colSpan={3}
-                className="border border-black px-2 py-2 text-center align-middle text-[17px] font-bold tracking-wide text-black"
-              >
-                受け持ち対象記録
+              <th className={label}>学籍番号</th>
+              <td className={cell}>
+                <CellText value={data.student.studentNumber} />
               </td>
-              <td className="border border-black px-2 py-2 text-right align-top text-[11px] font-semibold text-black">
-                精神様式2
+              <th className={label}>氏名</th>
+              <td className={cell}>
+                <CellText value={data.student.studentName} />
               </td>
             </tr>
 
@@ -68,47 +79,19 @@ export default function Form2SheetView({ data }: { data: Form2Data }) {
             <tr>
               <th className={label}>受け持ち期間</th>
               <td colSpan={3} className={cell}>
-                <CellText
-                  value={
-                    data.period.start || data.period.end
-                      ? `${data.period.start || "　　　"} 〜 ${data.period.end || "　　　"}`
-                      : ""
-                  }
-                />
+                <CellText value={period} />
               </td>
             </tr>
 
-            {/* 学籍番号 / 学生氏名 */}
+            {/* 患者 氏名 */}
             <tr>
-              <th className={label}>学籍番号</th>
-              <td className={cell}>
-                <CellText value={data.student.studentNumber} />
-              </td>
-              <th className={label}>学生氏名</th>
-              <td className={cell}>
-                <CellText value={data.student.studentName} />
-              </td>
-            </tr>
-
-            {/* 患者基本情報 見出し */}
-            <tr>
-              <th
-                colSpan={4}
-                className="border border-black bg-white px-2 py-1.5 text-left text-[12px] font-bold text-black"
-              >
-                患者基本情報
-              </th>
-            </tr>
-
-            {/* 患者氏名 */}
-            <tr>
-              <th className={label}>患者氏名</th>
+              <th className={label}>氏名</th>
               <td colSpan={3} className={cell}>
                 <CellText value={b.patientName} />
               </td>
             </tr>
 
-            {/* 年齢 / 性別 */}
+            {/* 年齢（歳代）/ 性別 */}
             <tr>
               <th className={label}>年齢</th>
               <td className={cell}>
@@ -120,18 +103,14 @@ export default function Form2SheetView({ data }: { data: Form2Data }) {
               </td>
             </tr>
 
-            {/* 診断名 */}
+            {/* 診断名 / 既往歴（原本どおり横並び） */}
             <tr>
               <th className={label}>診断名</th>
-              <td colSpan={3} className={cell}>
-                <CellText value={b.diagnosis} />
+              <td className={cell}>
+                <CellText value={b.diagnosis} minHeightClass="min-h-[2.5rem]" />
               </td>
-            </tr>
-
-            {/* 既往歴 */}
-            <tr>
               <th className={label}>既往歴</th>
-              <td colSpan={3} className={cell}>
+              <td className={cell}>
                 <CellText value={b.pastHistory} minHeightClass="min-h-[2.5rem]" />
               </td>
             </tr>
@@ -166,7 +145,7 @@ export default function Form2SheetView({ data }: { data: Form2Data }) {
             </tr>
             <tr>
               <td colSpan={4} className={cell}>
-                <CellText value={historyMerged} minHeightClass="min-h-[14rem]" />
+                <CellText value={historyMerged} minHeightClass="min-h-[15rem]" />
               </td>
             </tr>
 
@@ -176,22 +155,22 @@ export default function Form2SheetView({ data }: { data: Form2Data }) {
                 colSpan={4}
                 className="border border-black bg-white px-2 py-1.5 text-left text-[12px] font-bold text-black"
               >
-                {FORM2_TREATMENT_LABEL}
+                医師の治療方針・治療内容
               </th>
             </tr>
             <tr>
               <td colSpan={4} className={cell}>
                 <CellText
                   value={data.treatment.policyAndContent}
-                  minHeightClass="min-h-[10rem]"
+                  minHeightClass="min-h-[11rem]"
                 />
               </td>
             </tr>
           </tbody>
         </table>
 
-        {/* 学校名（ページ下部・中央） */}
-        <p className="mt-6 text-center text-[12px] text-black">{SCHOOL_NAME}</p>
+        {/* 学校名（ページ下部・右寄せ、原本の配置に合わせる） */}
+        <p className="mt-6 text-right text-[12px] text-black">{SCHOOL_LINE}</p>
       </div>
     </div>
   );

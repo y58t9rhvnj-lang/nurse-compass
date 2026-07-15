@@ -103,13 +103,13 @@ export default function Form2EditForm({
             label="受け持ち期間（開始）"
             value={data.period.start}
             onChange={(v) => updatePeriod({ start: v })}
-            placeholder="受け持ちを開始した日付を記入"
+            placeholder="例：◯月◯日"
           />
           <TextField
             label="受け持ち期間（終了）"
             value={data.period.end}
             onChange={(v) => updatePeriod({ end: v })}
-            placeholder="受け持ちを終了する日付を記入"
+            placeholder="例：◯月◯日"
           />
           <TextField
             label="学籍番号"

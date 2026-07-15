@@ -29,7 +29,8 @@ export const FORM2_BASIC_FIELDS: Form2BasicFieldMeta[] = [
   {
     key: "age",
     label: "年齢",
-    helper: "電子カルテのどこに年齢が記載されているか確認してください。",
+    helper:
+      "電子カルテで年齢を確認し、様式にならって「◯歳代」（年代）で記入してください。",
   },
   {
     key: "sex",
