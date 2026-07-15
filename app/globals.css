@@ -42,16 +42,17 @@ button:disabled {
   cursor: default;
 }
 
-/* ── 精神様式2 様式表示の印刷（A4縦・帳票のみ） ──
-   SPA のため、印刷時はアプリの高さ/overflow 制約を解除し、
-   様式（.form2-print-root）以外を非表示にする。長文はA4複数ページへ改ページする。 */
+/* ── 精神様式2 様式表示の印刷（A4縦・原寸帳票 / 続紙対応） ──
+   画面では A4 を縮小プレビュー（transform:scale）するが、印刷では等倍(190mm)へ戻す。
+   1ページ目は原本レイアウト、超過分は続紙(2ページ目以降)として改ページする。
+   文章は切り捨てず全文を印刷する。 */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 12mm;
+    margin: 10mm;
   }
 
-  /* アプリシェルの h-dvh / overflow:hidden を解除して全文を印刷可能にする */
+  /* アプリシェルの h-dvh / overflow:hidden を解除して様式を印刷可能にする */
   html,
   body {
     height: auto !important;
@@ -74,7 +75,16 @@ button:disabled {
     display: none !important;
   }
 
-  /* 様式をページ左上へ配置し、余白/影/枠を印刷向けに調整 */
+  /* 画面用の縮小プレビュー枠・変形を解除し、等倍でページ左上へ配置する */
+  .form2-preview {
+    position: static !important;
+    width: auto !important;
+  }
+  .form2-scale-wrap {
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+  }
   .form2-print-root {
     position: absolute;
     left: 0;
@@ -83,22 +93,34 @@ button:disabled {
     margin: 0;
     padding: 0;
   }
+  .form2-pages {
+    transform: none !important;
+  }
   .form2-sheet {
-    max-width: none !important;
-    width: 100% !important;
+    width: 190mm !important;
     margin: 0 !important;
-    padding: 0 !important;
     box-shadow: none !important;
     --tw-ring-shadow: 0 0 #0000 !important;
-    box-shadow: none !important;
   }
 
-  /* セル内での改ページを避け、罫線を保持する */
+  /* 各ページはA4縦1枚。ページ間は改ページで分ける（画面用の余白は無効化）。 */
+  .form2-page {
+    margin: 0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .form2-page + .form2-page {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* セル・行は途中で分断しない（罫線位置を保持）。 */
   .form2-sheet table,
   .form2-sheet tr,
   .form2-sheet td,
   .form2-sheet th {
     break-inside: avoid;
+    page-break-inside: avoid;
   }
   .form2-sheet,
   .form2-sheet * {
