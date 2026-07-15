@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, FileText, Pencil } from "lucide-react";
+import { ArrowLeft, FileText, Pencil, Printer } from "lucide-react";
 import Form2EditForm from "./Form2EditForm";
 import Form2SheetView from "./Form2SheetView";
 import { useForm2 } from "@/hooks/useForm2";
@@ -71,8 +71,8 @@ export default function Form2Workspace({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#EDEDF0]">
-      {/* ヘッダー */}
-      <header className="shrink-0 border-b border-[#E5E5EA] bg-white">
+      {/* ヘッダー（印刷では非表示） */}
+      <header className="no-print shrink-0 border-b border-[#E5E5EA] bg-white">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
           <button
             type="button"
@@ -134,6 +134,18 @@ export default function Form2Workspace({
               </button>
             </div>
 
+            {/* 印刷（様式表示中のみ・画面専用） */}
+            {mode === "view" && (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex min-h-[36px] items-center gap-1 rounded-lg border border-[#D1D1D6] px-3 text-[13px] text-[#3A3A3C] hover:bg-[#F2F2F5]"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                印刷
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setConfirmReset(true)}
@@ -185,7 +197,7 @@ export default function Form2Workspace({
 
       {/* 初期化の確認ダイアログ */}
       {confirmReset && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
           <div
             role="dialog"
             aria-modal="true"

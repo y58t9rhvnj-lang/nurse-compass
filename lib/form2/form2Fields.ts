@@ -142,4 +142,4 @@ export const FORM2_HISTORY_FIELDS: Form2HistoryFieldMeta[] = [
 export const FORM2_TREATMENT_HELPER =
   "電子カルテと患者会話をもとに、次の観点をふまえて自分の言葉で整理してください：治療の目標／退院に向けた方向性／薬物療法・精神療法・作業療法・SST・心理教育・その他の治療や支援／現在参加している治療／不参加または拒否している治療／治療に対する本人の反応や認識。単なる一覧の転記ではなく、治療方針と各治療内容の関係が分かるようにまとめてください。";
 
-export const FORM2_TREATMENT_LABEL = "医師の治療方針・内容";
+export const FORM2_TREATMENT_LABEL = "医師の治療方針・治療内容";

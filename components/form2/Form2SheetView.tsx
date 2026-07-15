@@ -1,102 +1,198 @@
 import {
-  FORM2_BASIC_FIELDS,
   FORM2_TREATMENT_LABEL,
 } from "@/lib/form2/form2Fields";
 import { FORM2_HISTORY_KEYS, type Form2Data } from "@/lib/form2/form2Types";
 
-const EMPTY_MARK = "（未記入）";
+const EMPTY_MARK = "";
+// 学校名は実在名を転載しない教育様式のためプレースホルダとする。
+const SCHOOL_NAME = "（学校名）";
 
-function SheetSection({
-  title,
-  children,
+// セル内テキスト（空欄でも罫線が保てるよう最小高さを持たせる）。
+function CellText({
+  value,
+  minHeightClass = "",
 }: {
-  title: string;
-  children: React.ReactNode;
+  value: string;
+  minHeightClass?: string;
 }) {
+  const text = value.trim();
   return (
-    <section className="mt-4">
-      <h3 className="mb-1.5 bg-[#1D1D1F] px-2 py-1 text-[13px] font-bold text-white">
-        {title}
-      </h3>
-      <div className="border border-[#C9C9CE] px-3 py-2">{children}</div>
-    </section>
-  );
-}
-
-function BlockText({ value }: { value: string }) {
-  const filled = value.trim().length > 0;
-  return (
-    <p
+    <div
       className={[
-        "whitespace-pre-wrap text-[13px] leading-relaxed",
-        filled ? "text-[#1D1D1F]" : "text-[#9A9AA0]",
+        "whitespace-pre-wrap text-[12px] leading-relaxed text-black",
+        minHeightClass,
       ].join(" ")}
     >
-      {filled ? value : EMPTY_MARK}
-    </p>
+      {text.length > 0 ? text : EMPTY_MARK}
+    </div>
   );
 }
 
 export default function Form2SheetView({ data }: { data: Form2Data }) {
-  const period =
-    data.period.start || data.period.end
-      ? `${data.period.start || "—"} 〜 ${data.period.end || "—"}`
-      : EMPTY_MARK;
+  const b = data.basicInformation;
 
-  // 受け持つまでの経過は、編集時の小項目を一つのまとまりへ結合して表示する。
+  // 受け持つまでの経過は、編集の小項目を1つの欄へ結合して表示する。
   const historyMerged = FORM2_HISTORY_KEYS.map((key) => data.history[key].trim())
     .filter((text) => text.length > 0)
     .join("\n\n");
 
-  return (
-    <div className="mx-auto w-full max-w-[794px] bg-white p-8 text-[#1D1D1F] shadow-[0_1px_4px_rgba(0,0,0,0.12)] ring-1 ring-[#E5E5EA] print:shadow-none">
-      {/* 見出し */}
-      <header className="mb-4 border-b-2 border-[#1D1D1F] pb-2">
-        <p className="text-[12px] tracking-wide text-[#6E6E73]">精神様式2</p>
-        <h2 className="text-[18px] font-bold">受け持ち対象記録</h2>
-        <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-[12px] text-[#3A3A3C] sm:grid-cols-3">
-          <span>受け持ち期間：{period}</span>
-          <span>学籍番号：{data.student.studentNumber || EMPTY_MARK}</span>
-          <span>学生氏名：{data.student.studentName || EMPTY_MARK}</span>
-        </div>
-      </header>
+  const cell = "border border-black px-2 py-1.5 align-top";
+  const label =
+    "border border-black bg-white px-2 py-1.5 align-top text-[12px] font-semibold text-black whitespace-nowrap";
 
-      {/* 患者基本情報 */}
-      <SheetSection title="患者基本情報">
-        <table className="w-full border-collapse text-[13px]">
+  return (
+    <div className="form2-print-root">
+      <div className="form2-sheet mx-auto w-full max-w-[794px] bg-white p-8 text-black shadow-[0_1px_4px_rgba(0,0,0,0.12)] ring-1 ring-[#E5E5EA] print:ring-0">
+        <table className="w-full table-fixed border-collapse text-[12px] text-black">
+          <colgroup>
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "32%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "32%" }} />
+          </colgroup>
           <tbody>
-            {FORM2_BASIC_FIELDS.map((field) => {
-              const value = data.basicInformation[field.key];
-              const filled = value.trim().length > 0;
-              return (
-                <tr key={field.key} className="border border-[#C9C9CE]">
-                  <th className="w-[110px] border border-[#C9C9CE] bg-[#F5F5F7] px-3 py-2 text-left align-top font-medium text-[#3A3A3C]">
-                    {field.label}
-                  </th>
-                  <td
-                    className={[
-                      "whitespace-pre-wrap border border-[#C9C9CE] px-3 py-2 align-top",
-                      filled ? "text-[#1D1D1F]" : "text-[#9A9AA0]",
-                    ].join(" ")}
-                  >
-                    {filled ? value : EMPTY_MARK}
-                  </td>
-                </tr>
-              );
-            })}
+            {/* タイトル行 ＋ 右上「精神様式2」 */}
+            <tr>
+              <td
+                colSpan={3}
+                className="border border-black px-2 py-2 text-center align-middle text-[17px] font-bold tracking-wide text-black"
+              >
+                受け持ち対象記録
+              </td>
+              <td className="border border-black px-2 py-2 text-right align-top text-[11px] font-semibold text-black">
+                精神様式2
+              </td>
+            </tr>
+
+            {/* 受け持ち期間 */}
+            <tr>
+              <th className={label}>受け持ち期間</th>
+              <td colSpan={3} className={cell}>
+                <CellText
+                  value={
+                    data.period.start || data.period.end
+                      ? `${data.period.start || "　　　"} 〜 ${data.period.end || "　　　"}`
+                      : ""
+                  }
+                />
+              </td>
+            </tr>
+
+            {/* 学籍番号 / 学生氏名 */}
+            <tr>
+              <th className={label}>学籍番号</th>
+              <td className={cell}>
+                <CellText value={data.student.studentNumber} />
+              </td>
+              <th className={label}>学生氏名</th>
+              <td className={cell}>
+                <CellText value={data.student.studentName} />
+              </td>
+            </tr>
+
+            {/* 患者基本情報 見出し */}
+            <tr>
+              <th
+                colSpan={4}
+                className="border border-black bg-white px-2 py-1.5 text-left text-[12px] font-bold text-black"
+              >
+                患者基本情報
+              </th>
+            </tr>
+
+            {/* 患者氏名 */}
+            <tr>
+              <th className={label}>患者氏名</th>
+              <td colSpan={3} className={cell}>
+                <CellText value={b.patientName} />
+              </td>
+            </tr>
+
+            {/* 年齢 / 性別 */}
+            <tr>
+              <th className={label}>年齢</th>
+              <td className={cell}>
+                <CellText value={b.age} />
+              </td>
+              <th className={label}>性別</th>
+              <td className={cell}>
+                <CellText value={b.sex} />
+              </td>
+            </tr>
+
+            {/* 診断名 */}
+            <tr>
+              <th className={label}>診断名</th>
+              <td colSpan={3} className={cell}>
+                <CellText value={b.diagnosis} />
+              </td>
+            </tr>
+
+            {/* 既往歴 */}
+            <tr>
+              <th className={label}>既往歴</th>
+              <td colSpan={3} className={cell}>
+                <CellText value={b.pastHistory} minHeightClass="min-h-[2.5rem]" />
+              </td>
+            </tr>
+
+            {/* 入院形態 */}
+            <tr>
+              <th className={label}>入院形態</th>
+              <td colSpan={3} className={cell}>
+                <CellText value={b.admissionType} />
+              </td>
+            </tr>
+
+            {/* 主訴 */}
+            <tr>
+              <th className={label}>主訴</th>
+              <td colSpan={3} className={cell}>
+                <CellText
+                  value={b.chiefComplaint}
+                  minHeightClass="min-h-[3rem]"
+                />
+              </td>
+            </tr>
+
+            {/* 受け持つまでの経過（生育歴・現病歴）— 1欄に統合 */}
+            <tr>
+              <th
+                colSpan={4}
+                className="border border-black bg-white px-2 py-1.5 text-left text-[12px] font-bold text-black"
+              >
+                受け持つまでの経過（生育歴・現病歴）
+              </th>
+            </tr>
+            <tr>
+              <td colSpan={4} className={cell}>
+                <CellText value={historyMerged} minHeightClass="min-h-[14rem]" />
+              </td>
+            </tr>
+
+            {/* 医師の治療方針・治療内容 — 1欄 */}
+            <tr>
+              <th
+                colSpan={4}
+                className="border border-black bg-white px-2 py-1.5 text-left text-[12px] font-bold text-black"
+              >
+                {FORM2_TREATMENT_LABEL}
+              </th>
+            </tr>
+            <tr>
+              <td colSpan={4} className={cell}>
+                <CellText
+                  value={data.treatment.policyAndContent}
+                  minHeightClass="min-h-[10rem]"
+                />
+              </td>
+            </tr>
           </tbody>
         </table>
-      </SheetSection>
 
-      {/* 受け持つまでの経過（生育歴・現病歴）— 一つのまとまり */}
-      <SheetSection title="受け持つまでの経過（生育歴・現病歴）">
-        <BlockText value={historyMerged} />
-      </SheetSection>
-
-      {/* 医師の治療方針・内容 — 一つの大きな欄 */}
-      <SheetSection title={FORM2_TREATMENT_LABEL}>
-        <BlockText value={data.treatment.policyAndContent} />
-      </SheetSection>
+        {/* 学校名（ページ下部・中央） */}
+        <p className="mt-6 text-center text-[12px] text-black">{SCHOOL_NAME}</p>
+      </div>
     </div>
   );
 }
