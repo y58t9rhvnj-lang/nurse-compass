@@ -14,6 +14,7 @@ import FacingCoachPanel from "@/components/patient/facing/FacingCoachPanel";
 import FirstAssignmentSheet from "@/components/patient/FirstAssignmentSheet";
 import NoteZone from "@/components/patient/notes/NoteZone";
 import ClinicalThinkingWorkspace from "@/components/thinking-workspace/ClinicalThinkingWorkspace";
+import Form2Workspace from "@/components/form2/Form2Workspace";
 import type { ChartTabId } from "@/lib/chartTabs";
 import type { ChartFocus } from "@/lib/chartNav";
 import {
@@ -25,6 +26,8 @@ import { isFeatureEnabled } from "@/lib/featureFlags";
 
 // 第1回講義では情報整理ノートを学生ナビから隠す（コードは保持）。
 const NOTEBOOK_ENABLED = isFeatureEnabled("informationNotebook");
+// Version2「精神様式2」ワークスペース。Version1 本番では false（非表示）。
+const FORM2_ENABLED = isFeatureEnabled("form2Workspace");
 
 // Compass の問い → 気づきメモへの誘導用。token でクリック毎に再フォーカス/スクロールを発火させる。
 type PendingQuestion = { text: string; token: number };
@@ -69,6 +72,12 @@ export default function AppShell() {
     setPendingQuestion(null);
     setActiveView("workspace");
   };
+  // Version2「精神様式2」を開く（flag 有効時のみ導線から到達）。
+  const goForm2 = () => {
+    setNotice(null);
+    setPendingQuestion(null);
+    setActiveView("form2");
+  };
   // 電子カルテを開く。tab 指定時はそのタブから、focus 指定時は該当記録へ移動・強調。
   const goChart = (tab?: ChartTabId, focus?: ChartFocus) => {
     setNotice(null);
@@ -90,6 +99,7 @@ export default function AppShell() {
     else if (view === "patient") goPatientTop();
     else if (view === "chart") goChart();
     else if (view === "workspace" && NOTEBOOK_ENABLED) goWorkspace();
+    else if (view === "form2" && FORM2_ENABLED) goForm2();
   };
 
   return (
@@ -149,6 +159,23 @@ export default function AppShell() {
               <ClinicalThinkingWorkspace
                 patient={selectedPatient}
                 onBack={goPatientTop}
+              />
+            </main>
+          </>
+        ) : activeView === "form2" ? (
+          <>
+            {/* 通常 Compass 左サイドバー */}
+            <aside className="w-[204px] shrink-0 border-r border-[#E5E5EA] bg-white">
+              <SideNav activeView={activeView} onNavigate={handleSideNav} />
+            </aside>
+
+            {/* Version2「精神様式2 受け持ち対象記録」 */}
+            <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+              <Form2Workspace
+                patient={selectedPatient}
+                onExit={goPatientTop}
+                onOpenConversation={goPatientTop}
+                onOpenChart={(tab) => goChart(tab)}
               />
             </main>
           </>

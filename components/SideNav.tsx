@@ -3,6 +3,7 @@
 import {
   BookOpen,
   Calendar,
+  ClipboardList,
   Compass,
   FileText,
   Home,
@@ -14,16 +15,16 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { isFeatureEnabled } from "@/lib/featureFlags";
+import { type FeatureFlagKey, isFeatureEnabled } from "@/lib/featureFlags";
 
-export type AppView = "ward" | "patient" | "chart" | "workspace";
+export type AppView = "ward" | "patient" | "chart" | "workspace" | "form2";
 
 const navItems: {
   label: string;
   icon: typeof Home;
   view?: AppView;
   badge?: number;
-  flag?: "informationNotebook";
+  flag?: FeatureFlagKey;
 }[] = [
   { label: "病棟ホーム", icon: Home, view: "ward" },
   { label: "患者トップ", icon: Users, view: "patient" },
@@ -33,6 +34,12 @@ const navItems: {
     icon: NotebookPen,
     view: "workspace",
     flag: "informationNotebook",
+  },
+  {
+    label: "精神様式2",
+    icon: ClipboardList,
+    view: "form2",
+    flag: "form2Workspace",
   },
   { label: "情報BOX", icon: MessageCircle, badge: 2 },
   { label: "申し送り", icon: MessageCircle },

@@ -15,6 +15,10 @@ export const FEATURE_FLAGS = {
   // 第1回講義では収集を使わないため false（学生画面から完全に非表示）。
   // コード・データ・store は削除せず、true にすれば復活する。
   collection: false,
+  // Version2「精神様式2 受け持ち対象記録」ワークスペース（入力・保存・再編集）。
+  // Version1 本番では false（通常導線から非表示）。true にすると学生導線に
+  // 「精神様式2」が現れ、患者トップ／サイドナビから開けるようになる。
+  form2Workspace: false,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
