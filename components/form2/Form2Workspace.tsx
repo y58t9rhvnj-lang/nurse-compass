@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ArrowLeft, FileText, Pencil } from "lucide-react";
 import Form2EditForm from "./Form2EditForm";
 import Form2SheetView from "./Form2SheetView";
 import { useForm2 } from "@/hooks/useForm2";
-import { buildForm2AutoData } from "@/lib/form2/form2AutoData";
 import type { ChartTabId } from "@/lib/chartTabs";
 import type { Patient } from "@/lib/wardData";
 
@@ -49,7 +48,9 @@ export default function Form2Workspace({
     hydrated,
     saveStatus,
     lastSavedAt,
-    updateSection,
+    updateBasic,
+    updateHistory,
+    updateTreatment,
     updateStudent,
     updatePeriod,
     reset,
@@ -57,8 +58,6 @@ export default function Form2Workspace({
 
   const [mode, setMode] = useState<Mode>("edit");
   const [confirmReset, setConfirmReset] = useState(false);
-
-  const auto = useMemo(() => buildForm2AutoData(patient), [patient]);
 
   const savedTime = formatTime(lastSavedAt);
   const saveLabel =
@@ -172,14 +171,15 @@ export default function Form2Workspace({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
         {mode === "edit" ? (
           <Form2EditForm
-            auto={auto}
             data={data}
-            updateSection={updateSection}
+            updateBasic={updateBasic}
+            updateHistory={updateHistory}
+            updateTreatment={updateTreatment}
             updateStudent={updateStudent}
             updatePeriod={updatePeriod}
           />
         ) : (
-          <Form2SheetView auto={auto} data={data} />
+          <Form2SheetView data={data} />
         )}
       </div>
 

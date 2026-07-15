@@ -2,19 +2,16 @@
 
 import AutoTextarea from "./AutoTextarea";
 import {
-  Form2BasicInfoTable,
-  Form2MedicationList,
-  Form2ProgramList,
-} from "./Form2AutoInfo";
-import type { Form2AutoData } from "@/lib/form2/form2AutoData";
-import {
-  FORM2_FIELD_GROUPS,
-  FORM2_PROGRESS_GROUP_ID,
+  FORM2_BASIC_FIELDS,
+  FORM2_HISTORY_FIELDS,
+  FORM2_TREATMENT_HELPER,
+  FORM2_TREATMENT_LABEL,
 } from "@/lib/form2/form2Fields";
 import type {
+  Form2BasicInformation,
   Form2Data,
+  Form2History,
   Form2Period,
-  Form2SectionId,
   Form2Student,
 } from "@/lib/form2/form2Types";
 
@@ -51,30 +48,53 @@ function TextField({
   );
 }
 
+function FieldWithHelper({
+  id,
+  label,
+  helper,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  helper: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <label htmlFor={id} className="text-[13px] font-medium text-[#1D1D1F]">
+        {label}
+      </label>
+      <p className="text-[12px] leading-snug text-[#8E8E93]">{helper}</p>
+      <AutoTextarea
+        id={id}
+        ariaLabel={label}
+        value={value}
+        onChange={onChange}
+        placeholder={helper}
+      />
+    </div>
+  );
+}
+
 export default function Form2EditForm({
-  auto,
   data,
-  updateSection,
+  updateBasic,
+  updateHistory,
+  updateTreatment,
   updateStudent,
   updatePeriod,
 }: {
-  auto: Form2AutoData;
   data: Form2Data;
-  updateSection: (id: Form2SectionId, value: string) => void;
+  updateBasic: (patch: Partial<Form2BasicInformation>) => void;
+  updateHistory: (patch: Partial<Form2History>) => void;
+  updateTreatment: (value: string) => void;
   updateStudent: (patch: Partial<Form2Student>) => void;
   updatePeriod: (patch: Partial<Form2Period>) => void;
 }) {
   return (
     <div className="mx-auto w-full max-w-[820px] space-y-6">
-      {/* 患者基本情報（自動表示） */}
-      <section id="form2-basic-info" className="space-y-2">
-        <SectionHeading>患者基本情報</SectionHeading>
-        <p className="text-[12px] text-[#8E8E93]">
-          この欄は電子カルテの情報を自動表示しています（編集不可）。
-        </p>
-        <Form2BasicInfoTable auto={auto} />
-      </section>
-
       {/* 受け持ち情報（学生入力） */}
       <section id="form2-assignment-info" className="space-y-3">
         <SectionHeading>受け持ち情報</SectionHeading>
@@ -83,65 +103,50 @@ export default function Form2EditForm({
             label="受け持ち期間（開始）"
             value={data.period.start}
             onChange={(v) => updatePeriod({ start: v })}
-            placeholder="例：2026/07/20"
+            placeholder="受け持ちを開始した日付を記入"
           />
           <TextField
             label="受け持ち期間（終了）"
             value={data.period.end}
             onChange={(v) => updatePeriod({ end: v })}
-            placeholder="例：2026/08/07"
+            placeholder="受け持ちを終了する日付を記入"
           />
           <TextField
             label="学籍番号"
             value={data.student.studentNumber}
             onChange={(v) => updateStudent({ studentNumber: v })}
-            placeholder="例：N24-000"
+            placeholder="自分の学籍番号を記入"
           />
           <TextField
             label="学生氏名"
             value={data.student.studentName}
             onChange={(v) => updateStudent({ studentName: v })}
-            placeholder="氏名を入力"
+            placeholder="自分の氏名を記入"
           />
         </div>
       </section>
 
-      {/* 自由記述セクション（学生入力） */}
-      {FORM2_FIELD_GROUPS.map((group) => (
-        <section key={group.id} id={`form2-group-${group.id}`} className="space-y-3">
-          <SectionHeading>{group.title}</SectionHeading>
-
-          {group.id === FORM2_PROGRESS_GROUP_ID && (
-            <p className="text-[12px] text-[#8E8E93]">
-              整理しやすいよう小項目に分けています。様式表示では「受け持つまでの経過」として一つのまとまりで確認できます。
-            </p>
-          )}
-
-          {group.id === "therapies" && (
-            <div className="space-y-3 rounded-md border border-dashed border-[#C9C9CE] bg-[#FAFAFA] p-3">
-              <p className="text-[12px] font-medium text-[#8E8E93]">
-                参考（電子カルテより自動表示）
-              </p>
-              <div className="space-y-1">
-                <p className="text-[12px] font-medium text-[#3A3A3C]">
-                  処方薬一覧
-                </p>
-                <Form2MedicationList auto={auto} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-[12px] font-medium text-[#3A3A3C]">
-                  治療プログラム一覧
-                </p>
-                <Form2ProgramList auto={auto} />
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {group.fields.map((field) => (
-              <div key={field.id} className="space-y-1">
+      {/* 患者基本情報（学生入力・自動表示しない） */}
+      <section id="form2-basic-info" className="space-y-3">
+        <SectionHeading>患者基本情報</SectionHeading>
+        <p className="text-[12px] text-[#8E8E93]">
+          電子カルテや患者会話を確認し、必要な情報を自分で見つけて記入してください（自動表示はされません）。
+        </p>
+        <div className="space-y-4">
+          {FORM2_BASIC_FIELDS.map((field) =>
+            field.multiline ? (
+              <FieldWithHelper
+                key={field.key}
+                id={field.key}
+                label={field.label}
+                helper={field.helper}
+                value={data.basicInformation[field.key]}
+                onChange={(v) => updateBasic({ [field.key]: v })}
+              />
+            ) : (
+              <div key={field.key} className="space-y-1">
                 <label
-                  htmlFor={field.id}
+                  htmlFor={field.key}
                   className="text-[13px] font-medium text-[#1D1D1F]"
                 >
                   {field.label}
@@ -149,18 +154,56 @@ export default function Form2EditForm({
                 <p className="text-[12px] leading-snug text-[#8E8E93]">
                   {field.helper}
                 </p>
-                <AutoTextarea
-                  id={field.id}
-                  ariaLabel={field.label}
-                  value={data.sections[field.id]}
-                  onChange={(v) => updateSection(field.id, v)}
+                <input
+                  id={field.key}
+                  type="text"
+                  aria-label={field.label}
+                  value={data.basicInformation[field.key]}
+                  onChange={(e) => updateBasic({ [field.key]: e.target.value })}
                   placeholder={field.helper}
+                  className="w-full rounded-md border border-[#C9C9CE] bg-white px-3 py-2 text-[14px] text-[#1D1D1F] outline-none placeholder:text-[#B0B0B5] focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
                 />
               </div>
-            ))}
-          </div>
-        </section>
-      ))}
+            ),
+          )}
+        </div>
+      </section>
+
+      {/* 受け持つまでの経過（生育歴・現病歴）— 学生入力・小項目 */}
+      <section id="form2-history" className="space-y-3">
+        <SectionHeading>受け持つまでの経過（生育歴・現病歴）</SectionHeading>
+        <p className="text-[12px] text-[#8E8E93]">
+          整理しやすいよう小項目に分けています。様式表示では「受け持つまでの経過（生育歴・現病歴）」として一つのまとまりで表示されます。
+        </p>
+        <div className="space-y-4">
+          {FORM2_HISTORY_FIELDS.map((field) => (
+            <FieldWithHelper
+              key={field.key}
+              id={field.key}
+              label={field.label}
+              helper={field.helper}
+              value={data.history[field.key]}
+              onChange={(v) => updateHistory({ [field.key]: v })}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* 医師の治療方針・内容（1欄に統合・学生入力） */}
+      <section id="form2-treatment" className="space-y-3">
+        <SectionHeading>{FORM2_TREATMENT_LABEL}</SectionHeading>
+        <p className="text-[12px] leading-snug text-[#8E8E93]">
+          {FORM2_TREATMENT_HELPER}
+        </p>
+        <AutoTextarea
+          id="policyAndContent"
+          ariaLabel={FORM2_TREATMENT_LABEL}
+          value={data.treatment.policyAndContent}
+          onChange={updateTreatment}
+          placeholder="治療方針と各治療内容の関係が分かるように、自分の言葉でまとめてください"
+          minRows={8}
+        />
+      </section>
     </div>
   );
 }

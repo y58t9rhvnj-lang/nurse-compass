@@ -10,9 +10,10 @@ import {
   subscribe,
 } from "@/lib/form2/form2Store";
 import type {
+  Form2BasicInformation,
   Form2Data,
+  Form2History,
   Form2Period,
-  Form2SectionId,
   Form2Student,
 } from "@/lib/form2/form2Types";
 
@@ -86,11 +87,33 @@ export function useForm2(patientId: string) {
     };
   }, [flush]);
 
-  const updateSection = useCallback(
-    (id: Form2SectionId, value: string) => {
+  const updateBasic = useCallback(
+    (patch: Partial<Form2BasicInformation>) => {
       stageForm2(patientId, (prev) => ({
         ...prev,
-        sections: { ...prev.sections, [id]: value },
+        basicInformation: { ...prev.basicInformation, ...patch },
+      }));
+      scheduleSave();
+    },
+    [patientId, scheduleSave],
+  );
+
+  const updateHistory = useCallback(
+    (patch: Partial<Form2History>) => {
+      stageForm2(patientId, (prev) => ({
+        ...prev,
+        history: { ...prev.history, ...patch },
+      }));
+      scheduleSave();
+    },
+    [patientId, scheduleSave],
+  );
+
+  const updateTreatment = useCallback(
+    (value: string) => {
+      stageForm2(patientId, (prev) => ({
+        ...prev,
+        treatment: { ...prev.treatment, policyAndContent: value },
       }));
       scheduleSave();
     },
@@ -134,7 +157,9 @@ export function useForm2(patientId: string) {
     hydrated,
     saveStatus,
     lastSavedAt: data.updatedAt,
-    updateSection,
+    updateBasic,
+    updateHistory,
+    updateTreatment,
     updateStudent,
     updatePeriod,
     reset,

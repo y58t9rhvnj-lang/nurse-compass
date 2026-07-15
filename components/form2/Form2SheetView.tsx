@@ -1,36 +1,10 @@
 import {
-  Form2BasicInfoTable,
-  Form2MedicationList,
-  Form2ProgramList,
-} from "./Form2AutoInfo";
-import type { Form2AutoData } from "@/lib/form2/form2AutoData";
-import { FORM2_FIELD_GROUPS } from "@/lib/form2/form2Fields";
-import type { Form2Data, Form2SectionId } from "@/lib/form2/form2Types";
+  FORM2_BASIC_FIELDS,
+  FORM2_TREATMENT_LABEL,
+} from "@/lib/form2/form2Fields";
+import { FORM2_HISTORY_KEYS, type Form2Data } from "@/lib/form2/form2Types";
 
 const EMPTY_MARK = "（未記入）";
-
-function FieldBlock({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  const filled = value.trim().length > 0;
-  return (
-    <div className="border-b border-[#E0E0E4] py-2 last:border-b-0">
-      <p className="mb-0.5 text-[12px] font-semibold text-[#3A3A3C]">{label}</p>
-      <p
-        className={[
-          "whitespace-pre-wrap text-[13px] leading-relaxed",
-          filled ? "text-[#1D1D1F]" : "text-[#9A9AA0]",
-        ].join(" ")}
-      >
-        {filled ? value : EMPTY_MARK}
-      </p>
-    </div>
-  );
-}
 
 function SheetSection({
   title,
@@ -44,29 +18,35 @@ function SheetSection({
       <h3 className="mb-1.5 bg-[#1D1D1F] px-2 py-1 text-[13px] font-bold text-white">
         {title}
       </h3>
-      <div className="border border-[#C9C9CE] px-3 py-1">{children}</div>
+      <div className="border border-[#C9C9CE] px-3 py-2">{children}</div>
     </section>
   );
 }
 
-export default function Form2SheetView({
-  auto,
-  data,
-}: {
-  auto: Form2AutoData;
-  data: Form2Data;
-}) {
-  const section = (id: Form2SectionId) => data.sections[id];
-  const progressGroup = FORM2_FIELD_GROUPS.find((g) => g.id === "progress");
-  const currentStatusGroup = FORM2_FIELD_GROUPS.find(
-    (g) => g.id === "currentStatus",
+function BlockText({ value }: { value: string }) {
+  const filled = value.trim().length > 0;
+  return (
+    <p
+      className={[
+        "whitespace-pre-wrap text-[13px] leading-relaxed",
+        filled ? "text-[#1D1D1F]" : "text-[#9A9AA0]",
+      ].join(" ")}
+    >
+      {filled ? value : EMPTY_MARK}
+    </p>
   );
-  const therapiesGroup = FORM2_FIELD_GROUPS.find((g) => g.id === "therapies");
+}
 
+export default function Form2SheetView({ data }: { data: Form2Data }) {
   const period =
     data.period.start || data.period.end
       ? `${data.period.start || "—"} 〜 ${data.period.end || "—"}`
       : EMPTY_MARK;
+
+  // 受け持つまでの経過は、編集時の小項目を一つのまとまりへ結合して表示する。
+  const historyMerged = FORM2_HISTORY_KEYS.map((key) => data.history[key].trim())
+    .filter((text) => text.length > 0)
+    .join("\n\n");
 
   return (
     <div className="mx-auto w-full max-w-[794px] bg-white p-8 text-[#1D1D1F] shadow-[0_1px_4px_rgba(0,0,0,0.12)] ring-1 ring-[#E5E5EA] print:shadow-none">
@@ -83,71 +63,40 @@ export default function Form2SheetView({
 
       {/* 患者基本情報 */}
       <SheetSection title="患者基本情報">
-        <div className="py-1">
-          <Form2BasicInfoTable auto={auto} />
-        </div>
-      </SheetSection>
-
-      {/* 主訴 */}
-      <SheetSection title="主訴">
-        <FieldBlock label="主訴" value={section("chiefComplaint")} />
+        <table className="w-full border-collapse text-[13px]">
+          <tbody>
+            {FORM2_BASIC_FIELDS.map((field) => {
+              const value = data.basicInformation[field.key];
+              const filled = value.trim().length > 0;
+              return (
+                <tr key={field.key} className="border border-[#C9C9CE]">
+                  <th className="w-[110px] border border-[#C9C9CE] bg-[#F5F5F7] px-3 py-2 text-left align-top font-medium text-[#3A3A3C]">
+                    {field.label}
+                  </th>
+                  <td
+                    className={[
+                      "whitespace-pre-wrap border border-[#C9C9CE] px-3 py-2 align-top",
+                      filled ? "text-[#1D1D1F]" : "text-[#9A9AA0]",
+                    ].join(" ")}
+                  >
+                    {filled ? value : EMPTY_MARK}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </SheetSection>
 
       {/* 受け持つまでの経過（生育歴・現病歴）— 一つのまとまり */}
-      {progressGroup && (
-        <SheetSection title="受け持つまでの経過（生育歴・現病歴）">
-          {progressGroup.fields.map((field) => (
-            <FieldBlock
-              key={field.id}
-              label={field.label}
-              value={section(field.id)}
-            />
-          ))}
-        </SheetSection>
-      )}
-
-      {/* 現在の状態 */}
-      {currentStatusGroup && (
-        <SheetSection title="現在の状態">
-          {currentStatusGroup.fields.map((field) => (
-            <FieldBlock
-              key={field.id}
-              label={field.label}
-              value={section(field.id)}
-            />
-          ))}
-        </SheetSection>
-      )}
-
-      {/* 医師の治療方針・内容 */}
-      <SheetSection title="医師の治療方針・内容">
-        <FieldBlock label="医師の治療方針" value={section("treatmentPolicy")} />
+      <SheetSection title="受け持つまでの経過（生育歴・現病歴）">
+        <BlockText value={historyMerged} />
       </SheetSection>
 
-      {/* 薬物療法・各種療法 */}
-      {therapiesGroup && (
-        <SheetSection title="薬物療法・各種療法">
-          <div className="border-b border-[#E0E0E4] py-2">
-            <p className="mb-1 text-[12px] font-semibold text-[#3A3A3C]">
-              処方薬一覧（自動表示）
-            </p>
-            <Form2MedicationList auto={auto} />
-          </div>
-          <div className="border-b border-[#E0E0E4] py-2">
-            <p className="mb-1 text-[12px] font-semibold text-[#3A3A3C]">
-              治療プログラム一覧（自動表示）
-            </p>
-            <Form2ProgramList auto={auto} />
-          </div>
-          {therapiesGroup.fields.map((field) => (
-            <FieldBlock
-              key={field.id}
-              label={field.label}
-              value={section(field.id)}
-            />
-          ))}
-        </SheetSection>
-      )}
+      {/* 医師の治療方針・内容 — 一つの大きな欄 */}
+      <SheetSection title={FORM2_TREATMENT_LABEL}>
+        <BlockText value={data.treatment.policyAndContent} />
+      </SheetSection>
     </div>
   );
 }

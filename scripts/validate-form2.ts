@@ -1,19 +1,20 @@
-// Version2「精神様式2 受け持ち対象記録」のロジック検証。
-// データ型の正規化（不正/旧/部分JSONの耐性）、自動表示項目の導出（推測補完なし・
-// 患者混在なし）、入力欄メタ（全セクション網羅・補助文の存在）を確認する。
-// 元データ（wardData / chartData）は変更しない read-only 検証。
-import { buildForm2AutoData } from "../lib/form2/form2AutoData";
+// Version2「精神様式2 受け持ち対象記録」のロジック検証（修正版）。
+// - 基本情報を含め全項目が空欄から開始し、自動表示・自動転記が無いこと
+// - 治療内容が個別フィールドを持たず policyAndContent に統合されていること
+// - 不正/旧/部分JSON でも落ちず正規化されること
+// - 入力支援（helper）に答え・患者固有情報・模範解答が含まれないこと
 import {
-  FORM2_FIELD_GROUPS,
-  FORM2_FIELD_META,
+  FORM2_BASIC_FIELDS,
+  FORM2_HISTORY_FIELDS,
+  FORM2_TREATMENT_HELPER,
 } from "../lib/form2/form2Fields";
 import {
   createEmptyForm2,
-  FORM2_SECTION_IDS,
+  FORM2_BASIC_KEYS,
+  FORM2_HISTORY_KEYS,
   FORM2_VERSION,
   normalizeForm2,
 } from "../lib/form2/form2Types";
-import { PATIENTS } from "../lib/wardData";
 
 let failures = 0;
 function check(label: string, cond: boolean, detail?: string) {
@@ -24,124 +25,159 @@ function check(label: string, cond: boolean, detail?: string) {
   }
 }
 
-// --- データ型・正規化 ---
+// --- 空欄から開始（自動表示なし） ---
 const empty = createEmptyForm2("A");
 check("createEmptyForm2: version=1", empty.version === FORM2_VERSION);
 check("createEmptyForm2: patientId 保持", empty.patientId === "A");
 check(
-  "createEmptyForm2: 全セクションが空文字",
-  FORM2_SECTION_IDS.every((id) => empty.sections[id] === ""),
+  "空開始: 患者基本情報がすべて空欄",
+  FORM2_BASIC_KEYS.every((k) => empty.basicInformation[k] === ""),
 );
-check("createEmptyForm2: updatedAt 空", empty.updatedAt === "");
+check(
+  "空開始: 経過（生育歴・現病歴）がすべて空欄",
+  FORM2_HISTORY_KEYS.every((k) => empty.history[k] === ""),
+);
+check(
+  "空開始: 医師の治療方針・内容が空欄",
+  empty.treatment.policyAndContent === "",
+);
+check("空開始: updatedAt 空", empty.updatedAt === "");
 
+// --- 治療内容の統合（個別フィールドを残さない） ---
+const treatmentKeys = Object.keys(empty.treatment);
+check(
+  "統合: treatment は policyAndContent の1欄のみ",
+  treatmentKeys.length === 1 && treatmentKeys[0] === "policyAndContent",
+);
+const forbiddenTherapyKeys = [
+  "medicationTherapy",
+  "psychotherapy",
+  "occupationalTherapy",
+  "sst",
+  "psychoeducation",
+  "otherSupport",
+];
+const allKeys = [
+  ...Object.keys(empty.basicInformation),
+  ...Object.keys(empty.history),
+  ...Object.keys(empty.treatment),
+];
+check(
+  "統合: 薬物療法/精神療法/作業療法/SST/心理教育の独立フィールドが存在しない",
+  forbiddenTherapyKeys.every((k) => !allKeys.includes(k)),
+);
+
+// --- 正規化（不正/旧/部分JSON 耐性・自動補完なし） ---
 check(
   "normalize: null は空データへ",
-  normalizeForm2(null, "A").sections.chiefComplaint === "",
+  normalizeForm2(null, "A").basicInformation.diagnosis === "",
 );
 check(
-  "normalize: 不正型はクラッシュせず空データ",
-  normalizeForm2("こわれたJSON文字列", "A").patientId === "A",
+  "normalize: 不正型でも落ちない",
+  normalizeForm2("こわれたJSON", "A").patientId === "A",
 );
 check(
-  "normalize: 数値/配列を渡しても落ちない",
-  normalizeForm2([1, 2, 3], "A").version === FORM2_VERSION,
+  "normalize: 配列でも落ちない",
+  normalizeForm2([1, 2], "A").version === FORM2_VERSION,
+);
+
+// 旧構造（sections フラット）を渡しても、新構造の空データに正規化される。
+const legacy = normalizeForm2(
+  {
+    version: 1,
+    patientId: "OLD",
+    sections: { chiefComplaint: "旧データ", medicationTherapy: "旧薬物" },
+  },
+  "A",
+);
+check("normalize: patientId は引数で上書き", legacy.patientId === "A");
+check(
+  "normalize: 旧 sections は取り込まない（空へ）",
+  legacy.basicInformation.chiefComplaint === "",
 );
 
 const partial = normalizeForm2(
   {
     version: 999,
-    patientId: "IGNORED",
-    student: { studentName: "山田", studentNumber: 12345 },
+    student: { studentName: "山田", studentNumber: 123 },
     period: { start: "2026/07/20" },
-    sections: { chiefComplaint: "眠れない", unknownKey: "捨てられる" },
+    basicInformation: { diagnosis: "学生が記入した診断名", unknownKey: "x" },
+    history: { developmentalHistory: "生育歴メモ" },
+    treatment: { policyAndContent: "方針メモ", medicationTherapy: "混入" },
     updatedAt: "2026-07-15T00:00:00.000Z",
   },
   "A",
 );
-check("normalize: patientId は引数で上書き", partial.patientId === "A");
 check("normalize: version は現行へ固定", partial.version === FORM2_VERSION);
-check("normalize: 文字列の学生名を保持", partial.student.studentName === "山田");
+check("normalize: 学生名（文字列）を保持", partial.student.studentName === "山田");
 check(
-  "normalize: 非文字列(studentNumber数値)は空へ",
+  "normalize: 学籍番号（数値）は空へ",
   partial.student.studentNumber === "",
 );
-check("normalize: 既知セクションを保持", partial.sections.chiefComplaint === "眠れない");
 check(
-  "normalize: 未知キーは取り込まない",
-  !Object.prototype.hasOwnProperty.call(partial.sections, "unknownKey"),
+  "normalize: 基本情報の既知欄を保持",
+  partial.basicInformation.diagnosis === "学生が記入した診断名",
 );
 check(
-  "normalize: 欠落セクションは空文字で補完",
-  partial.sections.treatmentPolicy === "",
+  "normalize: 基本情報の未知キーは取り込まない",
+  !Object.prototype.hasOwnProperty.call(
+    partial.basicInformation,
+    "unknownKey",
+  ),
+);
+check("normalize: 経過の既知欄を保持", partial.history.developmentalHistory === "生育歴メモ");
+check("normalize: 治療欄を保持", partial.treatment.policyAndContent === "方針メモ");
+check(
+  "normalize: 治療欄に混入した療法キーは無視",
+  !Object.prototype.hasOwnProperty.call(partial.treatment, "medicationTherapy"),
 );
 check("normalize: period.start 保持", partial.period.start === "2026/07/20");
-check("normalize: period.end 欠落は空", partial.period.end === "");
 
-// --- 入力欄メタ（全セクション網羅・補助文） ---
-const groupedIds = FORM2_FIELD_GROUPS.flatMap((g) => g.fields.map((f) => f.id));
+// --- 入力欄メタ（全項目網羅） ---
 check(
-  "fields: 全セクションがグループに登場",
-  FORM2_SECTION_IDS.every((id) => groupedIds.includes(id)),
+  "fields: 患者基本情報の全キーを網羅",
+  FORM2_BASIC_KEYS.every((k) =>
+    FORM2_BASIC_FIELDS.some((f) => f.key === k),
+  ) && FORM2_BASIC_FIELDS.length === FORM2_BASIC_KEYS.length,
 );
 check(
-  "fields: 重複登場がない",
-  groupedIds.length === new Set(groupedIds).size &&
-    groupedIds.length === FORM2_SECTION_IDS.length,
+  "fields: 経過の全キーを網羅",
+  FORM2_HISTORY_KEYS.every((k) =>
+    FORM2_HISTORY_FIELDS.some((f) => f.key === k),
+  ) && FORM2_HISTORY_FIELDS.length === FORM2_HISTORY_KEYS.length,
 );
 check(
-  "fields: 各欄に補助文（整理の観点）がある",
-  FORM2_SECTION_IDS.every((id) => FORM2_FIELD_META[id]?.helper.length > 0),
-);
-check(
-  "fields: 受け持つまでの経過グループが存在",
-  FORM2_FIELD_GROUPS.some((g) => g.id === "progress" && g.fields.length >= 4),
+  "fields: 各欄に補助文（探す/整理の観点）がある",
+  FORM2_BASIC_FIELDS.every((f) => f.helper.length > 0) &&
+    FORM2_HISTORY_FIELDS.every((f) => f.helper.length > 0),
 );
 
-// --- 自動表示（Patient A・推測補完なし） ---
-const autoA = buildForm2AutoData(PATIENTS.A);
-check("auto A: 患者氏名", autoA.patientName === "Aさん");
-check("auto A: 年齢", autoA.age === "47歳");
-check("auto A: 性別", autoA.sex === "男性");
-check("auto A: 診断名", autoA.diagnosis === "統合失調症");
-check("auto A: 主治医", autoA.doctor === "鈴木医師");
+// --- 入力支援に答え・患者固有情報が含まれない ---
+// Patient A の実データに現れる固有値が helper に混入していないことを確認する。
+const patientAnswerTokens = [
+  "統合失調症",
+  "Aさん",
+  "47",
+  "任意入院",
+  "鈴木",
+  "リスペリドン",
+  "クエチアピン",
+  "ゾピクロン",
+  "医療保護",
+];
+const allHelpers = [
+  ...FORM2_BASIC_FIELDS.map((f) => f.helper),
+  ...FORM2_HISTORY_FIELDS.map((f) => f.helper),
+  FORM2_TREATMENT_HELPER,
+];
 check(
-  "auto A: 入院形態はエピソードから導出（任意入院）",
-  autoA.admissionType === "任意入院",
+  "支援: helper に患者固有の答えが含まれない",
+  allHelpers.every((h) => !patientAnswerTokens.some((t) => h.includes(t))),
 );
 check(
-  "auto A: 既往歴は構造化データが無いため null（補完しない）",
-  autoA.pastHistory === null,
-);
-const drugNames = autoA.medications.map((m) => m.drugs).join(" / ");
-check(
-  "auto A: 現行処方（リスペリドン）を表示",
-  drugNames.includes("リスペリドン"),
-);
-check(
-  "auto A: 中止処方（クロルプロマジン）は表示しない",
-  !drugNames.includes("クロルプロマジン"),
-);
-check(
-  "auto A: 頓服（ブロチゾラム）を表示",
-  drugNames.includes("ブロチゾラム"),
-);
-check(
-  "auto A: 治療プログラムに SST を含む",
-  autoA.treatmentPrograms.includes("SST"),
-);
-check(
-  "auto A: 治療プログラムに食事を含まない",
-  !autoA.treatmentPrograms.some((p) => p.includes("食")),
-);
-
-// --- 患者混在なし（Patient E は別内容） ---
-const autoE = buildForm2AutoData(PATIENTS.E);
-check("auto E: 患者氏名が A と異なる", autoE.patientName === "Eさん");
-check("auto E: 性別が独立", autoE.sex === "女性");
-check("auto E: 診断名が独立", autoE.diagnosis === "うつ病");
-check(
-  "auto E: 処方が A と混ざらない",
-  !autoE.medications.map((m) => m.drugs).join("").includes("リスペリドン"),
+  "支援: 治療欄の補助文は観点列挙（薬物療法等の語＝整理の観点として提示）",
+  FORM2_TREATMENT_HELPER.includes("観点") &&
+    FORM2_TREATMENT_HELPER.includes("薬物療法"),
 );
 
 console.log("");
