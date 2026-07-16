@@ -101,12 +101,80 @@ create policy xxx_update_self on public.<table>
 
 - service role は RLS を回避できるため、通常の学生・教員データ取得には使わない（シード限定）。
 
+## 今回作成するテーブル（Phase 3-1）
+
+学生ごとに「様式2」と「Stage1 情報カード（データ）」を Supabase へ保存する基盤。
+詳細な設計判断は `docs/version2/05_information_notebook.md` を参照。
+
+### form2_records（様式2・head 方式）
+
+| 列 | 型 | 備考 |
+| --- | --- | --- |
+| id | uuid PK | |
+| user_id | uuid → auth.users(id) | 本人 |
+| organization_id | uuid → organizations(id) | profile から導出 |
+| academic_year | integer | profile と一致（既定 2026） |
+| case_id | text | 教育ケース（例 `SP-001`）。空文字不可 |
+| payload | jsonb | Form2Data（**構造version を含む**） |
+| version | integer | **レコードバージョン（楽観ロック）**。1 以上 |
+| created_at / updated_at | timestamptz | updated_at は自動更新 |
+| | | unique(user_id, organization_id, academic_year, case_id) |
+
+- **version の役割分離**: DB列 `version` = レコードバージョン（競合判定・更新回数）。
+  payload 内 `Form2Data.version` = 構造(スキーマ)バージョン。両者を同義で二重管理しない。
+- **競合判定は version で行う**（updated_at はトークンに使わず表示・監査用）。
+
+### information_cards（Stage1 データ＝事実。解釈前）
+
+| 列 | 型 | 備考 |
+| --- | --- | --- |
+| id | uuid PK | クライアント生成 uuid を許容 |
+| user_id | uuid → auth.users(id) | 本人 |
+| organization_id | uuid → organizations(id) | profile から導出 |
+| academic_year | integer | profile と一致 |
+| case_id | text | 空文字不可 |
+| content | text | 空白のみ不可 |
+| source_type | text | 出所種別12種（CHECK 制約） |
+| source_label | text | |
+| source_reference | jsonb | {kind,id?,date?,tab?} |
+| category / note / original_text | text null | |
+| observed_at | timestamptz null | |
+| created_by | text | 既定 'student'。学生作成は 'student' 固定 |
+| sort_order | integer | 0 以上 |
+| deleted_at | timestamptz null | null=有効 / 論理削除 |
+| created_at / updated_at | timestamptz | |
+
+- 「情報カード」は**意味づけ前のデータ**。患者理解・解釈済み情報として扱わない。
+- 二重収集防止の一意制約に `organization_id` を含める:
+  `unique(user_id, organization_id, academic_year, case_id, source_reference->>'kind', source_reference->>'id')`（有効行のみ）。
+
+### Phase 3-1 のセキュリティ強化
+
+- **RLS（両テーブル）**: student=自分の行のみ SELECT/INSERT/UPDATE、teacher/admin=自組織を
+  SELECT のみ、未認証=不可、service_role=all（管理限定）。DELETE はどのロールにも GRANT しない
+  （物理削除不可・解除は論理削除）。
+- **org/year 改ざん防止**: INSERT/UPDATE の WITH CHECK で
+  `organization_id = current_organization_id()` かつ `academic_year = current_academic_year()`。
+  クライアントは org/year を送らず、サーバ（Phase 3-2 の repository）が profile から埋める。
+- **created_by なりすまし防止**: 学生 INSERT の WITH CHECK で `created_by = 'student'` を強制。
+  'system' カードは service_role のみ作成可能。
+- **不変カラム保護**: `reject_immutable_columns()` トリガーで作成後の変更を拒否。
+  - form2_records: user_id / organization_id / academic_year / case_id / created_at
+  - information_cards: 上記 ＋ created_by / source_type / source_reference / original_text / observed_at
+  - 学生が編集可能なのは information_cards の content / category / note / sort_order / deleted_at / source_label のみ。
+- **入力値制約（CHECK）**: case_id 非空、content 非空白、sort_order≥0、version≥1、source_type∈12種、created_by∈(student,system)。
+
 ## 適用手順（管理者・手動）
 
 1. Supabase SQL Editor で以下を順に実行:
    - `supabase/migrations/0001_organizations.sql`
    - `supabase/migrations/0002_profiles.sql`
    - `supabase/migrations/0003_functions_and_rls.sql`
+   - `supabase/migrations/0004_grants.sql`
+   - `supabase/migrations/0005_form2_records.sql`（Phase 3-1）
+   - `supabase/migrations/0006_information_cards.sql`（Phase 3-1）
+   - `supabase/migrations/0007_notebook_rls_grants.sql`（Phase 3-1）
+   - `supabase/migrations/0008_notebook_hardening.sql`（Phase 3-1・冪等な是正。不変トリガー / CHECK / created_by 強制の存在保証）
 2. Auth 設定でメール確認を OFF（仮想メールを検証不要にする）。
 3. アカウント投入（学生本人の新規登録は不可）:
    ```
@@ -116,7 +184,7 @@ create policy xxx_update_self on public.<table>
 
 ## 今後追加予定
 
-- `notebook_entries` / `form2_records`（Phase 3、payload + version + case_id）
+- `form2_records` / `information_cards`（Phase 3-1 で作成済。repository/画面は Phase 3-2 以降）
 - `learning_events`（Phase 4、最小の学習ログ）
 - `teaching_annotations`（Phase 5、教員の Apple Pencil 書き込み）
 - `patient_understandings` / `patient_understanding_revisions` / `learning_journey`（設計のみ。04 / 03）

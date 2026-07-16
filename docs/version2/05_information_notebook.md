@@ -255,6 +255,71 @@ create table public.cues (
 5. 確定 `InformationGroup` / `Cue` の型・store 基盤整備（UI・テーブル本実装は後続）。
 6. 検証（TS / Lint / Build / RLS 実データ確認・V1 無影響）→ 報告 → 承認後コミット。
 
+## 9b. Phase 3 実装条件（承認済み修正・2026-07-16）
+
+### 修正1: version の役割を一本化
+
+- **DB列 `version`** = レコードバージョン（楽観ロック＝競合判定・更新回数）。
+- **payload 内 `Form2Data.version`** = 構造(スキーマ)バージョン（`FORM2_VERSION`）。必要時のみ使用。
+- 両者を同義で二重管理しない。V1 の `Form2Data` 型は破壊しない（Phase 3-1 ではコード非変更）。
+  Phase 3-2 の repository は payload.version を「構造version」としてのみ扱い、レコードversionには使わない。
+
+### 修正2: 競合判定は version（updated_at を使わない）
+
+1. 読込時の `version` を保持（baseVersion）。
+2. UPDATE は「一意キー ＋ `version = baseVersion`」を条件にする。
+3. 同時に `version = baseVersion + 1` へ更新。
+4. 更新0件 → 競合として扱う（黙って上書きしない）。
+5. INSERT 競合は一意制約違反で検知 → 最新行を再取得。
+6. 「自分の内容で上書き」も、最新 version を再取得してから明示的に再保存（無条件上書き禁止）。
+
+`updated_at` は表示・監査用に保持（トリガーで自動更新）。競合トークンには使わない。
+
+### 修正3: created_by のなりすまし防止
+
+- クライアントから `created_by` を受け取らない。repository/Route Handler で 'student' を設定。
+- RLS の INSERT WITH CHECK でも `created_by = 'student'` を強制。
+- 'system' カードは service_role（RLS 回避）でのみ作成可能。学生 API から 'system' 登録不可。
+
+### 修正4: 変更不可カラムの保護
+
+- `reject_immutable_columns()` トリガー（BEFORE UPDATE）で不変性を保証。
+  - form2_records: user_id / organization_id / academic_year / case_id / created_at
+  - information_cards: 上記 ＋ created_by / source_type / source_reference / original_text / observed_at
+- 学生が編集できるのは information_cards の **content / category / note / sort_order / deleted_at / source_label** のみ。
+- Phase 3-2 の更新 API でも変更可能フィールドをホワイトリスト化（DB トリガーと二重防御）。
+- source_type / source_reference は不変のため、二重収集防止インデックスは保護される。
+
+### 修正5: 一意制約と入力値制約
+
+- 二重収集防止インデックスに `organization_id` を含める（年度・組織移行に備えデータ境界を明示）:
+  `unique(user_id, organization_id, academic_year, case_id, source_reference->>'kind', source_reference->>'id')`（有効行のみ）。
+- 入力値制約（CHECK）: case_id 非空 / content 非空白 / sort_order≥0 / version≥1 /
+  source_type∈12種 / created_by∈(student,system)。
+- source_type は12種確定のため DB CHECK を使用。TS 許可リスト（`INFORMATION_SOURCE_TYPES`）と
+  サーバ検証は Phase 3-2 で単一定義から行う。
+
+### 自動保存・端末内ドラフト（Phase 3-3/3-4 で実装）
+
+visibilitychange / pagehide / beforeunload の通信成功に依存しない。優先順位:
+
+1. 入力と同時に React state 更新。
+2. dirty になった時点で V2 専用 localStorage へ下書き退避。
+3. デバウンス後に Supabase 保存。
+4. 保存成功後に下書き削除。
+5. 保存失敗時は下書きを残す。
+
+再表示時、Supabase データと端末内ドラフトの両方がある場合は baseVersion / 更新日時を比較し、
+ドラフトが新しければ黙って上書きせず「この端末に未保存の下書きがあります」と表示して
+「下書きを復元 / サーバーの内容を使用」を選ばせる。ログアウト時は保存済み下書きを削除し、
+未保存の下書きを消す場合は確認する。
+
+### Phase 3-1 の範囲（DBのみ）
+
+`0005`〜`0007` のマイグレーション、`current_academic_year()`、不変カラム保護トリガー、
+GRANT、RLS、DB 制約、および本 doc / `02_database.md` への追記のみ。
+画面・repository・Route Handler・自動保存は Phase 3-2 以降で実装する。
+
 ## 10. 関連ドキュメント
 
 - `docs/03_Information_Organization_Workspace.md` — データ→情報→手がかり の確定モデル
