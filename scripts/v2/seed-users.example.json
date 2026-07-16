@@ -1,0 +1,30 @@
+[
+  {
+    "loginId": "t001",
+    "password": "CHANGE-ME-teacher-001",
+    "displayName": "見本 教子",
+    "role": "teacher"
+  },
+  {
+    "loginId": "admin001",
+    "password": "CHANGE-ME-admin-001",
+    "displayName": "見本 管理者",
+    "role": "admin"
+  },
+  {
+    "loginId": "s001",
+    "password": "CHANGE-ME-student-001",
+    "displayName": "見本 学生一",
+    "role": "student",
+    "studentNumber": "2026-0001",
+    "className": "3年A組"
+  },
+  {
+    "loginId": "s002",
+    "password": "CHANGE-ME-student-002",
+    "displayName": "見本 学生二",
+    "role": "student",
+    "studentNumber": "2026-0002",
+    "className": "3年A組"
+  }
+]

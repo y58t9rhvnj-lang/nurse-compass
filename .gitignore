@@ -38,6 +38,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Version2 シード用の実データ（実名・パスワードを含む）は追跡しない。
+# 例のみコミット（seed-users.example.json）。
+scripts/v2/*.local.json
+scripts/v2/*.local.csv
+scripts/v2/seed-users.local.*
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
