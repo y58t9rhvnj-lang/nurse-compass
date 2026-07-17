@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/v2/auth/currentUser";
 import LogoutButton from "@/components/v2/LogoutButton";
 
@@ -30,10 +31,25 @@ export default async function StudentHomePage() {
           ログインに成功しました。あなた専用の学習スペースです。
         </p>
         <p className="mt-3 text-sm text-slate-500">
-          情報整理ノートや様式2の保存機能は、次のフェーズ（Phase 3 以降）で
-          追加されます。ここで積み重ねた学びは、あなたの患者理解が形づくられて
-          いく過程として大切に扱われます。
+          入力内容は自動的に保存され、別の端末からも同じ内容を続けて編集できます。
         </p>
+      </section>
+
+      <section className="mt-6">
+        <Link
+          href="/v2/student/form2"
+          className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-sky-400 hover:shadow"
+        >
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              精神様式2 受け持ち対象記録
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              受け持ち対象の情報を整理して記入します。自動保存されます。
+            </p>
+          </div>
+          <span className="text-sm font-medium text-sky-600">開く →</span>
+        </Link>
       </section>
     </main>
   );
