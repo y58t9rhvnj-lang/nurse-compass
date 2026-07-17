@@ -35,7 +35,22 @@ export default async function StudentHomePage() {
         </p>
       </section>
 
-      <section className="mt-6">
+      <section className="mt-6 space-y-4">
+        <Link
+          href="/v2/student/workspace"
+          className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-sky-400 hover:shadow"
+        >
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              受け持ち対象ワークスペース
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              記録を読み、話を聴き、事実を集めて様式2へ整理する学習スペースです。
+            </p>
+          </div>
+          <span className="text-sm font-medium text-sky-600">開く →</span>
+        </Link>
+
         <Link
           href="/v2/student/form2"
           className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-sky-400 hover:shadow"
