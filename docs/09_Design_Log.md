@@ -1,7 +1,7 @@
 # 09 Design Log（設計判断ログ）
 
-Version 1.0
-Last Update: 2026-07-12
+Version 1.1
+Last Update: 2026-07-17
 Status: Central Design Log（中央設計ログ）
 
 > 本書は、Compass の教育モデル・設計に関する判断を番号付きで記録する中央ログである。
@@ -191,6 +191,25 @@ Status: Central Design Log（中央設計ログ）
 
 ---
 
+## DL-013
+
+- **Decision**：Sprint2 の技術的負債（会話エントリID衝突・Server Action 例外未処理）と対応方針を記録し、会話全文は永続化せず Evidence を正学習データとする構造を維持する。
+- **Date**：2026-07-17
+- **Context**：Sprint1（Patient Workspace 統合）完了レビューで、会話の非永続に起因する Evidence 収集の識別子衝突（TD-001）と、Server Action の throw 未処理による保存状態固定（TD-002）が判明した。
+- **Decision details**：
+  - 会話全文の Supabase 保存は行わない。「会話 → Evidence 収集 → Evidence のみ永続化」を維持（会話は学習インタラクション、Evidence が正式な学習データ）。
+  - TD-001 は会話全文保存では解決せず、`source_reference` の識別子設計見直し（発話UUID／セッションID＋連番／content hash の比較）で対応。詳細は `docs/version2/07_evidence_source_reference.md`。
+  - TD-002 は Evidence・Form2 で共通の例外処理方針へ統一（try/catch・inFlight 解除・status 更新・エラー表示・リトライ可）。Form2 専用の下書き保存/自動再試行は Evidence へ移植しない（Evidence は手動再試行で十分）。
+  - Compass Coach は Question/Reflection/Evidence を読んでよいが、それらや Patient Story を書くことは禁止（問い・方向づけ・気づきのみ）。
+  - Sprint2 優先順位：①例外処理共通化 ②Evidence sourceReference 見直し ③Question ④Reflection ⑤Story Workspace ⑥Patient Story。基盤品質を Story Workspace より優先。
+- **Educational rationale**：Evidence（事実）を学習データの正とし、揮発的な会話に依存しない識別を採ることで、根拠に紐づく患者理解プロセスの一貫性を保つ。Coach の生成禁止制約は「思考を代替しない」理念を守る。
+- **Alternatives considered**：会話全文の永続化による ID 安定化（不採用：会話は学習データではない／プライバシー・データ量の負担）。例外の握り潰し（不採用：保存不能状態の固定を招く）。
+- **Risks**：sourceReference 方式変更の設計コスト、例外処理統一のリグレッション。実装前に設計書で比較・確定する。
+- **Validation plan**：別セッションで別発言が正しく収集できるか／同一事実の二重収集が適切に扱われるか／通信断で working・saving に固定されず error 復帰できるか／Coach が生成物を書かないか（`scripts/validate-coach-behavior.ts`）。
+- **Status**：Recorded（Sprint2 Technical Debt。詳細は `docs/version2/06_sprint2_technical_debt.md`・`07_evidence_source_reference.md`。実装は Sprint2）
+
+---
+
 ## 検証質問（共通の目安）
 
 各判断・機能について、次を問う：
@@ -208,3 +227,5 @@ Status: Central Design Log（中央設計ログ）
 - `docs/06_Compass_Educational_Model_V1.md` — 教育モデル（公式基盤・Freeze）
 - `docs/07_Glossary.md` — 用語集
 - `docs/08_Design_Principles.md` — 設計原則・設計テスト・レビュー層
+- `docs/version2/06_sprint2_technical_debt.md` — Sprint2 Technical Debt（TD-001 / TD-002・DL-013 詳細）
+- `docs/version2/07_evidence_source_reference.md` — Evidence sourceReference 改善設計
