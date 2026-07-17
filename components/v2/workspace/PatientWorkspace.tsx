@@ -14,7 +14,7 @@
 //   ・Form2EditForm / Form2SheetView … 精神様式2
 // 保存の正は Supabase（Evidence: information_cards / Form2: form2_records）。
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { ClipboardList, Compass, MessagesSquare } from "lucide-react";
 import type { Patient } from "@/lib/wardData";
 import {
@@ -24,9 +24,9 @@ import {
 import type { InformationCard } from "@/lib/information/informationCard";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
 import FacingPatient from "@/components/patient/facing/FacingPatient";
-import FacingCoachPanel from "@/components/patient/facing/FacingCoachPanel";
 import { useEvidenceSupabase } from "@/hooks/v2/useEvidenceSupabase";
 import WorkspaceTimeline from "./WorkspaceTimeline";
+import WorkspaceCoachPanel from "./WorkspaceCoachPanel";
 import EvidencePane from "./EvidencePane";
 import WorkspaceForm2Section from "./WorkspaceForm2Section";
 
@@ -45,23 +45,17 @@ export default function PatientWorkspace({
     initialFacingState(),
   );
   const [conversationOpen, setConversationOpen] = useState(false);
-  const timelineRef = useRef<HTMLElement>(null);
 
   const evidence = useEvidenceSupabase({
     patientId: patient.id,
     initial: initialEvidence,
   });
 
-  // Coach の関連情報から Timeline へ導く（Sprint1 は該当セクションへスクロール）。
-  const scrollToTimeline = () => {
-    timelineRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
   return (
     <div className="min-h-screen bg-[#F2F2F7]">
       <div className="mx-auto w-full max-w-[900px] px-4 py-6 sm:px-6 sm:py-8">
         {/* Header */}
-        <header className="rounded-3xl border border-[#EBEBF0] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <header className="no-print rounded-3xl border border-[#EBEBF0] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <p className="text-[12px] font-medium text-[#8E8E93]">受け持ち対象</p>
           <h1 className="mt-0.5 text-[22px] font-bold text-[#1D1D1F]">
             {patient.name}
@@ -77,7 +71,7 @@ export default function PatientWorkspace({
 
         {/* Timeline */}
         <Section
-          ref={timelineRef}
+          className="no-print"
           icon={<ClipboardList className="h-4 w-4 text-[#0A6CD6]" strokeWidth={2} />}
           title="Timeline"
           description="診療録と看護記録の経過（新しい順）。ここから事実を読み取りましょう。"
@@ -87,10 +81,15 @@ export default function PatientWorkspace({
 
         {/* 会話 + Compass Coach */}
         <Section
+          className="no-print"
           icon={<MessagesSquare className="h-4 w-4 text-[#0A84FF]" strokeWidth={2} />}
           title="患者さんと話す"
           description="会話は Evidence の大切な収集経路です。気になった発言は Evidence として集められます。"
         >
+          <p className="mb-3 rounded-xl bg-[#FFF7E6] px-3.5 py-2.5 text-[12px] leading-relaxed text-[#8A6D3B]">
+            会話の内容は、画面を離れたり再読み込みすると残りません。大切だと思った発言は、
+            <span className="font-semibold">Evidence として収集</span>して残しましょう。
+          </p>
           {conversationOpen ? (
             <div className="space-y-3">
               <div className="h-[560px] overflow-hidden rounded-3xl border border-[#EBEBF0] bg-white">
@@ -101,14 +100,11 @@ export default function PatientWorkspace({
                   onBack={() => setConversationOpen(false)}
                 />
               </div>
-              <div className="overflow-hidden rounded-3xl border border-[#EBEBF0] bg-white">
-                <FacingCoachPanel
-                  patient={patient}
-                  state={facingState}
-                  onChange={setFacingState}
-                  onOpenChart={scrollToTimeline}
-                />
-              </div>
+              <WorkspaceCoachPanel
+                patient={patient}
+                state={facingState}
+                onChange={setFacingState}
+              />
             </div>
           ) : (
             <button
@@ -124,6 +120,7 @@ export default function PatientWorkspace({
 
         {/* Evidence */}
         <Section
+          className="no-print"
           icon={<Compass className="h-4 w-4 text-[#34C759]" strokeWidth={2} />}
           title="Evidence"
           description="集めた事実の一覧です。事実だけを残し、解釈は後のステップで整理します。"
@@ -153,20 +150,20 @@ export default function PatientWorkspace({
 }
 
 const Section = function Section({
-  ref,
   icon,
   title,
   description,
+  className = "",
   children,
 }: {
-  ref?: React.Ref<HTMLElement>;
   icon: React.ReactNode;
   title: string;
   description: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section ref={ref} className="mt-6 scroll-mt-4">
+    <section className={`mt-6 scroll-mt-4 ${className}`}>
       <div className="mb-2.5 flex items-start gap-2">
         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F2F2F7]">
           {icon}

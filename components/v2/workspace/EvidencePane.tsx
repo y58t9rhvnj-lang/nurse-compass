@@ -33,9 +33,24 @@ export default function EvidencePane({
   history: FacingEntry[];
   evidence: UseEvidenceSupabaseResult;
 }) {
-  const { cards, status, message, collectUtterance, updateContent, release, isCollectedBySource } =
-    evidence;
+  const {
+    cards,
+    status,
+    message,
+    collectUtterance,
+    collectMemo,
+    updateContent,
+    release,
+    isCollectedBySource,
+  } = evidence;
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [memo, setMemo] = useState("");
+
+  const submitMemo = async () => {
+    const ok = await collectMemo(memo);
+    // 収集成功時のみ入力欄をクリアする（失敗時は入力内容を失わせない）。
+    if (ok) setMemo("");
+  };
 
   // 会話履歴のうち、まだ収集していない患者発言（収集候補）。
   const collectable = history
@@ -124,6 +139,35 @@ export default function EvidencePane({
             ))}
           </ul>
         )}
+      </section>
+
+      {/* 一時メモから収集 */}
+      <section className="space-y-2">
+        <h3 className="text-[12px] font-semibold text-[#6E6E73]">
+          一時メモから収集する
+        </h3>
+        <p className="text-[11.5px] leading-relaxed text-[#8E8E93]">
+          観察して気づいた事実を書き留めて、Evidence として残せます。
+          メモ自体は保存されません（収集した Evidence だけが残ります）。
+        </p>
+        <textarea
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          rows={3}
+          placeholder="見たこと・聞いたことを、事実のまま書き留めます"
+          className="w-full resize-none rounded-2xl border border-[#E5E5EA] bg-white px-3.5 py-2.5 text-[13px] leading-relaxed text-[#1D1D1F] outline-none transition focus:border-[#34C759] focus:ring-2 focus:ring-[#34C759]/20"
+        />
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={submitMemo}
+            disabled={status === "working" || memo.trim() === ""}
+            className="flex min-h-[36px] items-center gap-1 rounded-full bg-[#34C759] px-4 text-[12px] font-semibold text-white transition hover:bg-[#2CA349] disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+            Evidenceとして収集
+          </button>
+        </div>
       </section>
 
       {/* 収集済み Evidence */}

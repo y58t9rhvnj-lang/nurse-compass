@@ -38,6 +38,9 @@ export interface UseEvidenceSupabaseResult {
     content: string;
     originalText: string;
   }) => Promise<boolean>;
+  // 一時メモ（学生が観察して気づいた事実）を Evidence として収集する。
+  // 出所種別は student_note（＝一時メモ）。メモ自体は永続化せず、収集結果のみ残る。
+  collectMemo: (content: string) => Promise<boolean>;
   updateContent: (id: string, content: string) => Promise<boolean>;
   release: (id: string) => Promise<boolean>;
   reload: () => Promise<void>;
@@ -111,6 +114,33 @@ export function useEvidenceSupabase({
       return false;
     },
     [patientId, reload],
+  );
+
+  const collectMemo = useCallback(
+    async (rawContent: string): Promise<boolean> => {
+      const content = rawContent.trim();
+      if (content === "") return false;
+      setStatus("working");
+      setMessage(null);
+      // 一時メモは外部参照（会話エントリ等）を持たないため sourceReference は付与しない
+      // （二重収集防止インデックスは source_reference.id 前提のため、メモは対象外）。
+      const res = await createCardAction({
+        patientId,
+        content,
+        sourceType: "student_note",
+        sourceLabel: "一時メモ",
+        originalText: content,
+      });
+      if (res.ok) {
+        setCards((prev) => sortCards([...prev, res.data]));
+        setStatus("idle");
+        return true;
+      }
+      setStatus("error");
+      setMessage("収集に失敗しました。通信状況を確認してもう一度お試しください。");
+      return false;
+    },
+    [patientId],
   );
 
   const updateContent = useCallback(
@@ -203,6 +233,7 @@ export function useEvidenceSupabase({
     status,
     message,
     collectUtterance,
+    collectMemo,
     updateContent,
     release,
     reload,
