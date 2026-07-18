@@ -10,17 +10,24 @@
 //   患者の発言を選んで Evidence として収集する（Supabase へ保存）。
 // 保存の正は Supabase。収集の確認・整形は V1 の CollectionDialog を再利用する。
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Plus, Quote, Trash2 } from "lucide-react";
 import CollectionDialog from "@/components/collection/CollectionDialog";
 import { getEntryId, type FacingEntry } from "@/lib/patientFacingData";
 import type { InformationCard } from "@/lib/information/informationCard";
+import {
+  CONVERSATION_SOURCE_KIND,
+  conversationSourceId,
+} from "@/lib/v2/notebook/conversationSourceId";
 import type { UseEvidenceSupabaseResult } from "@/hooks/v2/useEvidenceSupabase";
 
-const CONVERSATION_KIND = "patient_conversation";
+const CONVERSATION_KIND = CONVERSATION_SOURCE_KIND;
+
+// 収集候補（未収集の患者発言）。sourceId は原文の content hash（TD-001）。
+type Collectable = { key: string; originalText: string; sourceId: string };
 
 type DialogState =
-  | { mode: "add"; entryId: string; originalText: string }
+  | { mode: "add"; originalText: string }
   | { mode: "edit"; id: string; originalText: string; initialContent: string }
   | null;
 
@@ -45,6 +52,7 @@ export default function EvidencePane({
   } = evidence;
   const [dialog, setDialog] = useState<DialogState>(null);
   const [memo, setMemo] = useState("");
+  const [collectable, setCollectable] = useState<Collectable[]>([]);
 
   const submitMemo = async () => {
     const ok = await collectMemo(memo);
@@ -52,14 +60,35 @@ export default function EvidencePane({
     if (ok) setMemo("");
   };
 
-  // 会話履歴のうち、まだ収集していない患者発言（収集候補）。
-  const collectable = history
-    .map((item, index) => ({ item, entryId: getEntryId(patientId, item, index) }))
-    .filter(
-      ({ item, entryId }) =>
-        item.role === "patient" &&
-        !isCollectedBySource(CONVERSATION_KIND, entryId),
-    );
+  // 会話履歴のうち、まだ収集していない患者発言（収集候補）を非同期に導出する。
+  // 収集済み判定は、収集時とまったく同じ content hash（conversationSourceId）で行う（TD-001）。
+  // cards が変わると isCollectedBySource の参照も変わるため、収集後は自動的に再計算される。
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const patientEntries = history
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => item.role === "patient");
+      const withId = await Promise.all(
+        patientEntries.map(async ({ item, index }) => {
+          const originalText = "text" in item ? item.text : "";
+          const sourceId = await conversationSourceId(originalText);
+          return {
+            key: getEntryId(patientId, item, index),
+            originalText,
+            sourceId,
+          };
+        }),
+      );
+      if (cancelled) return;
+      setCollectable(
+        withId.filter((c) => !isCollectedBySource(CONVERSATION_KIND, c.sourceId)),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [history, patientId, isCollectedBySource]);
 
   const closeDialog = () => setDialog(null);
 
@@ -67,7 +96,6 @@ export default function EvidencePane({
     if (!dialog) return;
     if (dialog.mode === "add") {
       await collectUtterance({
-        entryId: dialog.entryId,
         content,
         originalText: dialog.originalText,
       });
@@ -111,22 +139,21 @@ export default function EvidencePane({
           </p>
         ) : (
           <ul className="space-y-2">
-            {collectable.map(({ item, entryId }) => (
+            {collectable.map(({ key, originalText }) => (
               <li
-                key={entryId}
+                key={key}
                 className="flex items-start gap-2 rounded-2xl border border-[#EBEBF0] bg-white p-3"
               >
                 <Quote className="mt-0.5 h-4 w-4 shrink-0 text-[#C7C7CC]" strokeWidth={2} />
                 <p className="min-w-0 flex-1 whitespace-pre-line text-[13px] leading-relaxed text-[#3A3A3C]">
-                  {"text" in item ? item.text : ""}
+                  {originalText}
                 </p>
                 <button
                   type="button"
                   onClick={() =>
                     setDialog({
                       mode: "add",
-                      entryId,
-                      originalText: "text" in item ? item.text : "",
+                      originalText,
                     })
                   }
                   disabled={status === "working"}
@@ -203,7 +230,7 @@ export default function EvidencePane({
 
       {dialog && (
         <CollectionDialog
-          key={dialog.mode === "add" ? `add-${dialog.entryId}` : `edit-${dialog.id}`}
+          key={dialog.mode === "add" ? `add-${dialog.originalText}` : `edit-${dialog.id}`}
           open
           mode={dialog.mode}
           originalText={dialog.originalText}

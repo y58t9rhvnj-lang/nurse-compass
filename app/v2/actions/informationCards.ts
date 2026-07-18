@@ -19,6 +19,10 @@ import { createServerSupabaseClient } from "@/lib/v2/supabase/serverClient";
 import { isInformationSourceType } from "@/lib/information/informationCard";
 import { caseIdForPatient } from "@/lib/v2/notebook/caseId";
 import {
+  CONVERSATION_SOURCE_KIND,
+  conversationSourceId,
+} from "@/lib/v2/notebook/conversationSourceId";
+import {
   cardPatchToUpdate,
   newCardToInsert,
   rowToInformationCard,
@@ -91,8 +95,21 @@ export async function createCardAction(
     return { ok: false, kind: "validation", message: "invalid sort order" };
   }
 
+  // TD-001（Sprint2-2A）: 会話由来カードの出所 id は、クライアントから送られた値を信用せず、
+  // 必ず original_text（無ければ content）から content hash を再計算して確定する。
+  // これにより、位置ベース id のセッション跨ぎ衝突・偽の重複を防ぐ。
+  let sourceReference = input.sourceReference;
+  if (input.sourceType === CONVERSATION_SOURCE_KIND) {
+    const basis =
+      typeof input.originalText === "string" && input.originalText.trim() !== ""
+        ? input.originalText
+        : content;
+    const id = await conversationSourceId(basis);
+    sourceReference = { kind: CONVERSATION_SOURCE_KIND, id };
+  }
+
   const values = newCardToInsert(
-    { ...input, content },
+    { ...input, content, sourceReference },
     {
       userId: ctx.profile.id,
       organizationId: ctx.profile.organizationId,

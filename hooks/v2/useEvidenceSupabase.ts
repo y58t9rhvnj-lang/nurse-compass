@@ -43,8 +43,9 @@ export interface UseEvidenceSupabaseResult {
   cards: InformationCard[];
   status: EvidenceStatus;
   message: string | null;
+  // 会話発言を Evidence として収集する。出所 id はサーバが original_text から
+  // content hash として再計算するため（TD-001）、クライアントからは id を送らない。
   collectUtterance: (args: {
-    entryId: string;
     content: string;
     originalText: string;
   }) => Promise<boolean>;
@@ -93,11 +94,9 @@ export function useEvidenceSupabase({
 
   const collectUtterance = useCallback(
     async ({
-      entryId,
       content,
       originalText,
     }: {
-      entryId: string;
       content: string;
       originalText: string;
     }): Promise<boolean> => {
@@ -112,7 +111,8 @@ export function useEvidenceSupabase({
             content,
             sourceType: "patient_conversation",
             sourceLabel: "患者との会話",
-            sourceReference: { kind: "patient_conversation", id: entryId },
+            // TD-001: 出所 id はサーバが original_text から再計算する（client 値は使わない）。
+            sourceReference: { kind: "patient_conversation" },
             originalText,
           }),
         );
