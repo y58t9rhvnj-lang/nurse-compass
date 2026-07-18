@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { saveForm2Action } from "@/app/v2/actions/form2";
+import { callAction } from "@/lib/v2/callAction";
 import {
   createEmptyForm2,
   type Form2BasicInformation,
@@ -37,9 +38,13 @@ import type { Form2Snapshot } from "@/lib/v2/notebook/types";
 //                       ▼
 //                     saving
 //                       ├─────► saved      (ok)
-//                       ├─────► error      (not_configured / unauthorized / validation / db_error)
+//                       ├─────► error      (not_configured / unauthorized / validation / db_error /
+//                       │                    network / unexpected ＝ 通信断・サーバ停止・Promise reject)
 //                       └─────► conflict   (version 不一致 → 最新を取得して同梱)
 //
+//   ・Server Action 呼び出しは callAction 経由。reject（通信断・サーバ停止）は
+//     network / unexpected へ正規化され、error へ遷移する（saving に固定されない）。
+//   ・inFlightRef は finally で必ず解除する（reject でも解除される）。
 //   ・saving 中の編集は dirtyDuringSave として記録し、保存完了後に dirty へ戻して再保存する。
 //   ・error は自動再試行（一定間隔）＋手動再試行で saving へ戻る。入力は下書きへ退避して失わない。
 //   ・conflict は「最新を読み込む」のみ実装（サーバ最新を採用して saved）。
@@ -136,45 +141,52 @@ export function useForm2Supabase({
     dirtyDuringSaveRef.current = false;
     setSaveStatus("saving");
 
-    const res = await saveForm2Action({
-      patientId,
-      payload: dataRef.current,
-      expectedVersion: versionRef.current,
-    });
+    try {
+      // callAction は決して reject しない（reject は network / unexpected の Result に正規化）。
+      const res = await callAction(() =>
+        saveForm2Action({
+          patientId,
+          payload: dataRef.current,
+          expectedVersion: versionRef.current,
+        }),
+      );
 
-    inFlightRef.current = false;
-
-    if (res.ok) {
-      versionRef.current = res.data.version;
-      setLastSavedAt(res.data.updatedAt);
-      clearForm2Draft(userId, caseId);
-      setConflictLatest(null);
-      if (dirtyDuringSaveRef.current) {
-        // 保存中に編集された → 追随保存。
-        scheduleSave();
-      } else {
-        setSaveStatus("saved");
+      if (res.ok) {
+        versionRef.current = res.data.version;
+        setLastSavedAt(res.data.updatedAt);
+        clearForm2Draft(userId, caseId);
+        setConflictLatest(null);
+        if (dirtyDuringSaveRef.current) {
+          // 保存中に編集された → 追随保存。
+          scheduleSave();
+        } else {
+          setSaveStatus("saved");
+        }
+        return;
       }
-      return;
+
+      // 失敗時は入力を退避（成功するまで消えない）。通信断・サーバ停止でも消えない。
+      writeForm2Draft(userId, caseId, {
+        payload: dataRef.current,
+        version: versionRef.current,
+      });
+
+      if (res.kind === "conflict") {
+        setConflictLatest(res.latest);
+        setSaveStatus("conflict");
+        return;
+      }
+
+      // network / unexpected / validation / db_error 等はすべて error へ。
+      setSaveStatus("error");
+      // 軽量な自動再試行（編集がなくても復旧を試みる）。手動再試行も saveNow で可能。
+      retryRef.current = setTimeout(() => {
+        void saveRef.current();
+      }, RETRY_DELAY_MS);
+    } finally {
+      // reject でも必ず解除し、saving のまま固定させない。
+      inFlightRef.current = false;
     }
-
-    // 失敗時は入力を退避（成功するまで消えない）。
-    writeForm2Draft(userId, caseId, {
-      payload: dataRef.current,
-      version: versionRef.current,
-    });
-
-    if (res.kind === "conflict") {
-      setConflictLatest(res.latest);
-      setSaveStatus("conflict");
-      return;
-    }
-
-    setSaveStatus("error");
-    // 軽量な自動再試行（編集がなくても復旧を試みる）。
-    retryRef.current = setTimeout(() => {
-      void saveRef.current();
-    }, RETRY_DELAY_MS);
   }, [patientId, userId, caseId, clearTimers, scheduleSave]);
 
   // saveRef を最新の doSave に同期（scheduleSave/タイマーから参照するため）。

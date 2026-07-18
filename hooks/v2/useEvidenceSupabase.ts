@@ -16,6 +16,12 @@
 //   idle → working → { idle(成功) | error | conflict }
 //   conflict / error は次操作または最新読込で idle へ戻る。
 //
+// 例外処理（Sprint2-1）:
+//   ・Server Action 呼び出しは callAction 経由。通信断・サーバ停止・Promise reject は
+//     network / unexpected の Result に正規化され、working に固定されず error へ遷移する。
+//   ・busyRef を進行フラグとし、finally で必ず解除する（二重送信防止・再試行可能）。
+//   ・失敗時は操作対象や既存 Evidence を消さない（成功時のみ状態を反映）。
+//
 // 保存の正は Supabase。localStorage へは戻さない。
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -26,6 +32,10 @@ import {
   releaseCardAction,
   updateCardAction,
 } from "@/app/v2/actions/informationCards";
+import { callAction } from "@/lib/v2/callAction";
+
+// 通信失敗（reject 含む）時に学生へ出す一般メッセージ（技術用語・DB情報を含めない）。
+const NETWORK_HINT = "通信状況を確認して、もう一度お試しください。";
 
 export type EvidenceStatus = "idle" | "working" | "error" | "conflict";
 
@@ -69,10 +79,13 @@ export function useEvidenceSupabase({
     cardsRef.current = cards;
   }, [cards]);
 
+  // 進行中フラグ（二重送信防止）。finally で必ず解除する。
+  const busyRef = useRef(false);
+
   const clearMessage = useCallback(() => setMessage(null), []);
 
   const reload = useCallback(async () => {
-    const res = await listCardsAction(patientId);
+    const res = await callAction(() => listCardsAction(patientId));
     if (res.ok) {
       setCards(sortCards(res.data));
     }
@@ -88,30 +101,39 @@ export function useEvidenceSupabase({
       content: string;
       originalText: string;
     }): Promise<boolean> => {
+      if (busyRef.current) return false; // 二重送信防止
+      busyRef.current = true;
       setStatus("working");
       setMessage(null);
-      const res = await createCardAction({
-        patientId,
-        content,
-        sourceType: "patient_conversation",
-        sourceLabel: "患者との会話",
-        sourceReference: { kind: "patient_conversation", id: entryId },
-        originalText,
-      });
-      if (res.ok) {
-        setCards((prev) => sortCards([...prev, res.data]));
-        setStatus("idle");
-        return true;
+      try {
+        const res = await callAction(() =>
+          createCardAction({
+            patientId,
+            content,
+            sourceType: "patient_conversation",
+            sourceLabel: "患者との会話",
+            sourceReference: { kind: "patient_conversation", id: entryId },
+            originalText,
+          }),
+        );
+        if (res.ok) {
+          setCards((prev) => sortCards([...prev, res.data]));
+          setStatus("idle");
+          return true;
+        }
+        if (res.kind === "duplicate") {
+          // 既に（別端末などで）収集済み。最新へ合わせる。
+          await reload();
+          setStatus("idle");
+          return true;
+        }
+        // network / unexpected / db_error 等はすべて error（既存の収集候補は残る）。
+        setStatus("error");
+        setMessage(`収集できませんでした。${NETWORK_HINT}`);
+        return false;
+      } finally {
+        busyRef.current = false;
       }
-      if (res.kind === "duplicate") {
-        // 既に（別端末などで）収集済み。最新へ合わせる。
-        await reload();
-        setStatus("idle");
-        return true;
-      }
-      setStatus("error");
-      setMessage("収集に失敗しました。通信状況を確認してもう一度お試しください。");
-      return false;
     },
     [patientId, reload],
   );
@@ -120,25 +142,34 @@ export function useEvidenceSupabase({
     async (rawContent: string): Promise<boolean> => {
       const content = rawContent.trim();
       if (content === "") return false;
+      if (busyRef.current) return false; // 二重送信防止
+      busyRef.current = true;
       setStatus("working");
       setMessage(null);
-      // 一時メモは外部参照（会話エントリ等）を持たないため sourceReference は付与しない
-      // （二重収集防止インデックスは source_reference.id 前提のため、メモは対象外）。
-      const res = await createCardAction({
-        patientId,
-        content,
-        sourceType: "student_note",
-        sourceLabel: "一時メモ",
-        originalText: content,
-      });
-      if (res.ok) {
-        setCards((prev) => sortCards([...prev, res.data]));
-        setStatus("idle");
-        return true;
+      try {
+        // 一時メモは外部参照（会話エントリ等）を持たないため sourceReference は付与しない
+        // （二重収集防止インデックスは source_reference.id 前提のため、メモは対象外）。
+        const res = await callAction(() =>
+          createCardAction({
+            patientId,
+            content,
+            sourceType: "student_note",
+            sourceLabel: "一時メモ",
+            originalText: content,
+          }),
+        );
+        if (res.ok) {
+          setCards((prev) => sortCards([...prev, res.data]));
+          setStatus("idle");
+          return true;
+        }
+        // 失敗時は入力（memo）を呼び出し側で保持する（本フックは false を返すのみ）。
+        setStatus("error");
+        setMessage(`収集できませんでした。${NETWORK_HINT}`);
+        return false;
+      } finally {
+        busyRef.current = false;
       }
-      setStatus("error");
-      setMessage("収集に失敗しました。通信状況を確認してもう一度お試しください。");
-      return false;
     },
     [patientId],
   );
@@ -153,34 +184,43 @@ export function useEvidenceSupabase({
         setMessage("最新の状態を読み込みました。もう一度お試しください。");
         return false;
       }
+      if (busyRef.current) return false; // 二重送信防止
+      busyRef.current = true;
       setStatus("working");
       setMessage(null);
-      const res = await updateCardAction({
-        patientId,
-        id,
-        expectedUpdatedAt,
-        patch: { content },
-      });
-      if (res.ok) {
-        setCards((prev) =>
-          sortCards(prev.map((c) => (c.id === id ? res.data : c))),
+      try {
+        const res = await callAction(() =>
+          updateCardAction({
+            patientId,
+            id,
+            expectedUpdatedAt,
+            patch: { content },
+          }),
         );
-        setStatus("idle");
-        return true;
-      }
-      if (res.kind === "conflict") {
-        setCards((prev) =>
-          res.latest
-            ? sortCards(prev.map((c) => (c.id === id ? res.latest! : c)))
-            : prev.filter((c) => c.id !== id),
-        );
-        setStatus("conflict");
-        setMessage("他の端末で更新されていたため、最新の内容を読み込みました。");
+        if (res.ok) {
+          setCards((prev) =>
+            sortCards(prev.map((c) => (c.id === id ? res.data : c))),
+          );
+          setStatus("idle");
+          return true;
+        }
+        if (res.kind === "conflict") {
+          setCards((prev) =>
+            res.latest
+              ? sortCards(prev.map((c) => (c.id === id ? res.latest! : c)))
+              : prev.filter((c) => c.id !== id),
+          );
+          setStatus("conflict");
+          setMessage("他の端末で更新されていたため、最新の内容を読み込みました。");
+          return false;
+        }
+        // network / unexpected / db_error 等。対象カードは消さず、修正内容も破棄しない。
+        setStatus("error");
+        setMessage(`修正を保存できませんでした。${NETWORK_HINT}`);
         return false;
+      } finally {
+        busyRef.current = false;
       }
-      setStatus("error");
-      setMessage("修正の保存に失敗しました。");
-      return false;
     },
     [patientId, reload],
   );
@@ -195,27 +235,36 @@ export function useEvidenceSupabase({
         setMessage("最新の状態を読み込みました。もう一度お試しください。");
         return false;
       }
+      if (busyRef.current) return false; // 二重送信防止
+      busyRef.current = true;
       setStatus("working");
       setMessage(null);
-      const res = await releaseCardAction({ patientId, id, expectedUpdatedAt });
-      if (res.ok) {
-        setCards((prev) => prev.filter((c) => c.id !== id));
-        setStatus("idle");
-        return true;
-      }
-      if (res.kind === "conflict") {
-        setCards((prev) =>
-          res.latest
-            ? sortCards(prev.map((c) => (c.id === id ? res.latest! : c)))
-            : prev.filter((c) => c.id !== id),
+      try {
+        const res = await callAction(() =>
+          releaseCardAction({ patientId, id, expectedUpdatedAt }),
         );
-        setStatus("conflict");
-        setMessage("他の端末で更新されていたため、最新の内容を読み込みました。");
+        if (res.ok) {
+          setCards((prev) => prev.filter((c) => c.id !== id));
+          setStatus("idle");
+          return true;
+        }
+        if (res.kind === "conflict") {
+          setCards((prev) =>
+            res.latest
+              ? sortCards(prev.map((c) => (c.id === id ? res.latest! : c)))
+              : prev.filter((c) => c.id !== id),
+          );
+          setStatus("conflict");
+          setMessage("他の端末で更新されていたため、最新の内容を読み込みました。");
+          return false;
+        }
+        // network / unexpected / db_error 等。カードは一覧から消さない（消失の誤解を防ぐ）。
+        setStatus("error");
+        setMessage(`収集解除できませんでした。${NETWORK_HINT}`);
         return false;
+      } finally {
+        busyRef.current = false;
       }
-      setStatus("error");
-      setMessage("収集解除に失敗しました。");
-      return false;
     },
     [patientId, reload],
   );

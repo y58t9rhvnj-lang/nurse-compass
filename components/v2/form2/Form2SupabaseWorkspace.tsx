@@ -58,7 +58,7 @@ export default function Form2SupabaseWorkspace({
     : saveStatus === "saving"
       ? "保存中…"
       : saveStatus === "error"
-        ? "保存に失敗しました"
+        ? "保存できませんでした。通信状況を確認して、もう一度お試しください。"
         : saveStatus === "conflict"
           ? "他の端末で更新されました"
           : saveStatus === "dirty"

@@ -52,9 +52,13 @@ export default function PatientWorkspace({
   });
 
   return (
-    <div className="min-h-screen bg-[#F2F2F7]">
-      <div className="mx-auto w-full max-w-[900px] px-4 py-6 sm:px-6 sm:py-8">
-        {/* Header */}
+    // V1 アプリシェルは globals.css で html,body を height:100dvh + overflow:hidden に
+    // 固定している。body スクロールに頼らず、このワークスペース専用の内部スクロール枠を
+    // 設けることで、V1 の固定レイアウトを壊さずに全セクション（Timeline〜Form2）へ到達できる。
+    <div className="h-[100dvh] min-h-0 overflow-hidden bg-[#F2F2F7]">
+      <div className="h-full min-h-0 overflow-y-auto overscroll-contain">
+        <div className="mx-auto w-full max-w-[900px] px-4 py-6 sm:px-6 sm:py-8">
+          {/* Header */}
         <header className="no-print rounded-3xl border border-[#EBEBF0] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <p className="text-[12px] font-medium text-[#8E8E93]">受け持ち対象</p>
           <h1 className="mt-0.5 text-[22px] font-bold text-[#1D1D1F]">
@@ -144,6 +148,7 @@ export default function PatientWorkspace({
             initial={initialForm2}
           />
         </Section>
+        </div>
       </div>
     </div>
   );
