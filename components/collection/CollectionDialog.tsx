@@ -19,6 +19,9 @@ export default function CollectionDialog({
   initialContent,
   sourceLabel,
   timestamp,
+  typeLabel,
+  showNote = false,
+  initialNote = "",
   onCancel,
   onConfirm,
 }: {
@@ -28,17 +31,25 @@ export default function CollectionDialog({
   initialContent: string;
   sourceLabel: string;
   timestamp?: string | null;
+  // Sprint6: 情報の種別（例「電子カルテ・診療録」）。指定時のみ出典欄に種別バッジを表示する。
+  typeLabel?: string;
+  // Sprint6: 学生メモ欄を表示するか。既存呼び出し（会話・修正）は未指定＝非表示で不変。
+  showNote?: boolean;
+  initialNote?: string;
   onCancel: () => void;
-  onConfirm: (content: string) => void;
+  // note は showNote=true のときのみ返る（未指定の呼び出し側は content のみ利用すればよい）。
+  onConfirm: (content: string, note?: string) => void;
 }) {
   // 初期値は mount 時に確定する。呼び出し側は対象ごとに key を変えて remount し、
   // 開き直しのたびに確実に初期値へ戻るようにする（effect での setState を避ける）。
   const [content, setContent] = useState(initialContent);
+  const [note, setNote] = useState(initialNote);
   // 二重送信防止（連打・キーボード確定の重複を防ぐ）。
   const submittingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleId = useId();
   const originalId = useId();
+  const noteId = useId();
 
   // 開いたらテキストエリアへフォーカス（編集をすぐ始められる）。
   useEffect(() => {
@@ -54,8 +65,9 @@ export default function CollectionDialog({
     const trimmed = content.trim();
     if (trimmed === "") return;
     submittingRef.current = true;
-    onConfirm(trimmed);
-  }, [content, onConfirm]);
+    const trimmedNote = note.trim();
+    onConfirm(trimmed, showNote && trimmedNote !== "" ? trimmedNote : undefined);
+  }, [content, note, showNote, onConfirm]);
 
   // Esc でキャンセル。
   useEffect(() => {
@@ -146,12 +158,40 @@ export default function CollectionDialog({
             </p>
           </section>
 
+          {/* セクション2.5：学生メモ（任意・原文/保存内容とは別項目）。Sprint6。 */}
+          {showNote && (
+            <section>
+              <label
+                htmlFor={noteId}
+                className="mb-1.5 block text-[12px] font-semibold text-[#6E6E73]"
+              >
+                学生メモ（任意）
+              </label>
+              <textarea
+                id={noteId}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={2}
+                placeholder="なぜ残したいか・後で確かめたいこと（任意）"
+                className="w-full resize-none rounded-2xl border border-[#E5E5EA] bg-white px-3.5 py-2.5 text-[13px] leading-relaxed text-[#1D1D1F] outline-none transition focus:border-[#0A84FF] focus:ring-2 focus:ring-[#0A84FF]/20"
+              />
+              <p className="mt-1 text-[11px] text-[#AEAEB5]">
+                メモは事実（保存する内容）とは分けて記録されます。
+              </p>
+            </section>
+          )}
+
           {/* セクション3：出典（表示のみ） */}
           <section>
             <h3 className="mb-1.5 text-[12px] font-semibold text-[#6E6E73]">
               出典
             </h3>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[#3A3A3C]">
+              {typeLabel && (
+                <span className="inline-flex items-center rounded-full bg-[#EEF7EE] px-2.5 py-0.5 font-medium text-[#2E7D32]">
+                  {typeLabel}
+                </span>
+              )}
               <span className="inline-flex items-center rounded-full bg-[#EAF3FF] px-2.5 py-0.5 font-medium text-[#0A6CD6]">
                 {sourceLabel}
               </span>

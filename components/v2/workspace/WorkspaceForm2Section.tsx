@@ -28,10 +28,13 @@ export default function WorkspaceForm2Section({
   patientId,
   userId,
   initial,
+  onPersisted,
 }: {
   patientId: string;
   userId: string;
   initial: Form2Snapshot | null;
+  // 保存成功時に確定スナップショットを親へ通知する（AppShell のセッション snapshot 更新用）。
+  onPersisted?: (snapshot: Form2Snapshot) => void;
 }) {
   const {
     data,
@@ -50,7 +53,7 @@ export default function WorkspaceForm2Section({
     loadLatest,
     restoreDraft,
     discardDraft,
-  } = useForm2Supabase({ patientId, userId, initial });
+  } = useForm2Supabase({ patientId, userId, initial, onPersisted });
 
   const [mode, setMode] = useState<Mode>("edit");
 

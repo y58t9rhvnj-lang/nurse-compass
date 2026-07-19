@@ -25,19 +25,46 @@
 // 保存の正は Supabase。localStorage へは戻さない。
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { InformationCard } from "@/lib/information/informationCard";
+import type {
+  InformationCard,
+  InformationSourceReference,
+  InformationSourceType,
+} from "@/lib/information/informationCard";
 import {
   createCardAction,
   listCardsAction,
   releaseCardAction,
   updateCardAction,
 } from "@/app/v2/actions/informationCards";
-import { callAction } from "@/lib/v2/callAction";
+import { callAction, type ClientCallErrorKind } from "@/lib/v2/callAction";
+import type { ActionErrorKind } from "@/lib/v2/notebook/types";
 
 // 通信失敗（reject 含む）時に学生へ出す一般メッセージ（技術用語・DB情報を含めない）。
 const NETWORK_HINT = "通信状況を確認して、もう一度お試しください。";
 
 export type EvidenceStatus = "idle" | "working" | "error" | "conflict";
+
+// Sprint6: Core 画面（電子カルテ・会話 等）から任意の情報源を Evidence として収集する共通入力。
+// 会話専用の collectUtterance / 一時メモ専用の collectMemo と異なり、出所種別・出所参照を
+// 呼び出し側が明示する（電子カルテ記録など sourceReference.id を持つ情報源の二重収集防止に対応）。
+export interface CaptureSourceArgs {
+  content: string;
+  sourceType: InformationSourceType;
+  sourceLabel: string;
+  // {kind,id?,date?,tab?}。id を持つ場合は uq_information_cards_source により二重収集を防ぐ。
+  sourceReference?: InformationSourceReference;
+  // 原文（immutable）。学生が content を整えても原文は保持する。
+  originalText?: string;
+  // 学生メモ（原文・保存内容とは別項目）。
+  note?: string;
+  category?: string;
+}
+
+// 収集結果。UI 側で「保存済み（duplicate）」「認証切れ」「通信エラー」等を区別できるよう、
+// callAction / Server Action の分類済み kind をそのまま返す（DB 生エラーは含めない）。
+export type CaptureResult =
+  | { ok: true }
+  | { ok: false; kind: ActionErrorKind | ClientCallErrorKind };
 
 export interface UseEvidenceSupabaseResult {
   cards: InformationCard[];
@@ -49,9 +76,21 @@ export interface UseEvidenceSupabaseResult {
     content: string;
     originalText: string;
   }) => Promise<boolean>;
-  // 一時メモ（学生が観察して気づいた事実）を Evidence として収集する。
-  // 出所種別は student_note（＝一時メモ）。メモ自体は永続化せず、収集結果のみ残る。
-  collectMemo: (content: string) => Promise<boolean>;
+  // メモ（Compassメモ / 一時メモ）を Evidence として整理・保存する。
+  // 出所種別は student_note。options.sourceReference（例 {kind:"student_note", id: note.id}）を
+  // 付けると、DB 一意制約による重複防止と「整理済み」判定（isCollectedBySource）に対応する。
+  // options 未指定時は従来どおり出所参照なしの一時メモ収集（後方互換）。
+  collectMemo: (
+    content: string,
+    options?: {
+      sourceReference?: InformationSourceReference;
+      originalText?: string;
+      sourceLabel?: string;
+    },
+  ) => Promise<boolean>;
+  // Core 画面の任意情報源（電子カルテ記録・患者発言 等）を Evidence として収集する。
+  // 成功時は cards へ即時反映し、duplicate はサーバの最新へ合わせたうえで区別可能な結果を返す。
+  collectSource: (args: CaptureSourceArgs) => Promise<CaptureResult>;
   updateContent: (id: string, content: string) => Promise<boolean>;
   release: (id: string) => Promise<boolean>;
   reload: () => Promise<void>;
@@ -139,7 +178,14 @@ export function useEvidenceSupabase({
   );
 
   const collectMemo = useCallback(
-    async (rawContent: string): Promise<boolean> => {
+    async (
+      rawContent: string,
+      options?: {
+        sourceReference?: InformationSourceReference;
+        originalText?: string;
+        sourceLabel?: string;
+      },
+    ): Promise<boolean> => {
       const content = rawContent.trim();
       if (content === "") return false;
       if (busyRef.current) return false; // 二重送信防止
@@ -147,19 +193,27 @@ export function useEvidenceSupabase({
       setStatus("working");
       setMessage(null);
       try {
-        // 一時メモは外部参照（会話エントリ等）を持たないため sourceReference は付与しない
-        // （二重収集防止インデックスは source_reference.id 前提のため、メモは対象外）。
+        // Compassメモ由来は sourceReference {kind:"student_note", id: note.id} を付ける。
+        // これにより uq_information_cards_source（source_reference.id 前提）で重複を防ぐ。
+        // 出所参照なし（従来の一時メモ）の場合は重複防止インデックスの対象外。
         const res = await callAction(() =>
           createCardAction({
             patientId,
             content,
             sourceType: "student_note",
-            sourceLabel: "一時メモ",
-            originalText: content,
+            sourceLabel: options?.sourceLabel ?? "一時メモ",
+            sourceReference: options?.sourceReference,
+            originalText: options?.originalText ?? content,
           }),
         );
         if (res.ok) {
           setCards((prev) => sortCards([...prev, res.data]));
+          setStatus("idle");
+          return true;
+        }
+        if (res.kind === "duplicate") {
+          // 既に同じメモから Evidence 化済み（別端末・二重送信含む）。最新へ合わせる。
+          await reload();
           setStatus("idle");
           return true;
         }
@@ -171,7 +225,50 @@ export function useEvidenceSupabase({
         busyRef.current = false;
       }
     },
-    [patientId],
+    [patientId, reload],
+  );
+
+  const collectSource = useCallback(
+    async (args: CaptureSourceArgs): Promise<CaptureResult> => {
+      const content = args.content.trim();
+      if (content === "") return { ok: false, kind: "validation" };
+      if (busyRef.current) return { ok: false, kind: "unexpected" }; // 二重送信防止
+      busyRef.current = true;
+      setStatus("working");
+      setMessage(null);
+      try {
+        const res = await callAction(() =>
+          createCardAction({
+            patientId,
+            content,
+            sourceType: args.sourceType,
+            sourceLabel: args.sourceLabel,
+            sourceReference: args.sourceReference,
+            originalText: args.originalText,
+            note: args.note,
+            category: args.category,
+          }),
+        );
+        if (res.ok) {
+          setCards((prev) => sortCards([...prev, res.data]));
+          setStatus("idle");
+          return { ok: true };
+        }
+        if (res.kind === "duplicate") {
+          // 同じ出所を既に収集済み。最新へ合わせ、呼び出し側で「保存済み」を示せるようにする。
+          await reload();
+          setStatus("idle");
+          return { ok: false, kind: "duplicate" };
+        }
+        // network / unexpected / unauthorized / db_error 等。既存の表示は壊さない。
+        setStatus("error");
+        setMessage(`収集できませんでした。${NETWORK_HINT}`);
+        return { ok: false, kind: res.kind };
+      } finally {
+        busyRef.current = false;
+      }
+    },
+    [patientId, reload],
   );
 
   const updateContent = useCallback(
@@ -283,6 +380,7 @@ export function useEvidenceSupabase({
     message,
     collectUtterance,
     collectMemo,
+    collectSource,
     updateContent,
     release,
     reload,

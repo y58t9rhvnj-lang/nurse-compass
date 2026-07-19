@@ -17,15 +17,36 @@ import {
 } from "lucide-react";
 import { type FeatureFlagKey, isFeatureEnabled } from "@/lib/featureFlags";
 
-export type AppView = "ward" | "patient" | "chart" | "workspace" | "form2";
+// Version2 で会話・患者トップを電子カルテと並列に扱うためのビュー。
+// V1 のビュー（ward/patient/chart/workspace/form2）は従来どおり。追加は加算のみ。
+export type AppView =
+  | "ward"
+  | "patient"
+  | "chart"
+  | "workspace"
+  | "form2"
+  | "patient-top"
+  | "conversation"
+  | "clinical-workspace";
 
-const navItems: {
+export type NavItem = {
   label: string;
   icon: typeof Home;
   view?: AppView;
   badge?: number;
   flag?: FeatureFlagKey;
-}[] = [
+};
+
+// サイドバー識別情報（フッター表示）。V1 既定は看護師プロフィール。
+export type SideNavIdentity = { name: string; subtitle: string };
+
+const DEFAULT_IDENTITY: SideNavIdentity = {
+  name: "田中 花子",
+  subtitle: "看護師 · 南3病棟",
+};
+
+// V1（`/`）の既定ナビ。挙動・feature flag による出し分けは従来どおり。
+const navItems: NavItem[] = [
   { label: "病棟ホーム", icon: Home, view: "ward" },
   { label: "患者トップ", icon: Users, view: "patient" },
   { label: "電子カルテ", icon: FileText, view: "chart" },
@@ -50,12 +71,37 @@ const navItems: {
   { label: "設定", icon: Settings },
 ];
 
+// Version2 学生導線（`/v2/student`）のナビ。V1 の見た目・構成を基盤にする（Lecture Readiness）。
+// 学生の学習導線: 病棟ホーム → 患者トップ → 電子カルテ・患者との会話 → Compassメモ（会話画面内）
+//   → 思考ワークスペース（Learning Layer）→ Evidence 整理 → 様式2。
+// V2 で加えるのは「思考ワークスペース」と「様式2（Supabase 保存）」のみ。
+// V1 と同じ補助項目（情報BOX・申し送り 等）も踏襲する（view 未指定は非活性表示）。
+// 「患者との会話」はメニューには出さない（会話画面自体は残し、患者トップから入る導線に一本化）。
+export const STUDENT_NAV_ITEMS: NavItem[] = [
+  { label: "病棟ホーム", icon: Home, view: "ward" },
+  { label: "患者トップ", icon: Users, view: "patient-top" },
+  { label: "電子カルテ", icon: FileText, view: "chart" },
+  { label: "思考ワークスペース", icon: NotebookPen, view: "clinical-workspace" },
+  { label: "様式2", icon: ClipboardList, view: "form2" },
+  { label: "情報BOX", icon: MessageCircle, badge: 2 },
+  { label: "申し送り", icon: MessageCircle },
+  { label: "スケジュール", icon: Calendar },
+  { label: "業務メモ", icon: StickyNote },
+  { label: "ラーニング", icon: BookOpen },
+  { label: "関連図", icon: Network },
+  { label: "設定", icon: Settings },
+];
+
 export default function SideNav({
   activeView,
   onNavigate,
+  items = navItems,
+  identity = DEFAULT_IDENTITY,
 }: {
   activeView: AppView;
   onNavigate: (view: AppView) => void;
+  items?: NavItem[];
+  identity?: SideNavIdentity;
 }) {
   return (
     <nav className="flex h-full w-full flex-col px-3 py-4">
@@ -76,7 +122,7 @@ export default function SideNav({
 
       {/* ナビ */}
       <ul className="flex flex-1 flex-col gap-1">
-        {navItems
+        {items
           .filter((item) => !item.flag || isFeatureEnabled(item.flag))
           .map(({ label, icon: Icon, view, badge }) => {
           const active = view !== undefined && view === activeView;
@@ -124,9 +170,11 @@ export default function SideNav({
         </div>
         <div className="min-w-0">
           <p className="truncate text-[12px] font-semibold text-[#1D1D1F]">
-            田中 花子
+            {identity.name}
           </p>
-          <p className="truncate text-[10px] text-[#8E8E93]">看護師 · 南3病棟</p>
+          <p className="truncate text-[10px] text-[#8E8E93]">
+            {identity.subtitle}
+          </p>
         </div>
       </div>
     </nav>

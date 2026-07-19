@@ -66,13 +66,20 @@ export interface UseForm2SupabaseArgs {
   patientId: string;
   userId: string;
   // Server Component が Repository で直接取得した初期スナップショット（無ければ null）。
+  // 呼び出し側（AppShell）は「ページロード時のサーバ値」または「同一セッションで保存した最新
+  // スナップショット」を渡す。保存の正本は常に Supabase で、これは初期表示の元にすぎない。
   initial: Form2Snapshot | null;
+  // 保存成功時に、サーバが確定した最新スナップショット（payload / version / updatedAt）を親へ通知する。
+  // AppShell はこれを患者単位のセッション snapshot として保持し、再マウント時の initial に再利用する
+  //（ビュー往復での「表示巻き戻り」防止。DB 再取得や強制 reload は行わない）。
+  onPersisted?: (snapshot: Form2Snapshot) => void;
 }
 
 export function useForm2Supabase({
   patientId,
   userId,
   initial,
+  onPersisted,
 }: UseForm2SupabaseArgs) {
   const caseId = caseIdForPatient(patientId) ?? patientId;
 
@@ -104,6 +111,12 @@ export function useForm2Supabase({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveRef = useRef<() => Promise<void>>(async () => {});
+  // onPersisted は毎レンダーで変わりうる（親がインライン関数を渡す）ため ref 経由で参照し、
+  // doSave の依存に含めない（保存経路を安定させる）。アンマウント後の flush からも呼べる。
+  const onPersistedRef = useRef(onPersisted);
+  useEffect(() => {
+    onPersistedRef.current = onPersisted;
+  }, [onPersisted]);
 
   const setDataAndRef = useCallback((next: Form2Data) => {
     dataRef.current = next;
@@ -156,6 +169,13 @@ export function useForm2Supabase({
         setLastSavedAt(res.data.updatedAt);
         clearForm2Draft(userId, caseId);
         setConflictLatest(null);
+        // 保存成功＝サーバ確定値。親のセッション snapshot を更新し、再マウント時の initial に使わせる。
+        // dataRef.current が今回保存した payload、res.data が確定 version / updatedAt。
+        onPersistedRef.current?.({
+          payload: dataRef.current,
+          version: res.data.version,
+          updatedAt: res.data.updatedAt,
+        });
         if (dirtyDuringSaveRef.current) {
           // 保存中に編集された → 追随保存。
           scheduleSave();
@@ -194,8 +214,24 @@ export function useForm2Supabase({
     saveRef.current = doSave;
   }, [doSave]);
 
-  // アンマウント時にタイマーを破棄。
-  useEffect(() => clearTimers, [clearTimers]);
+  // アンマウント時: 保留中の自動保存があれば破棄せず flush する。
+  // ビュー切り替え（unmount）が debounce 待ちより先に起きても、未保存の編集を
+  // Supabase へ確実に反映し、親のセッション snapshot（onPersisted）も更新させる。
+  // これにより「保存前に画面移動 → 入力が消える」を防ぐ（保存の正本は Supabase のまま）。
+  useEffect(() => {
+    return () => {
+      if (retryRef.current) {
+        clearTimeout(retryRef.current);
+        retryRef.current = null;
+      }
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+        // 保留中の編集を即時 flush（fire-and-forget）。onPersisted は AppShell 側で受ける。
+        void saveRef.current();
+      }
+    };
+  }, []);
 
   // 未保存の変更がある間は離脱を警告する。
   useEffect(() => {

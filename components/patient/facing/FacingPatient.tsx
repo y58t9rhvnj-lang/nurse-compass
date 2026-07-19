@@ -18,6 +18,7 @@ import {
 } from "@/lib/patientFacingData";
 import { useInformationCards } from "@/hooks/useInformationCards";
 import CollectionDialog from "@/components/collection/CollectionDialog";
+import ConversationCaptureButton from "@/components/v2/capture/ConversationCaptureButton";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import PatientPresence from "./PatientPresence";
 
@@ -134,6 +135,13 @@ export default function FacingPatient({
                       }
                     />
                   )}
+                  {/* Learning（/v2/student）でのみ描画される患者発言の Evidence 収集導線。
+                      V1 では EvidenceCaptureProvider が無いため何も表示されない。 */}
+                  <ConversationCaptureButton
+                    text={item.text}
+                    patientName={patient.name}
+                    className="mt-0.5 -mb-1"
+                  />
                 </li>
               );
             })}

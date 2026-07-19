@@ -10,6 +10,10 @@ import {
   RECORD_TYPE_LABEL,
   type TimelineRecord,
 } from "@/lib/chartTimeline";
+import type { InformationSourceType } from "@/lib/information/informationCard";
+import EvidenceCaptureButton, {
+  type EvidenceCaptureDescriptor,
+} from "@/components/v2/capture/EvidenceCaptureButton";
 import {
   ChartPanel,
   ChartTable,
@@ -29,6 +33,63 @@ import PrescriptionsView from "./PrescriptionsView";
 import NursingRecordView from "./NursingRecordView";
 
 const CLINICAL_PAGE_SIZE = 20;
+
+// ── Core-to-Learning Capture（Architecture Sprint 6） ─────────────────────
+// 電子カルテ記録を Evidence として収集するための出所記述子を組み立てる純粋関数。
+// 収集ボタン自体は Learning（Provider あり）でのみ描画される（V1 では null）。
+
+// タイムライン記録の本文（原文）。SOAP があれば S/O/A/P を、無ければ content を用いる。
+function timelineRecordText(r: TimelineRecord): string {
+  const lines: string[] = [];
+  if (r.recordType === "nursing" && r.focus) lines.push(`#${r.focus}`);
+  if (r.soap) {
+    for (const k of ["s", "o", "a", "p"] as const) {
+      const v = (r.soap[k] ?? "").trim();
+      if (v) lines.push(`${k.toUpperCase()}: ${v}`);
+    }
+  }
+  if (lines.length === 0 && r.content) lines.push(r.content);
+  return lines.join("\n").trim() || (r.content ?? "");
+}
+
+// 記録単位で保存する。出所 id は元記録の安定 id（recordId / nursingRecordId / 合成 id）。
+// kind は source_type と一致させ、uq_information_cards_source により二重収集を防ぐ。
+function timelineDescriptor(r: TimelineRecord): EvidenceCaptureDescriptor {
+  const sourceType: InformationSourceType =
+    r.recordType === "nursing" ? "nursing_record" : "clinical_record";
+  return {
+    sourceType,
+    sourceLabel: `${RECORD_TYPE_LABEL[r.recordType]}・${r.recordedAt}（${r.author}）`,
+    typeLabel: `電子カルテ・${RECORD_TYPE_LABEL[r.recordType]}`,
+    sourceReference: {
+      kind: sourceType,
+      id: r.recordId ?? r.nursingRecordId ?? r.id,
+      date: r.recordedAt,
+      tab: "診療録",
+    },
+    originalText: timelineRecordText(r),
+    timestamp: r.recordedAt,
+  };
+}
+
+// 医療サマリーは診療記録の一種として clinical_record で表現。kind は "summary" で id 空間を分離。
+function summaryDescriptor(s: {
+  id: string;
+  timepoint: string;
+  title: string;
+  date: string;
+  author: string;
+  content: string;
+}): EvidenceCaptureDescriptor {
+  return {
+    sourceType: "clinical_record",
+    sourceLabel: `医療サマリー・${s.timepoint}・${s.date}（${s.author}）`,
+    typeLabel: "電子カルテ・医療サマリー",
+    sourceReference: { kind: "summary", id: s.id, date: s.date, tab: "医療サマリー" },
+    originalText: `${s.title}\n${s.content}`.trim(),
+    timestamp: s.date,
+  };
+}
 
 export default function ChartTabContent({
   tab,
@@ -346,8 +407,9 @@ function ClinicalRecordsTab({
                       オーダー
                     </span>
                   )}
-                  <span className="ml-auto text-[11px] text-[#8E8E93]">
-                    {r.author}
+                  <span className="ml-auto flex items-center gap-2">
+                    <span className="text-[11px] text-[#8E8E93]">{r.author}</span>
+                    <EvidenceCaptureButton descriptor={timelineDescriptor(r)} />
                   </span>
                 </div>
                 {r.recordType === "nursing" ? (
@@ -550,8 +612,9 @@ function SummariesTab({ data }: { data: ChartData }) {
               <time className="text-[12px] tabular-nums text-[#6E6E73]">
                 {s.date}
               </time>
-              <span className="ml-auto text-[11px] text-[#8E8E93]">
-                {s.author}
+              <span className="ml-auto flex items-center gap-2">
+                <span className="text-[11px] text-[#8E8E93]">{s.author}</span>
+                <EvidenceCaptureButton descriptor={summaryDescriptor(s)} />
               </span>
             </div>
             <p className="text-[12.5px] leading-[1.6] text-[#3A3A3C]">

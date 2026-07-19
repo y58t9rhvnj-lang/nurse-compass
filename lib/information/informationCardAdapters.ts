@@ -10,7 +10,23 @@ import type { Note } from "../notes";
 import {
   createInformationCard,
   type InformationCard,
+  type InformationSourceReference,
 } from "./informationCard";
+
+// Compassメモ（気づきメモ / NoteZone）由来 Evidence の出所種別。
+// information_cards の二重収集防止インデックス（source_reference.kind + id）と、
+// 「元メモへ戻る／Evidence 整理済み判定」に用いる。ここで一元管理し、
+// Supabase 保存経路（useEvidenceSupabase.collectMemo）からも再利用する。
+export const STUDENT_NOTE_SOURCE_KIND = "student_note";
+
+// Compassメモの note.id から Evidence の出所参照を作る。
+// これを sourceReference に付けることで、DB の一意制約で同一メモの重複 Evidence 化を防ぎ、
+// UI では isCollectedBySource(kind, note.id) で「整理済み」を判定できる。
+export function studentNoteSourceReference(
+  noteId: string,
+): InformationSourceReference {
+  return { kind: STUDENT_NOTE_SOURCE_KIND, id: noteId };
+}
 
 // 単一の Note を Information Card へ変換する（明示呼び出し時のみ）。
 // patientId を明示指定できるが、未指定なら Note 自身の patientId を用いる。
@@ -27,7 +43,7 @@ export function noteToInformationCard(
     createdAt: new Date(note.createdAt).toISOString(),
     originalText: note.text,
     // 出所（元メモ）への参照を保持。遷移UIは今回未実装。
-    sourceReference: { kind: "student_note", id: note.id },
+    sourceReference: studentNoteSourceReference(note.id),
   });
 }
 
@@ -87,7 +103,7 @@ export function temporaryMemoToInformationCard(
     createdBy: "student",
     originalText,
     observedAt,
-    sourceReference: { kind: "student_note", id: noteId },
+    sourceReference: studentNoteSourceReference(noteId),
   });
 }
 

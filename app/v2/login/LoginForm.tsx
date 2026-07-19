@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 // 個人ID＋パスワードのログインフォーム。
 // 送信は公開 Route Handler(/v2/api/auth/login)へ。成功したら /v2 へ遷移し、
@@ -8,6 +9,7 @@ import { useState } from "react";
 export default function LoginForm() {
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -66,15 +68,35 @@ export default function LoginForm() {
         >
           パスワード
         </label>
-        <input
-          id="password"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
-          required
-        />
+        <div className="relative">
+          <input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 py-2 pl-3 pr-12 text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示"}
+            aria-pressed={showPassword}
+            aria-controls="password"
+            className={`absolute inset-y-0 right-0 flex h-full min-w-[44px] items-center justify-center rounded-r-lg px-3 outline-none transition focus-visible:ring-2 focus-visible:ring-sky-200 ${
+              showPassword
+                ? "text-sky-600"
+                : "text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            {showPassword ? (
+              <EyeOff className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
+            ) : (
+              <Eye className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
+            )}
+          </button>
+        </div>
       </div>
 
       {error ? (
