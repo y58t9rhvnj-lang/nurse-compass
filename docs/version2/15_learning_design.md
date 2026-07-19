@@ -21,7 +21,7 @@
 | `docs/version2/12_question_feature_review.md` / `13_ui_architecture.md`（CWDS） | Question/Coach を Inspector で提示（静的・非AI）、UI 土台 | 整合（本書の Coach は Inspector を器として流用） | 追随 |
 | `docs/version2/03_learning_journey.md` | 学びの足跡を append-only で残す（stage はイベント） | 整合（Coach の進捗参照＝§8 の状態は Journey から導出可能） | 参照 |
 | `docs/version2/10_evidence_form2_link_design.md` | Evidence⇄様式2 リンク（`form2_evidence_links` 案） | 整合（§5 の「関係する看護問題」への発展先） | 参照 |
-| Compassメモ実装（`NoteZone` = 気づきメモ / `useNotes` / `lib/notesStore.ts`） | localStorage 永続（キー `nc:notes:{patientId}`）。患者単位。Supabase 未接続 | 整合（本書の Compassメモの土台。将来 Supabase 化＝§9-4） | 流用＋拡張 |
+| Compassメモ実装（`NoteZone` = 気づきメモ / `useNotes` / `lib/notesStore.ts`） | localStorage 永続（キー `nc:notes:{patientId}`）。患者単位。**保存先テーブル `student_notes` は migration `0009` で作成・DB 検証済みだがアプリは未接続**（§12） | 整合（本書の Compassメモの土台。Supabase 化の DB 面＝§12 で確定、アプリ接続＝§9-4） | 流用＋拡張 |
 | 思考ワークスペース実装（`ClinicalWorkspace` / `EvidencePane` / `WorkspaceForm2Section`） | 左=Evidence（Supabase）／右=様式2（Supabase）。会話発言の直接収集 UI は**現在無効化**（`CONVERSATION_CAPTURE_ENABLED=false`） | 整合（本書の思考ワークスペースの土台） | 流用 |
 | Core 収集導線（`EvidenceCaptureButton` / `ConversationCaptureButton` / `EvidenceCaptureContext`） | 電子カルテ・会話の「Workspaceへ追加」。**現在 Provider へ null を渡し非表示**（`CORE_CAPTURE_ENABLED=false`）。コードは残置 | 整合（本書の方針＝直接収集しないと一致） | 非表示継続（削除は §9-8） |
 | 左メニュー「患者との会話」 | **メニューからは除外済み**（会話画面は残し、患者トップから入る導線に一本化） | 整合 | 追随 |
@@ -219,7 +219,7 @@ Coach が行わないこと（14 §11 と整合）:
 
 未決事項（次工程で確定）:
 - Compassメモと Workspace の**具体的な連動方法**（メモを Evidence 候補として WS に流す UI／メモ単位か抜粋か／メモ編集と Evidence の独立性）。
-- Compassメモの **Supabase 保存**（テーブル・RLS・localStorage からの移行と二重管理回避）。
+- Compassメモの **Supabase 保存**：テーブル・RLS・trigger・grants は migration `0009` で確定・DB 検証済み（§12）。**残る未決はアプリ接続**（repository/hook 差し替え・localStorage 移行方針・二重管理回避）。
 - Evidence の追加保存項目（**選んだ理由・関係する看護問題**）を現行 `InformationCard` にどう持たせるか（payload/metadata か新カラムか）。
 - **様式3・看護計画**の右ペイン成果物としての追加（`LearningOutcomeSwitcher`）。
 - Coach の**進捗状態の導出元**と「探している情報・目的」の取得・保存要否。
@@ -239,6 +239,36 @@ Coach が行わないこと（14 §11 と整合）:
 - Coach / Inspector: `components/patient/facing/FacingCoachPanel.tsx`, `components/v2/workspace/inspector/*`, `hooks/**/useWorkspaceInspector*`, `QuestionPanel` / `useQuestionPanel`
 - シェル・導線: `components/AppShell.tsx`（`CORE_CAPTURE_ENABLED`）, `components/SideNav.tsx`（`STUDENT_NAV_ITEMS`）
 - 様式2: `hooks/v2/useForm2Supabase.ts`, `lib/v2/**/form2Repository`/`form2Mapper`/`caseId`/`form2Draft`
+
+---
+
+## 12. Compassメモ Supabase 保存：DB 確定事項（migration `0009`）
+
+> 本節は §1–11 の学習設計を受けて**作成・DB 検証まで完了した Compassメモ保存テーブルの確定事項**を記録する（アプリ実装は未着手）。学習設計本体（§1–11）とは別に、DB 実装の確定点として追記する。§9-4 / §10 の「Compassメモの Supabase 保存」はここで DB 面のみ確定した。
+
+対象: `supabase/migrations/0009_student_notes.sql`（開発用 Supabase へ適用済み・**RLS/trigger/constraints/grants を 30/30 で検証済み**。検証スクリプトは gitignore の `scripts/v2/verify-student-notes.local.ts`）。
+
+### 12.1 確定事項
+- **テーブル** `public.student_notes`：Compassメモの非公開個人メモを保存。`id` は **text 主キー**（既存 `note.id` をそのまま維持。`crypto.randomUUID()` 以外のフォールバック形式や Evidence の `source_reference.id` との完全互換のため uuid 型にしない）。
+- **分離単位**：`user_id`（学生）× `organization_id` × `academic_year` × `case_id` × `patient_id`。`case_id` はサーバ解決値。
+- **論理削除**：`deleted_at`（null=有効）。物理 DELETE は誰にも GRANT しない。
+- **trigger**：`set_updated_at`（`updated_at` 自動更新）と `reject_immutable_columns`（`id`/`user_id`/`organization_id`/`academic_year`/`case_id`/`patient_id`/`created_at` を UPDATE 不可）。学生が更新できるのは `content` / `updated_at` / `deleted_at` のみ。正常動作を確認済み。
+- **RLS**：student は自分の行のみ SELECT / INSERT / UPDATE（`user_id=auth.uid()` ＋ role=student ＋ org ＋ year 境界）。teacher/admin の SELECT policy は作らない（Compassメモは学生の非公開領域。教員に共有されるのは Evidence 化された `information_cards` のみ）。anon 不可。soft-delete 正常動作を確認済み。
+- **復活不可**：一度論理削除した行は **UPDATE `USING (… and deleted_at is null)` により通常 UPDATE の対象外**（0 行・エラーなし）。`deleted_at` を null に戻す復活は通常経路で成立しない。
+- **Evidence 参照互換**：Compassメモ由来 Evidence は `source_reference = { kind: "student_note", id: note.id }` を維持。`student_notes.id`（text）へ `note.id` をそのまま保存でき、互換性を確認済み。
+
+### 12.2 【重要】SELECT policy で `deleted_at` を制御しない（アプリ側で必ずフィルタ）
+`student_notes_select_own` は `deleted_at` を条件に**含めない**（`information_cards` / `form2_records` と同じ既存パターン）。
+
+- 理由: PostgREST は変更系を CTE 内の `UPDATE … RETURNING *` として実行し、`RETURNING` 行は **SELECT policy を満たす必要がある**。SELECT policy に `deleted_at is null` を含めると、論理削除で `deleted_at` が非 null になった行が `RETURNING` 時に不可視となり、**soft-delete 自体が `42501 new row violates row-level security policy` で失敗する**（`Prefer: return=minimal` でも同様。`RETURNING` は PostgREST 内部で常に付与されるため）。
+- 帰結: **論理削除済み行の非表示は RLS ではなくアプリ側クエリの責務**。有効メモ取得時は **必ず `.is('deleted_at', null)` を明示**する（`information_cards` の `listActive*` と同じ）。
+- したがって次のアプリ実装（Compassメモ Supabase repository / hook）では、active notes の取得に `.is('deleted_at', null)` を必須とする。これを忘れると論理削除済みメモが一覧に混入する。
+
+### 12.3 まだ確定していない（アプリ実装工程で決める）
+- Compassメモ repository / hook の差し替え（`useNotes` の内部を Supabase 化するか、`useNotesLocal`/`useNotesSupabase` に分けるか）。
+- localStorage 既存メモの移行方針（今回は**自動移行しない**方針で DB を用意。移行するなら別途合意）。
+- 保存中/失敗/再試行の UI、複数タブ・複数端末同期。
+- §5 の Evidence 追加項目（選んだ理由・関係する看護問題）は本節の対象外（別途）。
 
 ---
 
