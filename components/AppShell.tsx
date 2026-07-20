@@ -7,9 +7,10 @@ import SideNav, {
   type AppView,
   type SideNavIdentity,
 } from "@/components/SideNav";
-import StudentPatientTop from "@/components/v2/student-shell/StudentPatientTop";
-import WorkspaceForm2Section from "@/components/v2/workspace/WorkspaceForm2Section";
-import ClinicalWorkspace from "@/components/v2/workspace/ClinicalWorkspace";
+import Notice from "@/components/Notice";
+import CoreLayer from "@/components/v2/core/CoreLayer";
+import LearningLayer from "@/components/v2/learning/LearningLayer";
+import { isLearningWorkspaceView } from "@/components/v2/learning/workspace/WorkspaceHost";
 import {
   EvidenceCaptureProvider,
   type EvidenceCaptureApi,
@@ -417,30 +418,6 @@ export default function AppShell({
         />
       </aside>
     );
-    // 他患者選択中に Learning 画面（思考ワークスペース・様式2）へ進んだときの案内。
-    // 受け持ち患者の実データ（EvidencePane / WorkspaceForm2Section）は描画せず、
-    // 受け持ち患者へ戻る導線だけを示す。
-    const learningLockedView = (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-6">
-        <div className="w-full max-w-[440px] rounded-2xl border border-[#E5E5EA] bg-white p-6 text-center shadow-sm">
-          <h2 className="text-[15px] font-bold text-[#1D1D1F]">
-            受け持ち患者の学習画面です
-          </h2>
-          <p className="mt-2 text-[13px] leading-relaxed text-[#6E6E73]">
-            思考ワークスペースと様式は、受け持ち患者について利用できます。
-            <br />
-            受け持ち患者に戻って、情報を振り返りましょう。
-          </p>
-          <button
-            type="button"
-            onClick={backToLearningTarget}
-            className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-full bg-[#0A5FCC] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#0A54B5]"
-          >
-            受け持ち患者に戻る
-          </button>
-        </div>
-      </div>
-    );
     return (
       <EvidenceCaptureProvider value={CORE_CAPTURE_ENABLED ? captureApi : null}>
         <NotesProvider value={notes}>
@@ -450,190 +427,51 @@ export default function AppShell({
           className="flex h-dvh w-full flex-col overflow-hidden bg-[#EDEDF0] text-[#1D1D1F]"
         >
           <div className="flex min-h-0 flex-1">
-            {activeView === "chart" ? (
-              // 電子カルテ: V1 と同じ 3 カラム（専用左メニュー + カルテ + 補助右ペイン）。
-              // Core 収集導線（Workspaceへ追加）は現在無効（CORE_CAPTURE_ENABLED=false）＝ボタン非表示。
-              <>
-                <aside className="w-[168px] shrink-0 border-r border-[#E5E5EA]">
-                  <ChartSideNav
-                    onBackToCompass={goPatientOverview}
-                    onMenuSelect={(item) => {
-                      if (item !== "カルテ画面") {
-                        setNotice(
-                          `「${item}」は準備中です。情報は上部のタブから確認できます。`,
-                        );
-                      }
-                    }}
-                  />
-                </aside>
-                <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                  {notice && (
-                    <div className="shrink-0 px-3 pt-2">
-                      <Notice text={notice} onClose={() => setNotice(null)} />
-                    </div>
-                  )}
-                  <div className="flex min-h-0 flex-1 flex-col">
-                    <CompassChart
-                      patient={selectedPatient}
-                      initialTab={chartInitialTab}
-                      initialFocus={chartInitialFocus}
-                    />
-                  </div>
-                </main>
-                <aside className="w-[240px] shrink-0 border-l border-[#E5E5EA] bg-white">
-                  <ChartAside
-                    patient={selectedPatient}
-                    pendingQuestion={pendingQuestion}
-                    onClearPendingQuestion={clearPendingQuestion}
-                    onUseQuestion={useQuestionForNote}
-                  />
-                </aside>
-              </>
-            ) : activeView === "conversation" ? (
-              // 患者との会話: V1 と同じ構成（会話 + Compassメモ NoteZone + Compass Coach）。
-              <>
-                {studentSideNav}
-                <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                  {notice && (
-                    <div className="px-5 pt-3">
-                      <Notice text={notice} onClose={() => setNotice(null)} />
-                    </div>
-                  )}
-                  <div className="min-h-0 flex-1">
-                    <FacingPatient
-                      patient={selectedPatient}
-                      onBack={goPatientOverview}
-                      state={facingState}
-                      onChange={setFacingState}
-                    />
-                  </div>
-                  <FirstAssignmentSheet patientId={selectedId} />
-                </main>
-                <aside className="w-[288px] shrink-0 border-l border-[#E5E5EA] bg-white">
-                  <div className="flex h-full flex-col">
-                    <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                      <NoteZone patientId={selectedId} />
-                    </div>
-                    <div className="shrink-0">
-                      <FacingCoachPanel
-                        patient={selectedPatient}
-                        state={facingState}
-                        onChange={setFacingState}
-                        onOpenChart={goChart}
-                      />
-                    </div>
-                  </div>
-                </aside>
-              </>
-            ) : activeView === "clinical-workspace" ? (
-              // 思考ワークスペース（Learning Layer / 左=Evidence・右=Supabase 様式2）。
-              <>
-                {studentSideNav}
-                <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                  {notice && (
-                    <div className="shrink-0 px-4 pt-3">
-                      <Notice text={notice} onClose={() => setNotice(null)} />
-                    </div>
-                  )}
-                  {inspectorHeader}
-                  {!isLearningTargetSelected ? (
-                    learningLockedView
-                  ) : userId ? (
-                    <ClinicalWorkspace
-                      patient={selectedPatient}
-                      userId={userId}
-                      evidence={evidence}
-                      initialForm2={effectiveForm2}
-                      onForm2Persisted={handleForm2Persisted}
-                      facingHistory={facingState.history}
-                    />
-                  ) : (
-                    <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[13px] text-[#6E6E73]">
-                      思考ワークスペースを表示するにはログインが必要です。
-                    </div>
-                  )}
-                </main>
-                {inspectorOverlay}
-              </>
-            ) : activeView === "form2" ? (
-              // 様式2（Supabase 版。保存の正本は Supabase / localStorage は下書き退避のみ）。
-              <>
-                {studentSideNav}
-                <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                  {notice && (
-                    <div className="shrink-0 px-4 pt-3">
-                      <Notice text={notice} onClose={() => setNotice(null)} />
-                    </div>
-                  )}
-                  {inspectorHeader}
-                  {!isLearningTargetSelected ? (
-                    learningLockedView
-                  ) : userId ? (
-                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
-                      <div className="mx-auto w-full max-w-[900px]">
-                        <WorkspaceForm2Section
-                          patientId={selectedId}
-                          userId={userId}
-                          initial={effectiveForm2}
-                          onPersisted={handleForm2Persisted}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[13px] text-[#6E6E73]">
-                      様式2 を表示するにはログインが必要です。
-                    </div>
-                  )}
-                </main>
-                {inspectorOverlay}
-              </>
-            ) : activeView === "patient-top" ? (
-              // 患者トップ（V2 ランディング）。電子カルテ・会話・様式2 への入口。
-              <>
-                {studentSideNav}
-                <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                  {notice && (
-                    <div className="shrink-0 px-4 pt-3">
-                      <Notice text={notice} onClose={() => setNotice(null)} />
-                    </div>
-                  )}
-                  <StudentPatientTop
-                    patient={selectedPatient}
-                    onOpenChart={() => goChart()}
-                    onOpenConversation={goConversation}
-                    onOpenForm2={goForm2}
-                  />
-                </main>
-              </>
+            {isLearningWorkspaceView(activeView) ? (
+              // Learning Layer（思考ワークスペース / 様式2）＋ Learning Inspector 重畳。
+              // Workspace 本体は WorkspaceHost が種別ごとに差し替える（将来 Form3 / Related Map）。
+              <LearningLayer
+                view={activeView}
+                sideNav={studentSideNav}
+                notice={notice}
+                onCloseNotice={() => setNotice(null)}
+                inspectorHeader={inspectorHeader}
+                inspectorOverlay={inspectorOverlay}
+                isTargetPatient={isLearningTargetSelected}
+                onBackToTarget={backToLearningTarget}
+                userId={userId}
+                patient={selectedPatient}
+                evidence={evidence}
+                initialForm2={effectiveForm2}
+                onForm2Persisted={handleForm2Persisted}
+                facingHistory={facingState.history}
+              />
             ) : (
-              // 病棟ホーム（既定・学習起点）: V1 と同じ 3 カラム
-              //（SideNav + WardHomeTopBar/WardMap/OutsideWardArea + WardRightPanel）。
-              // 患者選択（WardMap / 右ペイン）で患者トップへ進む。
-              <>
-                {studentSideNav}
-                <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                  <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3.5">
-                    {notice && (
-                      <Notice text={notice} onClose={() => setNotice(null)} />
-                    )}
-                    <WardHomeTopBar />
-                    <WardMap
-                      selectedId={selectedId}
-                      onSelectPatient={(id) => {
-                        selectPatient(id);
-                        goPatientOverview();
-                      }}
-                    />
-                    <OutsideWardArea />
-                  </div>
-                </main>
-                <aside className="w-[288px] shrink-0 border-l border-[#E5E5EA] bg-white">
-                  <WardRightPanel
-                    patient={selectedPatient}
-                    onPatientTopRequest={goPatientOverview}
-                  />
-                </aside>
-              </>
+              // Core Layer（病棟ホーム / 患者トップ / 電子カルテ / 患者との会話）。学習支援は持たない。
+              <CoreLayer
+                activeView={activeView}
+                sideNav={studentSideNav}
+                notice={notice}
+                onNotice={setNotice}
+                onCloseNotice={() => setNotice(null)}
+                selectedPatient={selectedPatient}
+                selectedId={selectedId}
+                pendingQuestion={pendingQuestion}
+                onClearPendingQuestion={clearPendingQuestion}
+                onUseQuestion={useQuestionForNote}
+                chartInitialTab={chartInitialTab}
+                chartInitialFocus={chartInitialFocus}
+                facingState={facingState}
+                onChangeFacingState={setFacingState}
+                onBackToPatientTop={goPatientOverview}
+                onOpenChart={goChart}
+                onOpenConversation={goConversation}
+                onOpenForm2={goForm2}
+                onSelectPatientToTop={(id) => {
+                  selectPatient(id);
+                  goPatientOverview();
+                }}
+              />
             )}
           </div>
         </div>
@@ -802,21 +640,6 @@ export default function AppShell({
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-function Notice({ text, onClose }: { text: string; onClose: () => void }) {
-  return (
-    <div className="flex shrink-0 items-center justify-between rounded-2xl bg-[#EAF3FF] px-4 py-2">
-      <p className="text-xs font-medium text-[#0A5FCC]">{text}</p>
-      <button
-        type="button"
-        onClick={onClose}
-        className="min-h-[44px] text-[11px] text-[#6E6E73] hover:text-[#1D1D1F]"
-      >
-        閉じる
-      </button>
     </div>
   );
 }

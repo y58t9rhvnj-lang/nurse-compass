@@ -22,12 +22,15 @@ export default function WorkspaceInspector({
   title = INSPECTOR_TITLE,
   onClose,
   children,
+  // lg 以上での幅クラス（Learning Inspector foundation 管理）。既定は現行の 360px。
+  widthClassName = "lg:w-[360px]",
 }: {
   title?: string;
   // Close ボタン / Esc / 背景タップ すべてこの onClose を呼ぶ。
   // フォーカス復帰（トリガーへ戻す）は親側で行う。
   onClose: () => void;
   children: React.ReactNode;
+  widthClassName?: string;
 }) {
   const titleId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -75,8 +78,9 @@ export default function WorkspaceInspector({
           // <lg: 画面下から出る下シート
           "fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] rounded-t-3xl border border-[#EBEBF0]",
           "shadow-[0_-8px_40px_rgba(0,0,0,0.14)]",
-          // lg 以上: Workspace 右にドックするサイドパネル（本体と横に共存）
-          "lg:static lg:inset-auto lg:z-auto lg:h-full lg:max-h-none lg:w-[360px] lg:shrink-0",
+          // lg 以上: Workspace 右にドックするサイドパネル（本体と横に共存）。幅は foundation 管理。
+          "lg:static lg:inset-auto lg:z-auto lg:h-full lg:max-h-none lg:shrink-0",
+          widthClassName,
           "lg:rounded-none lg:border-y-0 lg:border-r-0 lg:border-l lg:shadow-[-1px_0_3px_rgba(0,0,0,0.05)]",
         ].join(" ")}
       >
