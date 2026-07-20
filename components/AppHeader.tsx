@@ -1,17 +1,24 @@
+import NurseCompassLogo from "@/components/v2/brand/NurseCompassLogo";
+
 export default function AppHeader() {
   return (
     <header className="shrink-0 border-b border-[#E5E7EB] bg-white">
       <div className="flex h-[48px] items-center justify-between px-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#0F2742]">
-            <span className="text-sm font-bold text-white">N</span>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[#0F2742]">Nurse Compass</p>
-            <p className="text-[10px] text-[#9CA3AF]">
-              看護師としての判断の羅針盤
-            </p>
-          </div>
+        {/* ブランド（共有ロゴ素材）。狭幅=シンボルのみ / sm 以上=横長ロゴへ縮退。
+            ヘッダー高さ(48px)は変えない（size=28 に収める）。 */}
+        <div className="flex items-center">
+          <NurseCompassLogo
+            variant="symbol"
+            size={28}
+            priority
+            className="sm:hidden"
+          />
+          <NurseCompassLogo
+            variant="horizontal"
+            size={28}
+            priority
+            className="hidden sm:block"
+          />
         </div>
 
         <div className="text-center">

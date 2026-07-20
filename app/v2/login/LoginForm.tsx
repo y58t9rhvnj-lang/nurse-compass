@@ -55,7 +55,7 @@ export default function LoginForm() {
           inputMode="text"
           value={loginId}
           onChange={(e) => setLoginId(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+          className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
           placeholder="例: S001"
           required
         />
@@ -75,7 +75,7 @@ export default function LoginForm() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 py-2 pl-3 pr-12 text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+            className="w-full rounded-lg border border-slate-300 py-1.5 pl-3 pr-12 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
             required
           />
           <button
@@ -111,7 +111,7 @@ export default function LoginForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="w-full rounded-lg bg-sky-600 px-4 py-2.5 font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submitting ? "サインイン中..." : "ログイン"}
       </button>

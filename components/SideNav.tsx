@@ -4,7 +4,6 @@ import {
   BookOpen,
   Calendar,
   ClipboardList,
-  Compass,
   FileText,
   Home,
   MessageCircle,
@@ -15,6 +14,8 @@ import {
   User,
   Users,
 } from "lucide-react";
+import NurseCompassLogo from "@/components/v2/brand/NurseCompassLogo";
+import { BRAND } from "@/lib/brand";
 import { type FeatureFlagKey, isFeatureEnabled } from "@/lib/featureFlags";
 
 // Version2 で会話・患者トップを電子カルテと並列に扱うためのビュー。
@@ -105,17 +106,18 @@ export default function SideNav({
 }) {
   return (
     <nav className="flex h-full w-full flex-col px-3 py-4">
-      {/* ロゴ */}
+      {/* ブランド（シンボルマーク＋名称）。アイコンは共有素材を参照（描き直さない）。
+          隣に「Nurse Compass」テキストがあるためシンボルは装飾（alt=""）とする。 */}
       <div className="mb-4 flex items-center gap-2.5 px-1">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E5E5EA] bg-white">
-          <Compass className="h-5 w-5 text-[#0A84FF]" strokeWidth={2} />
+          <NurseCompassLogo variant="symbol" size={22} alt="" />
         </div>
         <div className="min-w-0">
           <p className="truncate text-[14px] font-semibold leading-tight text-[#1D1D1F]">
             Nurse Compass
           </p>
-          <p className="truncate text-[10px] text-[#8E8E93]">
-            Aims Medical Center
+          <p className="text-[10px] leading-tight text-[#8E8E93]">
+            {BRAND.taglineEn}
           </p>
         </div>
       </div>

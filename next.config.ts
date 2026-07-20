@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
     "192.168.11.9",
     "192.168.11.*",
   ],
+  // 開発インジケータ（左上の "N" 等）は講義中の見た目を損なうため完全に非表示にする
+  //（dev 専用の表示であり本番ビルドには元々出ない）。
+  devIndicators: false,
 };
 
 export default nextConfig;

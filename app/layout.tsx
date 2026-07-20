@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { BRAND } from "@/lib/brand";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,9 +13,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// ブランド統一（Sprint C）: タイトル／説明はブランド定義を単一の正として参照する。
+//   default = "Nurse Compass" / 子セグメントの文字列 title は "%s | Nurse Compass" で補完。
 export const metadata: Metadata = {
-  title: "Nurse Compass | Aims Medical Center",
-  description: "看護師としての判断の羅針盤",
+  title: { default: BRAND.name, template: `%s | ${BRAND.name}` },
+  description: BRAND.taglineEn,
 };
 
 // iPad Safari のスケール由来のタップ座標ズレを防ぐ。
