@@ -5,7 +5,10 @@ import { getForm2 } from "@/lib/v2/notebook/form2Repository";
 import { rowToForm2Snapshot } from "@/lib/v2/notebook/form2Mapper";
 import { listActiveCards } from "@/lib/v2/notebook/informationCardsRepository";
 import { rowToInformationCard } from "@/lib/v2/notebook/informationCardMapper";
+import { listActiveNotes } from "@/lib/v2/notebook/studentNotesRepository";
+import { rowToStudentNoteRecord } from "@/lib/v2/notebook/studentNoteMapper";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
+import type { StudentNoteRecord } from "@/lib/v2/notebook/studentNoteMapper";
 import type { InformationCard } from "@/lib/information/informationCard";
 import AppShell from "@/components/AppShell";
 
@@ -28,6 +31,10 @@ export default async function StudentHomePage() {
   const caseId = caseIdForPatient(FIXED_PATIENT_ID);
   let initialForm2: Form2Snapshot | null = null;
   let initialEvidence: InformationCard[] = [];
+  // Compassメモ（student_notes）の初期データ。受け持ち患者の有効メモのみ（.is('deleted_at', null)）。
+  // patient / case scope はサーバ側で保証（profile.id ＋ サーバ解決の case_id、加えて RLS）。
+  // 取得失敗・DB未設定・未認証時は空配列で継続（initialForm2 / initialEvidence と同じ扱い）。
+  let initialNotes: StudentNoteRecord[] = [];
   if (caseId) {
     const supabase = await createServerSupabaseClient();
     const { row } = await getForm2(supabase, profile.id, caseId);
@@ -35,6 +42,9 @@ export default async function StudentHomePage() {
 
     const { rows } = await listActiveCards(supabase, profile.id, caseId);
     initialEvidence = rows.map((r) => rowToInformationCard(r, FIXED_PATIENT_ID));
+
+    const { rows: noteRows } = await listActiveNotes(supabase, profile.id, caseId);
+    initialNotes = noteRows.map(rowToStudentNoteRecord);
   }
 
   return (
@@ -51,6 +61,7 @@ export default async function StudentHomePage() {
       inspectorEnabled
       initialForm2={initialForm2}
       initialEvidence={initialEvidence}
+      initialNotes={initialNotes}
     />
   );
 }

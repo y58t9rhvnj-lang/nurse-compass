@@ -14,7 +14,10 @@ import {
   EvidenceCaptureProvider,
   type EvidenceCaptureApi,
 } from "@/components/v2/capture/EvidenceCaptureContext";
+import { NotesProvider } from "@/components/v2/notebook/NotesContext";
 import { useEvidenceSupabase } from "@/hooks/v2/useEvidenceSupabase";
+import { useNotesSupabase } from "@/hooks/v2/useNotesSupabase";
+import type { StudentNoteRecord } from "@/lib/v2/notebook/studentNoteMapper";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
 import type { InformationCard } from "@/lib/information/informationCard";
 import { useWorkspaceInspector } from "@/hooks/v2/useWorkspaceInspector";
@@ -108,6 +111,9 @@ export interface AppShellProps {
   // V2 思考ワークスペースの初期 Evidence（server page が Repository から取得して注入）。
   // V1 既定は undefined（V1 分岐では未使用）。Architecture Sprint 5。
   initialEvidence?: InformationCard[];
+  // V2 Compassメモ の初期データ（server page が受け持ち患者の active notes を取得して注入）。
+  // StudentNoteRecord[]（note: UI向け / updatedAt: 楽観ロック用の生 ISO）。V1 既定は undefined。
+  initialNotes?: StudentNoteRecord[];
   // ── Learning Layer 接続点（Architecture Sprint 1-1 で追加した「入口」） ──
   // 恒久設計上の唯一の結合点。今回は型として受け入れるのみで、内部では未使用
   // （destructure しない）。Sprint 1-2 以降で mode 依存を段階的に置き換えていく。
@@ -174,6 +180,7 @@ export default function AppShell({
   inspectorEnabled = false,
   initialForm2,
   initialEvidence,
+  initialNotes,
 }: AppShellProps = {}) {
   // Core 標準初期値を Core の規則で決定してから useState へ渡す（Priority A）。
   // useState 内には mode / fixedPatientId を直接書かない（初期状態決定を隔離）。
@@ -301,6 +308,21 @@ export default function AppShell({
     }),
     [evidence.status, evidence.isCollectedBySource, evidence.collectSource],
   );
+
+  // ── Version2 Compassメモ コントローラ（Compass Memo Supabase Integration Phase 2） ────
+  // Compassメモ（student_notes）を Supabase で保持するフックを AppShell で 1 度だけ生成し、
+  // NotesProvider で V2 サブツリー全体へ配る。患者トップ・患者との会話の NoteZone・
+  // 思考ワークスペースの EvidencePane が同一インスタンスを共有し、リロード無しで相互反映される
+  // （従来 localStorage singleton が担っていた自動共有を Supabase 版で再現）。
+  // Learning Layer と同様、Compassメモ は受け持ち患者のみが対象のため、可変の selectedId ではなく
+  // 安定した受け持ち患者id（= initialPatientId）へスコープする。initialNotes も受け持ち患者の分。
+  // Hooks は条件分岐せず常に呼ぶ（V1 でも生成されるが、Provider を設置しないため未使用）。
+  // 注記: consumer（NoteZone / EvidencePane）の実接続は Phase 3。本 Phase は状態基盤のみ。
+  const notes = useNotesSupabase({
+    patientId: initialPatientId,
+    initial: initialNotes ?? [],
+  });
+
   // ── Version2 様式2 セッション snapshot（Lecture Readiness Sprint 1 / 表示巻き戻り修正）──
   // 様式2 コンポーネント（単独様式2 / ワークスペース右ペイン）はビュー切替で unmount/remount され、
   // useForm2Supabase は mount 時の initial からのみ state を初期化する（DB 再取得はしない）。
@@ -421,6 +443,7 @@ export default function AppShell({
     );
     return (
       <EvidenceCaptureProvider value={CORE_CAPTURE_ENABLED ? captureApi : null}>
+        <NotesProvider value={notes}>
         <div
           data-shell-mode="v2"
           data-inspector-enabled={inspectorEnabled ? "1" : undefined}
@@ -614,6 +637,7 @@ export default function AppShell({
             )}
           </div>
         </div>
+        </NotesProvider>
       </EvidenceCaptureProvider>
     );
   }

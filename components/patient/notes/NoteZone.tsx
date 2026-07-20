@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NotebookPen } from "lucide-react";
 import { useNotes } from "@/hooks/useNotes";
+import { useOptionalNotesContext } from "@/components/v2/notebook/NotesContext";
 import { useInformationCards } from "@/hooks/useInformationCards";
 import CollectionDialog from "@/components/collection/CollectionDialog";
 import { isFeatureEnabled } from "@/lib/featureFlags";
@@ -25,8 +26,20 @@ export default function NoteZone({
   pendingQuestion?: { text: string; token: number } | null;
   onClearPendingQuestion?: () => void;
 }) {
-  const { notes, hydrated, addNote, updateNote, deleteNote } =
-    useNotes(patientId);
+  // Compassメモ の状態元（Phase 3: localStorage → Supabase 共有インスタンスへ切替）。
+  //   ・V2（NotesProvider 配下）かつ現在患者が受け持ち患者のとき: AppShell 単一インスタンスの
+  //     Supabase 版を共有し、患者トップ・会話・思考ワークスペース間でリロード無く相互反映する。
+  //   ・V1 Core（Provider 無し）／ V2 の非受け持ち患者: 従来どおり localStorage 版（useNotes）。
+  //     Core の挙動と非受け持ち患者のメモは変更しない。
+  const shared = useOptionalNotesContext();
+  const useShared = shared !== null && shared.patientId === patientId;
+  const local = useNotes(patientId);
+  const notes = useShared ? shared!.notes : local.notes;
+  const addNote = useShared ? shared!.addNote : local.addNote;
+  const updateNote = useShared ? shared!.updateNote : local.updateNote;
+  const deleteNote = useShared ? shared!.deleteNote : local.deleteNote;
+  // 共有（Supabase）版はサーバ初期値を保持しており、読み込み中プレースホルダは不要（常に表示可）。
+  const hydrated = useShared ? true : local.hydrated;
   // 一時メモの収集（収集データ store 由来で「収集済み」を判定する）。
   const { isNoteCollected, collectTemporaryMemo } =
     useInformationCards(patientId);

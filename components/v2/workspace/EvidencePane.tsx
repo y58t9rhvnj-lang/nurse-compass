@@ -9,8 +9,8 @@
 //   Compassメモ（自由記載の個人メモ）→ 本ペインで振り返り → 学生が明示的に選んで Evidence として整理
 //   → Supabase(information_cards) へ保存 → 右ペインの様式2 を書く。
 //   ここは「情報を集める場所」ではなく「情報を見直して意味を考え、必要な根拠を選ぶ場所」。
-//   Compassメモは NoteZone と同じ store（useNotes / notesStore）を参照する（別 state を作らない）。
-//   保存の正は Supabase。確認・整形は既存 CollectionDialog を再利用する。
+//   Compassメモは NoteZone と同一インスタンス（AppShell 単一の Supabase 版共有 Context）を参照する
+//   （別 state を作らない）。保存の正は Supabase。確認・整形は既存 CollectionDialog を再利用する。
 
 import { useEffect, useState } from "react";
 import { Check, Plus, Quote, Trash2 } from "lucide-react";
@@ -21,7 +21,7 @@ import {
   STUDENT_NOTE_SOURCE_KIND,
   studentNoteSourceReference,
 } from "@/lib/information/informationCardAdapters";
-import { useNotes } from "@/hooks/useNotes";
+import { useNotesContext } from "@/components/v2/notebook/NotesContext";
 import {
   CONVERSATION_SOURCE_KIND,
   conversationSourceId,
@@ -88,8 +88,11 @@ export default function EvidencePane({
     release,
     isCollectedBySource,
   } = evidence;
-  // Compassメモは NoteZone（患者トップ・会話画面）と同一の store を参照する（別 state を作らない）。
-  const { notes, hydrated } = useNotes(patientId);
+  // Compassメモは NoteZone（患者トップ・会話画面）と同一インスタンスを参照する
+  // （AppShell 単一の Supabase 版共有 Context。別 state を作らない）。
+  // 本ペインは受け持ち患者のみで描画される（AppShell の Learning ガード）ため、
+  // Provider 配下前提の strict な useNotesContext を使う。
+  const { notes } = useNotesContext();
   const [dialog, setDialog] = useState<DialogState>(null);
   const [memo, setMemo] = useState("");
   const [collectable, setCollectable] = useState<Collectable[]>([]);
@@ -234,11 +237,7 @@ export default function EvidencePane({
           患者トップや会話画面で書いたメモを見直し、看護問題を考えるうえで根拠になりそうな内容を
           選んで Evidence として整理します。メモはそのまま残ります。
         </p>
-        {!hydrated ? (
-          <p className="rounded-2xl border border-dashed border-[#E0E0E5] bg-[#FAFAFC] px-4 py-6 text-center text-[12px] text-[#AEAEB5]">
-            Compassメモを読み込み中…
-          </p>
-        ) : notes.length === 0 ? (
+        {notes.length === 0 ? (
           <p className="text-[12.5px] text-[#8E8E93]">
             まだ Compassメモがありません。患者トップや会話画面で、気づいたこと・気になったことを
             書き留めましょう。
