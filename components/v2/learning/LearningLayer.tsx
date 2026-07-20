@@ -22,9 +22,7 @@ import WorkspaceHost, {
   type LearningWorkspaceView,
 } from "@/components/v2/learning/workspace/WorkspaceHost";
 import type { Patient } from "@/lib/wardData";
-import type { FacingEntry } from "@/lib/patientFacingData";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
-import type { UseEvidenceSupabaseResult } from "@/hooks/v2/useEvidenceSupabase";
 
 export default function LearningLayer({
   view,
@@ -37,10 +35,10 @@ export default function LearningLayer({
   onBackToTarget,
   userId,
   patient,
-  evidence,
   initialForm2,
   onForm2Persisted,
-  facingHistory,
+  onOpenChart,
+  onOpenConversation,
 }: {
   view: LearningWorkspaceView;
   sideNav: ReactNode;
@@ -54,10 +52,11 @@ export default function LearningLayer({
   onBackToTarget: () => void;
   userId?: string;
   patient: Patient;
-  evidence: UseEvidenceSupabaseResult;
   initialForm2: Form2Snapshot | null;
   onForm2Persisted?: (snapshot: Form2Snapshot) => void;
-  facingHistory: FacingEntry[];
+  // 左カラム（患者情報）からの一次情報アクセス（既存 Core ビューへ遷移）。
+  onOpenChart: () => void;
+  onOpenConversation: () => void;
 }) {
   // 他患者選択中に Learning 画面へ進んだときの案内（受け持ち患者へ戻る導線のみ）。
   const lockedView = (
@@ -82,10 +81,8 @@ export default function LearningLayer({
     </div>
   );
 
-  const loginMessage =
-    view === "clinical-workspace"
-      ? "思考ワークスペースを表示するにはログインが必要です。"
-      : "様式2 を表示するにはログインが必要です。";
+  // 様式2 Workspace は両ビュー（clinical-workspace / form2）で同一。未ログイン案内も統一する。
+  const loginMessage = "様式2 Workspace を表示するにはログインが必要です。";
 
   return (
     <>
@@ -104,10 +101,10 @@ export default function LearningLayer({
             view={view}
             patient={patient}
             userId={userId}
-            evidence={evidence}
             initialForm2={initialForm2}
             onForm2Persisted={onForm2Persisted}
-            facingHistory={facingHistory}
+            onOpenChart={onOpenChart}
+            onOpenConversation={onOpenConversation}
           />
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[13px] text-[#6E6E73]">

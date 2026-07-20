@@ -26,7 +26,7 @@ import { useQuestionPanel } from "@/hooks/v2/useQuestionPanel";
 import { getQuestionsForCase } from "@/lib/v2/question/questionFixtures";
 import WorkspaceInspector from "@/components/v2/workspace/inspector/WorkspaceInspector";
 import WorkspaceInspectorToggle from "@/components/v2/workspace/inspector/WorkspaceInspectorToggle";
-import QuestionPanel from "@/components/v2/workspace/panels/QuestionPanel";
+import LearningInspectorTabs from "@/components/v2/learning/inspector/LearningInspectorTabs";
 import WardMap from "@/components/WardMap";
 import WardRightPanel from "@/components/WardRightPanel";
 import WardHomeTopBar from "@/components/ward/WardHomeTopBar";
@@ -282,7 +282,11 @@ export default function AppShell({
   // Hooks は条件分岐せず常にトップレベルで呼ぶ（V1 でも生成されるが未描画）。
   // Inspector 開閉 state と Question 選択/状態は AppShell 直下で保持し、
   // 開閉してもメイン画面（電子カルテ・会話・様式2）を再マウントしない。
-  const inspector = useWorkspaceInspector();
+  // 様式2 Workspace の Learning Inspector は Coach / Compass Note のタブ構成。
+  // 既定タブは Coach。activePanel を「アクティブタブ」として保持し、開閉・ビュー切替で失わない。
+  const inspector = useWorkspaceInspector("coach");
+  const inspectorTab: "coach" | "compassNote" =
+    inspector.activePanel === "compassNote" ? "compassNote" : "coach";
   const questions = getQuestionsForCase();
   const questionPanel = useQuestionPanel();
 
@@ -397,14 +401,25 @@ export default function AppShell({
         <WorkspaceInspectorToggle
           ref={inspectorTriggerRef}
           open={inspector.open}
-          onToggle={() => inspector.toggle("question")}
+          // 引数なし: 前回のアクティブタブ（activePanel）を保ったまま開閉する。
+          onToggle={() => inspector.toggle()}
         />
       </div>
     ) : null;
     const inspectorOverlay =
       showInspector && inspector.open ? (
-        <WorkspaceInspector title="学習支援" onClose={handleInspectorClose}>
-          <QuestionPanel questions={questions} controller={questionPanel} />
+        <WorkspaceInspector
+          title="学習支援"
+          onClose={handleInspectorClose}
+          widthClassName={inspector.widthClassName}
+        >
+          <LearningInspectorTabs
+            activeTab={inspectorTab}
+            onTabChange={inspector.openPanel}
+            questions={questions}
+            questionController={questionPanel}
+            patientId={selectedId}
+          />
         </WorkspaceInspector>
       ) : null;
     // 学生用フル SideNav（V1 ベースの項目＋思考ワークスペース＋学生識別）。
@@ -441,10 +456,10 @@ export default function AppShell({
                 onBackToTarget={backToLearningTarget}
                 userId={userId}
                 patient={selectedPatient}
-                evidence={evidence}
                 initialForm2={effectiveForm2}
                 onForm2Persisted={handleForm2Persisted}
-                facingHistory={facingState.history}
+                onOpenChart={goChart}
+                onOpenConversation={goConversation}
               />
             ) : (
               // Core Layer（病棟ホーム / 患者トップ / 電子カルテ / 患者との会話）。学習支援は持たない。

@@ -4,9 +4,13 @@
 // 本 Sprint（2-3A）では基盤のみを実装し、実際の Panel（Question 等）は未実装。
 // パネルを追加するときは、この union と（必要なら）表示メタを増やすだけで済む構造にする。
 
-// Inspector に載せられるパネルの識別子。CWDS §9「Future Expansion」に対応。
-// 現時点ではどれも未実装で、Inspector は概要（overview）を表示する。
+// Inspector に載せられるパネルの識別子。CWDS §5/§9「Future Expansion」に対応。
+// Workspace ごとに表示する Panel 集合（タブ）を切り替える（器は共通・中身のみ差し替え）。
+//   ・様式2 Workspace: "coach"（Coach＝問い/案内）／ "compassNote"（Compass Note）
+// それ以外は将来の登録用（未実装。Inspector は概要 overview を表示）。
 export type InspectorPanelId =
+  | "coach"
+  | "compassNote"
   | "question"
   | "reflection"
   | "story"
