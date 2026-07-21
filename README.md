@@ -86,6 +86,32 @@ npm run build   # 本番ビルド
 npm run start   # 本番モードで起動（既定は :3000。PORT=3100 npm run start で変更可）
 ```
 
+## iPad 実機での確認（同一 LAN・本番相当起動）
+
+iPad Safari から Mac の LAN 内 IP で確認する場合は、`npm run dev` の Hot Reload が
+確認の妨げになるため、**本番相当で起動**します。
+
+```bash
+npm run build
+npm run start -- -H 0.0.0.0   # 全インターフェイスで待ち受け（LAN からアクセス可能に）
+```
+
+1. Mac と iPad を**同じ Wi-Fi** に接続する
+2. Mac の LAN 内 IP を確認する: `ipconfig getifaddr en0`（例: `192.168.1.80`）
+3. iPad Safari で `http://<MacのIP>:3000`（例: `http://192.168.1.80:3000/v2/login`）を開く
+
+> **`npm run dev` を LAN 経由で使う場合**
+> Next.js dev はクロスオリジン（LAN 内 IP）からの内部リソース要求を既定で拒否するため、
+> ログイン後の画面遷移が失敗することがあります。`next.config.ts` の `allowedDevOrigins`
+> に、利用する **サブネット**（例: `192.168.1.*`）を追加してください。
+> 本番相当起動（`npm run start`）では `allowedDevOrigins` は無関係で、この制限は発生しません。
+
+> **iPad Safari で確認する際の注意**
+> - プライベートブラウズを使用しない（Cookie が保持されない場合がある）
+> - 「すべての Cookie をブロック」を無効にする
+> - 以前に別 IP / `localhost` で保存された古い Cookie が残っている場合は、
+>   対象サイトの Web サイトデータを削除してから再確認する
+
 ## 静的チェック
 
 ```bash
