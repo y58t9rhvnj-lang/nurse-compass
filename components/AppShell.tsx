@@ -27,6 +27,9 @@ import { getQuestionsForCase } from "@/lib/v2/question/questionFixtures";
 import WorkspaceInspector from "@/components/v2/workspace/inspector/WorkspaceInspector";
 import WorkspaceInspectorToggle from "@/components/v2/workspace/inspector/WorkspaceInspectorToggle";
 import LearningInspectorTabs from "@/components/v2/learning/inspector/LearningInspectorTabs";
+import Form2ReviewScreen, {
+  Form2ReviewLocked,
+} from "@/components/v2/form2-review/Form2ReviewScreen";
 import WardMap from "@/components/WardMap";
 import WardRightPanel from "@/components/WardRightPanel";
 import WardHomeTopBar from "@/components/ward/WardHomeTopBar";
@@ -284,9 +287,10 @@ export default function AppShell({
   // 開閉してもメイン画面（電子カルテ・会話・様式2）を再マウントしない。
   // 様式2 Workspace の Learning Inspector は Coach / Compass Note のタブ構成。
   // 既定タブは Coach。activePanel を「アクティブタブ」として保持し、開閉・ビュー切替で失わない。
-  const inspector = useWorkspaceInspector("coach");
-  const inspectorTab: "coach" | "compassNote" =
-    inspector.activePanel === "compassNote" ? "compassNote" : "coach";
+  // 幅（Sprint D-1 ⑦）: Inspector を開いても左ペインは維持し、縮小するのは中央（様式2）のみ。
+  //   iPad 横でも中央が過度に狭くならないよう、Inspector 幅はレスポンシブに抑える
+  //   （lg=264px / xl 以上=344px）。左ペインは固定幅・中央は flex-1（残り幅を吸収）で実現する。
+  const inspector = useWorkspaceInspector("coach", "lg:w-[248px] xl:w-[288px]");
   const questions = getQuestionsForCase();
   const questionPanel = useQuestionPanel();
 
@@ -368,6 +372,19 @@ export default function AppShell({
     selectPatient(learningTargetPatientId);
   };
 
+  // ── Student Menu ログアウト（Sprint D-1 ①） ─────────────────────────────
+  // 既存認証を利用: 公開 Route Handler へ POST し、成功可否に関わらず /v2/login へ戻す。
+  // V1（mode!=="v2"）ではサイドバーへ onLogout を渡さないため、この導線は現れない。
+  const handleLogout = useCallback(async () => {
+    try {
+      await fetch("/v2/api/auth/logout", { method: "POST" });
+    } catch {
+      // 失敗しても遷移は試みる。
+    } finally {
+      window.location.assign("/v2/login");
+    }
+  }, []);
+
   // フォーカス復帰用: トリガーボタンの ref。Close/Esc/背景タップで閉じたら
   // トリガーへ戻す（preventScroll でスクロール位置を動かさない）。
   const inspectorTriggerRef = useRef<HTMLButtonElement>(null);
@@ -378,11 +395,11 @@ export default function AppShell({
       0,
     );
   }, [inspector]);
-  // Inspector（学習支援）は Learning Layer 画面のみに重畳する。
-  // Core 画面（電子カルテ・会話）は V1 のまま（各々の右ペイン＝ChartAside / Compassメモ）を維持し、
-  // 学習支援は「思考ワークスペース・様式2」でのみ出す（V1 のシンプルさを保つ）。
-  const inspectorTargetView =
-    activeView === "form2" || activeView === "clinical-workspace";
+  // Inspector（学習支援）は「思考ワークスペース（clinical-workspace）」のみに重畳する。
+  // 左メニューの「様式2（form2）」は最終確認・印刷・提出専用画面のため Inspector を出さない
+  //（Sprint D-1 追加修正 ⑦: 思考ワークスペースと提出用様式2 を別画面として分離）。
+  // Core 画面（電子カルテ・会話）も V1 のまま（各々の右ペイン）を維持する。
+  const inspectorTargetView = activeView === "clinical-workspace";
   const showInspector = mode === "v2" && inspectorEnabled && inspectorTargetView;
 
   // ── Version2 学生シェル = V1 Core シェル + Learning 重畳 ─────────────────
@@ -412,10 +429,9 @@ export default function AppShell({
           title="学習支援"
           onClose={handleInspectorClose}
           widthClassName={inspector.widthClassName}
+          bodyClassName="min-h-0 flex-1"
         >
           <LearningInspectorTabs
-            activeTab={inspectorTab}
-            onTabChange={inspector.openPanel}
             questions={questions}
             questionController={questionPanel}
             patientId={selectedId}
@@ -430,6 +446,7 @@ export default function AppShell({
           onNavigate={handleSideNav}
           items={STUDENT_NAV_ITEMS}
           identity={identity}
+          onLogout={handleLogout}
         />
       </aside>
     );
@@ -443,8 +460,8 @@ export default function AppShell({
         >
           <div className="flex min-h-0 flex-1">
             {isLearningWorkspaceView(activeView) ? (
-              // Learning Layer（思考ワークスペース / 様式2）＋ Learning Inspector 重畳。
-              // Workspace 本体は WorkspaceHost が種別ごとに差し替える（将来 Form3 / Related Map）。
+              // Learning Layer（思考ワークスペース）＋ Learning Inspector 重畳。
+              // 患者情報・電子カルテ・会話を参照しながら様式2 へ整理する 3 カラムの思考空間。
               <LearningLayer
                 view={activeView}
                 sideNav={studentSideNav}
@@ -458,9 +475,38 @@ export default function AppShell({
                 patient={selectedPatient}
                 initialForm2={effectiveForm2}
                 onForm2Persisted={handleForm2Persisted}
-                onOpenChart={goChart}
-                onOpenConversation={goConversation}
+                facingState={facingState}
+                onChangeFacingState={setFacingState}
               />
+            ) : activeView === "form2" ? (
+              // 左メニュー「様式2」＝ 完成した様式2 の最終確認・印刷・提出専用画面（Sprint D-1 追加修正 ⑦）。
+              // 思考支援（患者情報ペイン・電子カルテ・会話・ノート・Coach・Inspector）は一切出さない。
+              // データ構造は思考ワークスペースと共通（同一 Supabase 様式2）で、表示 UI と目的だけを分離する。
+              <>
+                {studentSideNav}
+                <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#F2F2F7]">
+                  {notice && (
+                    <div className="no-print shrink-0 px-4 pt-3">
+                      <Notice text={notice} onClose={() => setNotice(null)} />
+                    </div>
+                  )}
+                  {!isLearningTargetSelected ? (
+                    <Form2ReviewLocked onBackToTarget={backToLearningTarget} />
+                  ) : userId ? (
+                    <Form2ReviewScreen
+                      patient={selectedPatient}
+                      patientId={selectedId}
+                      userId={userId}
+                      initial={effectiveForm2}
+                      onPersisted={handleForm2Persisted}
+                    />
+                  ) : (
+                    <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[13px] text-[#6E6E73]">
+                      様式2 を表示するにはログインが必要です。
+                    </div>
+                  )}
+                </main>
+              </>
             ) : (
               // Core Layer（病棟ホーム / 患者トップ / 電子カルテ / 患者との会話）。学習支援は持たない。
               <CoreLayer
@@ -481,7 +527,7 @@ export default function AppShell({
                 onBackToPatientTop={goPatientOverview}
                 onOpenChart={goChart}
                 onOpenConversation={goConversation}
-                onOpenForm2={goForm2}
+                onOpenWorkspace={goClinicalWorkspace}
                 onSelectPatientToTop={(id) => {
                   selectPatient(id);
                   goPatientOverview();

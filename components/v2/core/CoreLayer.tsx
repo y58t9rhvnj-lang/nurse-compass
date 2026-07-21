@@ -31,6 +31,7 @@ import FacingPatient from "@/components/patient/facing/FacingPatient";
 import FacingCoachPanel from "@/components/patient/facing/FacingCoachPanel";
 import FirstAssignmentSheet from "@/components/patient/FirstAssignmentSheet";
 import NoteZone from "@/components/patient/notes/NoteZone";
+import LearningSupportColumn from "@/components/v2/learning/LearningSupportColumn";
 import StudentPatientTop from "@/components/v2/student-shell/StudentPatientTop";
 import type { AppView } from "@/components/SideNav";
 import type { Patient } from "@/lib/wardData";
@@ -56,7 +57,7 @@ export default function CoreLayer({
   onBackToPatientTop,
   onOpenChart,
   onOpenConversation,
-  onOpenForm2,
+  onOpenWorkspace,
   onSelectPatientToTop,
 }: {
   // ここへ来るのは Core ビューのみ（chart / conversation / patient-top / ward）。
@@ -80,7 +81,8 @@ export default function CoreLayer({
   onBackToPatientTop: () => void;
   onOpenChart: (tab?: ChartTabId, focus?: ChartFocus) => void;
   onOpenConversation: () => void;
-  onOpenForm2: () => void;
+  // 思考ワークスペース（clinical-workspace）を開く。患者トップの主導線。
+  onOpenWorkspace: () => void;
   // 病棟マップからの患者選択 → 患者トップへ。
   onSelectPatientToTop: (id: string) => void;
 }) {
@@ -145,29 +147,26 @@ export default function CoreLayer({
               onChange={onChangeFacingState}
             />
           </div>
-          <FirstAssignmentSheet patientId={selectedId} />
         </main>
         <aside className="w-[288px] shrink-0 border-l border-[#E5E5EA] bg-white">
-          <div className="flex h-full flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              <NoteZone patientId={selectedId} />
-            </div>
-            <div className="shrink-0">
+          <LearningSupportColumn
+            note={<NoteZone patientId={selectedId} variant="fill" />}
+            coach={
               <FacingCoachPanel
                 patient={selectedPatient}
                 state={facingState}
                 onChange={onChangeFacingState}
                 onOpenChart={onOpenChart}
               />
-            </div>
-          </div>
+            }
+          />
         </aside>
       </>
     );
   }
 
   if (activeView === "patient-top") {
-    // 患者トップ（V2 ランディング）。電子カルテ・会話・様式2 への入口。
+    // 患者トップ（V2 ランディング＝患者理解の入口）。3 カラム: 中央=基本情報＋主要導線 / 右=学習支援。
     return (
       <>
         {sideNav}
@@ -177,13 +176,28 @@ export default function CoreLayer({
               <Notice text={notice} onClose={onCloseNotice} />
             </div>
           )}
-          <StudentPatientTop
-            patient={selectedPatient}
-            onOpenChart={() => onOpenChart()}
-            onOpenConversation={onOpenConversation}
-            onOpenForm2={onOpenForm2}
-          />
+          <div className="min-h-0 flex-1">
+            <StudentPatientTop
+              patient={selectedPatient}
+              onOpenChart={() => onOpenChart()}
+              onOpenConversation={onOpenConversation}
+              onOpenWorkspace={onOpenWorkspace}
+            />
+          </div>
         </main>
+        <aside className="w-[288px] shrink-0 border-l border-[#E5E5EA] bg-white">
+          <LearningSupportColumn
+            note={<NoteZone patientId={selectedId} variant="fill" />}
+            coach={
+              <FacingCoachPanel
+                patient={selectedPatient}
+                state={facingState}
+                onChange={onChangeFacingState}
+                onOpenChart={onOpenChart}
+              />
+            }
+          />
+        </aside>
       </>
     );
   }
@@ -200,6 +214,9 @@ export default function CoreLayer({
           <WardMap selectedId={selectedId} onSelectPatient={onSelectPatientToTop} />
           <OutsideWardArea />
         </div>
+        {/* 初回案内（Sprint D-1 追加修正2 ②）: 初回ログイン後の病棟ホームで一度だけ表示。
+            会話画面では表示しない。既読は localStorage に永続化（患者ごと・DB 変更なし）。 */}
+        <FirstAssignmentSheet patientId={selectedId} />
       </main>
       <aside className="w-[288px] shrink-0 border-l border-[#E5E5EA] bg-white">
         <WardRightPanel

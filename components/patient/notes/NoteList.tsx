@@ -10,17 +10,20 @@ export default function NoteList({
   onDelete,
   isCollected,
   onCollect,
+  emptyText,
 }: {
   notes: Note[];
   onUpdate: (id: string, text: string) => void;
   onDelete: (id: string) => void;
   isCollected?: (noteId: string) => boolean;
   onCollect?: (note: Note) => void;
+  // 空状態の見出し文（未指定なら Version1 の従来文言）。Version2 は「Compassノート」に統一。
+  emptyText?: string;
 }) {
   if (notes.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-[#E0E0E5] bg-[#FAFAFC] px-4 py-6 text-center text-[12px] text-[#AEAEB5]">
-        まだ気づきメモはありません。
+        {emptyText ?? "まだ気づきメモはありません。"}
         <br />
         小さな観察や疑問から書き始めてみましょう。
       </p>

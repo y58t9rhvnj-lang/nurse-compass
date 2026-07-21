@@ -24,6 +24,10 @@ export default function WorkspaceInspector({
   children,
   // lg 以上での幅クラス（Learning Inspector foundation 管理）。既定は現行の 360px。
   widthClassName = "lg:w-[360px]",
+  // 本文領域のクラス。既定は「余白付き・単一スクロール」。
+  //   中身が自前で上下 2 領域の独立スクロールを持つ場合（学習支援カラム）は
+  //   "min-h-0 flex-1"（余白・スクロール無し）を渡し、中身に高さを丸ごと委譲する。
+  bodyClassName = "min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4",
 }: {
   title?: string;
   // Close ボタン / Esc / 背景タップ すべてこの onClose を呼ぶ。
@@ -31,6 +35,7 @@ export default function WorkspaceInspector({
   onClose: () => void;
   children: React.ReactNode;
   widthClassName?: string;
+  bodyClassName?: string;
 }) {
   const titleId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -105,10 +110,8 @@ export default function WorkspaceInspector({
           </button>
         </div>
 
-        {/* 本文（独立スクロール）。中身は親から渡る children。 */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-          {children}
-        </div>
+        {/* 本文。既定は独立スクロール＋余白。学習支援カラムは自前で高さ・スクロールを管理する。 */}
+        <div className={bodyClassName}>{children}</div>
       </aside>
     </>
   );

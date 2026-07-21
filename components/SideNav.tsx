@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import {
   BookOpen,
   Calendar,
+  ChevronDown,
   ClipboardList,
   FileText,
   Home,
+  LogOut,
   MessageCircle,
   Network,
   NotebookPen,
@@ -98,11 +101,15 @@ export default function SideNav({
   onNavigate,
   items = navItems,
   identity = DEFAULT_IDENTITY,
+  onLogout,
 }: {
   activeView: AppView;
   onNavigate: (view: AppView) => void;
   items?: NavItem[];
   identity?: SideNavIdentity;
+  // 指定時（V2 学生シェル）は最下部の識別情報を「ユーザーメニュー」にし、ログアウトを提供する。
+  // 未指定時（V1）は従来どおり静的なプロフィール表示のまま（挙動不変）。
+  onLogout?: () => void;
 }) {
   return (
     <nav className="flex h-full w-full flex-col px-3 py-4">
@@ -165,12 +172,92 @@ export default function SideNav({
         })}
       </ul>
 
-      {/* 看護師プロフィール */}
-      <div className="mt-3 flex items-center gap-2.5 rounded-2xl border border-[#EBEBF0] bg-[#FAFAFC] p-2.5">
+      {/* 識別情報（最下部）。onLogout 指定時はユーザーメニュー、未指定時は静的表示。 */}
+      {onLogout ? (
+        <UserMenu identity={identity} onLogout={onLogout} />
+      ) : (
+        <div className="mt-3 flex items-center gap-2.5 rounded-2xl border border-[#EBEBF0] bg-[#FAFAFC] p-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7FB2F0] to-[#0A84FF]">
+            <User className="h-5 w-5 text-white" strokeWidth={1.75} />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-[12px] font-semibold text-[#1D1D1F]">
+              {identity.name}
+            </p>
+            <p className="truncate text-[10px] text-[#8E8E93]">
+              {identity.subtitle}
+            </p>
+          </div>
+        </div>
+      )}
+    </nav>
+  );
+}
+
+// Student Menu（Sprint D-1 ①）: 学生氏名・学籍番号・ログアウトのみ。
+// 設定 / プロフィール編集は今回対象外（追加しない）。クリックで上方向にポップアップ。
+function UserMenu({
+  identity,
+  onLogout,
+}: {
+  identity: SideNavIdentity;
+  onLogout: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative mt-3">
+      {open && (
+        <>
+          {/* 外側クリックで閉じる透明バックドロップ。 */}
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-30 cursor-default"
+          />
+          <div
+            role="menu"
+            aria-label="ユーザーメニュー"
+            className="absolute bottom-full left-0 z-40 mb-2 w-full overflow-hidden rounded-2xl border border-[#E5E5EA] bg-white p-2 shadow-[0_8px_28px_rgba(0,0,0,0.14)]"
+          >
+            <div className="px-2 py-1.5">
+              <p className="truncate text-[13px] font-semibold text-[#1D1D1F]">
+                {identity.name}
+              </p>
+              <p className="truncate text-[11px] text-[#8E8E93]">
+                {identity.subtitle}
+              </p>
+            </div>
+            <div className="my-1 border-t border-[#F0F0F3]" />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onLogout();
+              }}
+              className="flex min-h-[40px] w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-[13px] font-medium text-[#FF3B30] transition-colors hover:bg-[#FFF1F0]"
+            >
+              <LogOut className="h-4 w-4" strokeWidth={2} />
+              ログアウト
+            </button>
+          </div>
+        </>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex w-full items-center gap-2.5 rounded-2xl border border-[#EBEBF0] bg-[#FAFAFC] p-2.5 text-left transition-colors hover:bg-[#F2F2F5]"
+      >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7FB2F0] to-[#0A84FF]">
           <User className="h-5 w-5 text-white" strokeWidth={1.75} />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-[12px] font-semibold text-[#1D1D1F]">
             {identity.name}
           </p>
@@ -178,7 +265,14 @@ export default function SideNav({
             {identity.subtitle}
           </p>
         </div>
-      </div>
-    </nav>
+        <ChevronDown
+          className={[
+            "h-4 w-4 shrink-0 text-[#8E8E93] transition-transform",
+            open ? "rotate-180" : "",
+          ].join(" ")}
+          strokeWidth={2}
+        />
+      </button>
+    </div>
   );
 }

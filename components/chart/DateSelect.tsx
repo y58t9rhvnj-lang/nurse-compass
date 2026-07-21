@@ -20,10 +20,13 @@ export default function DateSelect({
   dates,
   value,
   onChange,
+  compact,
 }: {
   dates: string[]; // 選択可能な日付（"YYYY/MM/DD"）
   value: string; // 現在の選択日（候補外なら最新日を表示に使う）
   onChange: (date: string) => void;
+  // compact: Workspace embedded 用に高さ・余白を縮小（3 セレクトで約 150〜190px を目安）。
+  compact?: boolean;
 }) {
   const { years, monthsByYear, daysByYM, newest } = useMemo(() => {
     const monthsByYear = new Map<number, number[]>();
@@ -64,11 +67,12 @@ export default function DateSelect({
     onChange(fmt(y, mm, dd));
   };
 
-  const cls =
-    "min-h-[44px] rounded-lg border border-[#D1D1D6] bg-white px-2 text-[12px] font-medium text-[#1D1D1F]";
+  const cls = compact
+    ? "min-h-[32px] rounded-lg border border-[#D1D1D6] bg-white px-1 text-[11px] font-medium text-[#1D1D1F]"
+    : "min-h-[44px] rounded-lg border border-[#D1D1D6] bg-white px-2 text-[12px] font-medium text-[#1D1D1F]";
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className={compact ? "flex items-center gap-1" : "flex items-center gap-1.5"}>
       <select
         aria-label="年"
         value={cy}

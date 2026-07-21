@@ -23,6 +23,7 @@ import WorkspaceHost, {
 } from "@/components/v2/learning/workspace/WorkspaceHost";
 import type { Patient } from "@/lib/wardData";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
+import type { FacingConvoState } from "@/lib/patientFacingData";
 
 export default function LearningLayer({
   view,
@@ -37,8 +38,8 @@ export default function LearningLayer({
   patient,
   initialForm2,
   onForm2Persisted,
-  onOpenChart,
-  onOpenConversation,
+  facingState,
+  onChangeFacingState,
 }: {
   view: LearningWorkspaceView;
   sideNav: ReactNode;
@@ -54,9 +55,9 @@ export default function LearningLayer({
   patient: Patient;
   initialForm2: Form2Snapshot | null;
   onForm2Persisted?: (snapshot: Form2Snapshot) => void;
-  // 左カラム（患者情報）からの一次情報アクセス（既存 Core ビューへ遷移）。
-  onOpenChart: () => void;
-  onOpenConversation: () => void;
+  // 会話（患者との会話）の状態。Workspace 左ペインの「会話」タブが Core と同一 state を共有する。
+  facingState: FacingConvoState;
+  onChangeFacingState: (next: FacingConvoState) => void;
 }) {
   // 他患者選択中に Learning 画面へ進んだときの案内（受け持ち患者へ戻る導線のみ）。
   const lockedView = (
@@ -103,8 +104,8 @@ export default function LearningLayer({
             userId={userId}
             initialForm2={initialForm2}
             onForm2Persisted={onForm2Persisted}
-            onOpenChart={onOpenChart}
-            onOpenConversation={onOpenConversation}
+            facingState={facingState}
+            onChangeFacingState={onChangeFacingState}
           />
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[13px] text-[#6E6E73]">

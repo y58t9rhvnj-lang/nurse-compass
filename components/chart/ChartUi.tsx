@@ -117,13 +117,21 @@ export function FilterChips({
   options,
   active,
   onChange,
+  compact,
 }: {
   options: string[];
   active: string;
   onChange: (value: string) => void;
+  // compact: Workspace embedded 用に高さ・余白・文字を 1 段階縮小し、1 行内で横スクロールする。
+  compact?: boolean;
 }) {
   return (
-    <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div
+      className={[
+        "flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        compact ? "gap-1" : "mb-2 gap-1.5 pb-1",
+      ].join(" ")}
+    >
       {options.map((opt) => {
         const isActive = opt === active;
         return (
@@ -133,7 +141,10 @@ export function FilterChips({
             onClick={() => onChange(opt)}
             aria-pressed={isActive}
             className={[
-              "min-h-[44px] shrink-0 rounded-full px-3.5 text-[12px] font-medium transition-colors",
+              "shrink-0 whitespace-nowrap rounded-full font-medium transition-colors",
+              compact
+                ? "min-h-[32px] px-2.5 text-[11px]"
+                : "min-h-[44px] px-3.5 text-[12px]",
               isActive
                 ? "bg-[#0A84FF] text-white shadow-[0_1px_3px_rgba(10,132,255,0.25)]"
                 : "bg-white text-[#3A3A3C] ring-1 ring-[#E5E5EA] hover:bg-[#F2F2F7]",

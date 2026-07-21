@@ -97,12 +97,15 @@ export default function ChartTabContent({
   patientId,
   nav,
   onNavigate,
+  compact,
 }: {
   tab: ChartTabId;
   data: ChartData;
   patientId: string;
   nav: ChartNavRequest | null;
   onNavigate: (tab: ChartTabId, focus: ChartFocus) => void;
+  // compact: 診療録ヘッダー（サブタブ・日付指定）を embedded 用に縮小する。
+  compact?: boolean;
 }) {
   switch (tab) {
     case "診療録":
@@ -112,6 +115,7 @@ export default function ChartTabContent({
           patientId={patientId}
           focus={nav && nav.tab === "診療録" ? nav : null}
           onNavigate={onNavigate}
+          compact={compact}
         />
       );
     case "患者情報":
@@ -158,11 +162,13 @@ function ClinicalRecordsTab({
   patientId,
   focus,
   onNavigate,
+  compact,
 }: {
   data: ChartData;
   patientId: string;
   focus: ChartNavRequest | null;
   onNavigate: (tab: ChartTabId, focus: ChartFocus) => void;
+  compact?: boolean;
 }) {
   // 診療録（看護以外）と看護記録を、表示時に共通形式へ変換して混在表示する。
   // 元データは複製・統合しない（buildClinicalTimeline 内で変換するのみ）。
@@ -313,32 +319,63 @@ function ClinicalRecordsTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#F7F7F9]">
-      {/* 固定ヘッダー：フィルタ・件数・日付指定 */}
-      <div className="shrink-0 space-y-2 border-b border-[#E5E5EA] bg-white px-2.5 pb-2 pt-2.5">
-        <FilterChips options={professions} active={filter} onChange={changeFilter} />
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] text-[#8E8E93]">
-            {filtered.length}件の記録
-          </span>
-          <div className="ml-auto flex items-center gap-1.5 text-[11px] text-[#6E6E73]">
-            日付を指定
+      {/* 固定ヘッダー：フィルタ（サブタブ）・件数・日付指定。
+          compact（Workspace embedded）はサブタブと日付指定を 1 行にまとめ、高さを抑えて本文を広げる。 */}
+      {compact ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-[#E5E5EA] bg-white px-2 py-1.5">
+          <div className="min-w-0 flex-1">
+            <FilterChips
+              options={professions}
+              active={filter}
+              onChange={changeFilter}
+              compact
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-1 text-[11px] text-[#6E6E73]">
             <DateSelect
               dates={dateOptions}
               value={selectedDate === "all" ? "" : selectedDate}
               onChange={(d) => changeDate(d)}
+              compact
             />
             {selectedDate !== "all" && (
               <button
                 type="button"
                 onClick={() => changeDate("all")}
-                className="min-h-[44px] rounded-lg px-2 text-[11px] font-semibold text-[#0A84FF] transition hover:bg-[#EAF3FF]"
+                className="min-h-[32px] rounded-lg px-1.5 text-[11px] font-semibold text-[#0A84FF] transition hover:bg-[#EAF3FF]"
               >
                 すべて
               </button>
             )}
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="shrink-0 space-y-2 border-b border-[#E5E5EA] bg-white px-2.5 pb-2 pt-2.5">
+          <FilterChips options={professions} active={filter} onChange={changeFilter} />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-[#8E8E93]">
+              {filtered.length}件の記録
+            </span>
+            <div className="ml-auto flex items-center gap-1.5 text-[11px] text-[#6E6E73]">
+              日付を指定
+              <DateSelect
+                dates={dateOptions}
+                value={selectedDate === "all" ? "" : selectedDate}
+                onChange={(d) => changeDate(d)}
+              />
+              {selectedDate !== "all" && (
+                <button
+                  type="button"
+                  onClick={() => changeDate("all")}
+                  className="min-h-[44px] rounded-lg px-2 text-[11px] font-semibold text-[#0A84FF] transition hover:bg-[#EAF3FF]"
+                >
+                  すべて
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* スクロール領域：記録本文のみ */}
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2.5">

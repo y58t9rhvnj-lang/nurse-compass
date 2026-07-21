@@ -17,16 +17,20 @@
 
 import type { Patient } from "@/lib/wardData";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
+import type { FacingConvoState } from "@/lib/patientFacingData";
 import Form2Workspace from "@/components/v2/workspace/Form2Workspace";
 
 // 現在サポートする Learning Workspace 種別（差し替え点）。
+// "clinical-workspace" ＝ 思考ワークスペース（患者情報・電子カルテ・会話を参照しながら様式2 へ整理）。
+// 左メニュー「様式2（form2）」は最終確認・印刷・提出専用の別画面のため、ここには含めない
+//（Sprint D-1 追加修正 ⑦: 思考ワークスペースと提出用様式2 を別画面として分離）。
 // 将来: "form3" / "related-map" をここへ追加する。
-export type LearningWorkspaceView = "clinical-workspace" | "form2";
+export type LearningWorkspaceView = "clinical-workspace";
 
 export function isLearningWorkspaceView(
   view: string,
 ): view is LearningWorkspaceView {
-  return view === "clinical-workspace" || view === "form2";
+  return view === "clinical-workspace";
 }
 
 export default function WorkspaceHost({
@@ -35,8 +39,8 @@ export default function WorkspaceHost({
   userId,
   initialForm2,
   onForm2Persisted,
-  onOpenChart,
-  onOpenConversation,
+  facingState,
+  onChangeFacingState,
 }: {
   view: LearningWorkspaceView;
   patient: Patient;
@@ -44,21 +48,21 @@ export default function WorkspaceHost({
   userId: string;
   initialForm2: Form2Snapshot | null;
   onForm2Persisted?: (snapshot: Form2Snapshot) => void;
-  onOpenChart: () => void;
-  onOpenConversation: () => void;
+  // 会話（患者との会話）の状態。Workspace 左ペインの「会話」タブが Core と同一 state を共有する。
+  facingState: FacingConvoState;
+  onChangeFacingState: (next: FacingConvoState) => void;
 }) {
   switch (view) {
-    // "clinical-workspace" / "form2" はいずれも様式2 Workspace（設計上ひとつのフェーズ）。
+    // 思考ワークスペース（様式2 フェーズの思考空間）。
     case "clinical-workspace":
-    case "form2":
       return (
         <Form2Workspace
           patient={patient}
           userId={userId}
           initialForm2={initialForm2}
           onForm2Persisted={onForm2Persisted}
-          onOpenChart={onOpenChart}
-          onOpenConversation={onOpenConversation}
+          facingState={facingState}
+          onChangeFacingState={onChangeFacingState}
         />
       );
     // TODO(Workspace 拡張): case "form3" / case "related-map" をここに追加する

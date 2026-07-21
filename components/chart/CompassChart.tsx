@@ -15,10 +15,14 @@ export default function CompassChart({
   patient,
   initialTab,
   initialFocus,
+  embedded,
 }: {
   patient: Patient;
   initialTab?: ChartTabId;
   initialFocus?: ChartFocus;
+  // embedded: 思考ワークスペース内の簡略表示。水色の患者基本情報バーを出さず、タブを compact 化し、
+  //   診療録本文の閲覧領域を最大化する（Sprint D-1 追加修正2 ⑤⑥）。Core の通常カルテは非 embedded。
+  embedded?: boolean;
 }) {
   const startTab = initialTab ?? "診療録";
   const [activeTab, setActiveTab] = useState<ChartTabId>(startTab);
@@ -40,14 +44,19 @@ export default function CompassChart({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-white">
-      <ChartPatientBar patient={patient} />
-      <ChartTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      {!embedded && <ChartPatientBar patient={patient} />}
+      <ChartTabs
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        compact={embedded}
+      />
       <ChartMain
         key={patient.id}
         activeTab={activeTab}
         patientId={patient.id}
         nav={nav}
         onNavigate={navigate}
+        compact={embedded}
       />
     </div>
   );

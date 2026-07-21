@@ -34,7 +34,7 @@ export default function ChartNotesPanel({
       <div className="mb-2 flex items-center gap-1.5">
         <NotebookPen className="h-3.5 w-3.5 text-[#8E8E93]" strokeWidth={1.75} />
         <h3 className="text-[11px] font-semibold text-[#6E6E73]">
-          Compass Notes
+          Compassノート
         </h3>
         {hydrated && notes.length > 0 && (
           <span className="ml-auto text-[10px] text-[#AEAEB5]">

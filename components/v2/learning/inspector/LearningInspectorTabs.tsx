@@ -1,102 +1,149 @@
 "use client";
 
-// Compass Version2 — Learning Inspector のタブ内容（様式2 Workspace 用）。
+// Compass Version2 — Learning Inspector の中身（様式2 Workspace 用）。
 //
-// 設計（docs/version2/13_ui_architecture.md §5 / 16_workspace_mockups.md §3, §6）:
-//   Learning Inspector は器（開閉・レイアウト・状態保持）だけを担い、中身は Workspace ごとに
-//   差し替わる「Panel の集合（タブ）」。様式2 Workspace では次の 2 タブを表示する。
-//     ・Coach        … 情報不足・情報収集・整理漏れへの気づきを促す問い（答えは出さない）。
-//                       既存 QuestionPanel（問い一覧）を再利用する（改善はしない）。
-//     ・Compass Note … 気付き・疑問・仮説・後で考えたいことを残す個人の思考記録。
-//                       既存 NoteZone（Compassメモ）を再利用する（仕様変更はしない）。
+// 正式構成（Sprint D-1 追加修正 ⑤⑥）:
+//   タブではなく、上下 2 領域の縦構成に統一する。
+//     上: ノート（NoteZone / Compassメモ）… カルテ・患者情報・会話を見ながら短い気づきを残す。
+//     下: Compass Coach（QuestionPanel）… 必要なときに使う思考支援（問い）。
+//   電子カルテや左 Workspace パネルと同じデザイン体系（見出し・区切り線・余白・角丸）で統一し、
+//   派手な AI チャット風にはしない。
 //
-// 状態保持: タブ切替で下書き・選択状態を失わないよう、両パネルを常時 mount し CSS で可視切替する。
-//   アクティブタブ自体は上位（AppShell）の Inspector state（activePanel）で保持する。
+// Coach の初期表示（Sprint D-1 追加修正 ④）:
+//   開いた直後は Coach の提示を最小限にする（問いを大量に並べない・観察項目や正解候補を先出ししない）。
+//   学生が必要なときに展開でき、過去のやり取り（考え中・確認済みにした問い）があれば確認できる。
+//   Coach のロジック・Question 生成（questions / controller）は変更しない（初期表示と見せ方のみ調整）。
 
-import type { Question } from "@/lib/v2/question/questionTypes";
+import { useState } from "react";
+import { ChevronDown, MessageCircle, Sparkles } from "lucide-react";
+import type { Question, QuestionStatus } from "@/lib/v2/question/questionTypes";
+import { QUESTION_STATUS_LABEL } from "@/lib/v2/question/questionTypes";
 import type { QuestionPanelController } from "@/hooks/v2/useQuestionPanel";
 import QuestionPanel from "@/components/v2/workspace/panels/QuestionPanel";
 import NoteZone from "@/components/patient/notes/NoteZone";
+import LearningSupportColumn from "@/components/v2/learning/LearningSupportColumn";
 
-export type Form2InspectorTab = "coach" | "compassNote";
-
-export default function LearningInspectorTabs({
-  activeTab,
-  onTabChange,
+export default function LearningInspectorPanels({
   questions,
   questionController,
   patientId,
 }: {
-  activeTab: Form2InspectorTab;
-  onTabChange: (tab: Form2InspectorTab) => void;
   questions: Question[];
   questionController: QuestionPanelController;
   patientId: string;
 }) {
+  // 患者トップ・会話画面と同じ学習支援カラム（ノート上 / Coach 下・上下独立スクロール）で統一。
   return (
-    <div className="-mx-4 -my-4 flex min-h-0 flex-1 flex-col">
-      {/* タブバー（スクロールしても上部に留める）。器（WorkspaceInspector）の本文内に置く。 */}
-      <div
-        role="tablist"
-        aria-label="学習支援の切り替え"
-        className="sticky top-0 z-10 flex gap-1 border-b border-[#EFEFF2] bg-white px-4 py-2"
-      >
-        <TabButton
-          active={activeTab === "coach"}
-          onClick={() => onTabChange("coach")}
-          label="Coach"
-        />
-        <TabButton
-          active={activeTab === "compassNote"}
-          onClick={() => onTabChange("compassNote")}
-          label="Compass Note"
-        />
+    <LearningSupportColumn
+      note={<NoteZone patientId={patientId} variant="fill" />}
+      coach={
+        <InspectorCoach questions={questions} controller={questionController} />
+      }
+    />
+  );
+}
+
+function InspectorCoach({
+  questions,
+  controller,
+}: {
+  questions: Question[];
+  controller: QuestionPanelController;
+}) {
+  // 既定は折りたたみ（最小表示）。Workspace を開くたびに最小から始める。
+  const [expanded, setExpanded] = useState(false);
+  // これまでに触れた問い（unread 以外）＝過去のやり取り。履歴として確認できる。
+  const touched = questions.filter(
+    (q) => controller.statusOf(q.id) !== "unread",
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* 見出し（固定・左 Workspace / 電子カルテと同系の静かな見出し） */}
+      <div className="flex shrink-0 items-center gap-2 px-4 pt-4 pb-2.5">
+        <span className="h-4 w-1 rounded-full bg-[#AF52DE]" />
+        <h3 className="flex items-center gap-1.5 text-[15px] font-bold text-[#1D1D1F]">
+          <Sparkles className="h-4 w-4 text-[#AF52DE]" strokeWidth={1.9} />
+          Compass Coach
+        </h3>
+        {expanded && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="ml-auto text-[12px] font-medium text-[#8E8E93] transition hover:text-[#3A3A3C]"
+          >
+            とじる
+          </button>
+        )}
       </div>
 
-      {/* 両パネルとも mount 維持（タブ切替で下書き・選択状態を失わない）。CSS で可視切替。 */}
-      <div className="min-h-0 flex-1 px-4 py-4">
-        <div
-          role="tabpanel"
-          aria-label="Coach"
-          className={activeTab === "coach" ? "block" : "hidden"}
-        >
-          <QuestionPanel questions={questions} controller={questionController} />
-        </div>
-        <div
-          role="tabpanel"
-          aria-label="Compass Note"
-          className={activeTab === "compassNote" ? "block" : "hidden"}
-        >
-          <NoteZone patientId={patientId} />
-        </div>
+      {/* Coach 本文（この領域内でスクロール） */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
+        {expanded ? (
+          <QuestionPanel questions={questions} controller={controller} />
+        ) : (
+          <div className="space-y-3">
+          <p className="text-[12px] leading-relaxed text-[#8E8E93]">
+            情報を確認したら、考えるための問いをここで受け取れます。答えや観察項目を先には出しません。
+          </p>
+
+          {/* 過去のやり取り（あれば確認できる。無ければ出さない）。 */}
+          {touched.length > 0 && (
+            <div className="rounded-2xl border border-[#EBEBF0] bg-[#FBFAFF] px-3.5 py-3">
+              <p className="mb-1.5 text-[11px] font-semibold text-[#8E8E93]">
+                これまでに考えた問い（{touched.length}件）
+              </p>
+              <ul className="space-y-1.5">
+                {touched.slice(0, 3).map((q) => (
+                  <li key={q.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        controller.select(q.id);
+                        setExpanded(true);
+                      }}
+                      className="flex w-full items-start gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-white"
+                    >
+                      <StatusDot status={controller.statusOf(q.id)} />
+                      <span className="text-[12.5px] leading-snug text-[#3A3A3C]">
+                        {q.prompt}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-full border border-[#E4DAF7] bg-[#F7F2FF] px-3 text-[13px] font-semibold text-[#AF52DE] transition hover:bg-[#F0E6FB]"
+          >
+            <MessageCircle className="h-4 w-4" strokeWidth={2} />
+            Compass Coach を開く
+            <ChevronDown className="h-4 w-4" strokeWidth={2} />
+          </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
+// 状態を色＋テキストで示す小さなドット（色のみに依存しない）。
+function StatusDot({ status }: { status: QuestionStatus }) {
+  const tone: Record<QuestionStatus, string> = {
+    unread: "bg-[#C7C7CC]",
+    considering: "bg-[#0A84FF]",
+    reviewed: "bg-[#34C759]",
+  };
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={[
-        "min-h-[44px] flex-1 rounded-full px-3 text-[13px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A84FF]/40",
-        active
-          ? "bg-[#1D1D1F] font-semibold text-white"
-          : "bg-[#F2F2F5] text-[#3A3A3C] hover:bg-[#E9E9EE]",
-      ].join(" ")}
+    <span
+      className="mt-0.5 inline-flex shrink-0 items-center gap-1"
+      aria-label={QUESTION_STATUS_LABEL[status]}
     >
-      {label}
-    </button>
+      <span className={`h-2 w-2 rounded-full ${tone[status]}`} />
+    </span>
   );
 }
