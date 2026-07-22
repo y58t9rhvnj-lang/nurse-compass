@@ -6,6 +6,7 @@
 
 export const ADMIN_AUDIT_ACTIONS = {
   USER_CREATE: "user.create",
+  USER_BULK_CREATE: "user.bulk_create",
   USER_UPDATE: "user.update",
   USER_DEACTIVATE: "user.deactivate",
   USER_REACTIVATE: "user.reactivate",

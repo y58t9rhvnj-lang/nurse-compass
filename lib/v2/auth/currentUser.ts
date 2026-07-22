@@ -131,3 +131,29 @@ export async function requireRole(...roles: AppRole[]): Promise<AppProfile> {
   if (!roles.includes(profile.role)) redirect("/v2");
   return profile;
 }
+
+// service role でのデータアクセス前に、サーバー側で Admin 本人を確定するための
+// 検証（redirect なし・null を返す版）。Server Action など、結果を型で扱いたい
+// 箇所で使う。保証する条件:
+//   ・認証済み ・is_active=true ・must_change_password=false
+//   ・role=admin ・organization_id が存在する
+export async function getVerifiedAdminProfile(): Promise<AppProfile | null> {
+  const profile = await getCurrentProfile();
+  if (!profile) return null;
+  if (!profile.isActive) return null;
+  if (profile.mustChangePassword) return null;
+  if (profile.role !== "admin") return null;
+  if (!profile.organizationId) return null;
+  return profile;
+}
+
+// 上記の redirect 版。Server Component（Admin 配下ページ）で service role
+// クエリ実行前の認可境界として使う。layout の requireRole だけに依存しない。
+export async function requireAdminProfile(): Promise<AppProfile> {
+  const profile = await getCurrentProfile();
+  if (!profile || !profile.isActive) redirect("/v2/login");
+  if (profile.mustChangePassword) redirect("/v2/change-password");
+  if (profile.role !== "admin") redirect("/v2");
+  if (!profile.organizationId) redirect("/v2/login");
+  return profile;
+}
