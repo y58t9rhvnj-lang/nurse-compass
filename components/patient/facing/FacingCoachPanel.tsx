@@ -37,11 +37,15 @@ export default function FacingCoachPanel({
   state,
   onChange,
   onOpenChart,
+  hideHeading,
 }: {
   patient: Patient;
   state: FacingConvoState;
   onChange: (next: FacingConvoState) => void;
   onOpenChart: (tab: ChartTabId, focus?: ChartFocus) => void;
+  // 共通の学習支援サイド（LearningSupportAside）が「Compass Coach」トグル見出しを持つ場合、
+  // 内部見出しを省いて重複表示を防ぐ（Sprint D-2D 追加修正②）。
+  hideHeading?: boolean;
 }) {
   const focus = getCoachFocus(patient.id, state);
   const showHint = shouldShowCoachHint(state);
@@ -50,15 +54,17 @@ export default function FacingCoachPanel({
   const moreHint = () => onChange(requestHint(state));
 
   return (
-    <div className="flex flex-col border-t border-[#EBEBF0] bg-white">
-      <div className="flex items-center gap-1.5 px-4 pt-2.5 pb-1.5">
-        <Sparkles className="h-3.5 w-3.5 text-[#AF52DE]" strokeWidth={2} />
-        <span className="text-[12px] font-semibold text-[#6B3FA0]">
-          Compass Coach
-        </span>
-      </div>
+    <div className="flex flex-col bg-white">
+      {!hideHeading && (
+        <div className="flex items-center gap-1.5 border-t border-[#EBEBF0] px-4 pt-2.5 pb-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-[#AF52DE]" strokeWidth={2} />
+          <span className="text-[12px] font-semibold text-[#6B3FA0]">
+            Compass Coach
+          </span>
+        </div>
+      )}
 
-      <div className="max-h-[220px] space-y-2 overflow-y-auto px-4 pb-3">
+      <div className="space-y-2 px-4 pb-3 pt-2">
         {showHint ? (
           <div className="space-y-2 rounded-2xl border border-[#E4DAF7] bg-[#F7F2FF] px-3.5 py-2.5">
             <p className="text-[12.5px] leading-relaxed text-[#4A3A66]">

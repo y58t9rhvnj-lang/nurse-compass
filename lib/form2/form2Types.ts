@@ -3,8 +3,10 @@
 // 方針（修正版）:
 // - 患者基本情報を含め、すべて学生が自分で確認して手入力する。
 //   電子カルテ／患者会話からの自動表示・自動転記は一切行わない。
-// - 治療内容（薬物療法・精神療法・作業療法・SST・心理教育等）は
-//   個別フィールドを持たず、treatment.policyAndContent に統合する。
+// - 治療内容は 4 項目（治療方針 / 治療の目標 / 内服 / 治療プログラム）に分け、
+//   様式表示・印刷時のみ小ラベル付きで 1 つの治療欄に統合表示する。
+// - 旧構成のキー（history の一部・treatment.policyAndContent）は optional として型に温存し、
+//   既存 JSON の消失を防ぐ（normalizeForm2 が値を保持する。自動統合・削除はしない）。
 // - 将来のバックエンド移行に備え、version を含めた素朴な JSON 構造とする。
 
 export const FORM2_VERSION = 1 as const;
@@ -32,25 +34,38 @@ export interface Form2BasicInformation {
 
 // 受け持つまでの経過（生育歴・現病歴）。編集時は小項目に分けるが、
 // 様式表示では一つのまとまりとして表示する。
+//
+// 表示・保存対象は下記 9 項目（FORM2_HISTORY_KEYS）。
+// firstAdmission / insight / medicationRecognition / dischargeThoughts は旧構成の項目で、
+// 現行 UI では非表示・新規保存対象外。ただし既存 JSON の消失を防ぐため型に optional として
+// 温存し、normalizeForm2 が値を保持する（自動統合・削除・上書きはしない）。
 export interface Form2History {
-  familyBackground: string;
-  developmentalHistory: string;
-  schoolHistory: string;
-  employmentHistory: string;
-  beforeOnset: string;
-  firstAdmission: string;
-  subsequentCourse: string;
-  currentAdmissionCourse: string;
-  currentCondition: string;
-  currentLife: string;
-  insight: string;
-  medicationRecognition: string;
-  dischargeThoughts: string;
+  developmentalHistory: string; // 生育歴
+  familyBackground: string; // 家族背景
+  schoolHistory: string; // 学校生活
+  employmentHistory: string; // 就労歴
+  beforeOnset: string; // 発症までの経過
+  subsequentCourse: string; // その後の入退院歴および経過
+  currentAdmissionCourse: string; // 今回の入院に至る経過
+  currentCondition: string; // 入院から現在までの病状
+  currentLife: string; // 現在の生活状況
+  // --- 旧構成（互換温存・UI 非表示・新規保存対象外） ---
+  firstAdmission?: string;
+  insight?: string;
+  medicationRecognition?: string;
+  dischargeThoughts?: string;
 }
 
-// 医師の治療方針・内容。薬物療法等はここに統合し、独立欄は持たない。
+// 医師の治療方針・内容。4 項目に分割する。
+// policyAndContent は旧構成の単一欄。互換温存のため optional で保持し、normalizeForm2 が
+// 値を保持しつつ、新 policy が空のときのみラベル付きで policy へ移行する（旧値は削除しない）。
 export interface Form2Treatment {
-  policyAndContent: string;
+  policy: string; // 治療方針
+  goal: string; // 治療の目標
+  medication: string; // 内服
+  program: string; // 治療プログラム（参加状況を含む）
+  // --- 旧構成（互換温存） ---
+  policyAndContent?: string;
 }
 
 export interface Form2Data {
@@ -75,19 +90,31 @@ export const FORM2_BASIC_KEYS: (keyof Form2BasicInformation)[] = [
 ];
 
 export const FORM2_HISTORY_KEYS: (keyof Form2History)[] = [
-  "familyBackground",
   "developmentalHistory",
+  "familyBackground",
   "schoolHistory",
   "employmentHistory",
   "beforeOnset",
-  "firstAdmission",
   "subsequentCourse",
   "currentAdmissionCourse",
   "currentCondition",
   "currentLife",
+];
+
+// 旧構成の履歴項目（互換温存・UI 非表示・新規保存対象外）。normalizeForm2 が値を保持する。
+export const FORM2_HISTORY_LEGACY_KEYS: (keyof Form2History)[] = [
+  "firstAdmission",
   "insight",
   "medicationRecognition",
   "dischargeThoughts",
+];
+
+// 医師の治療方針・内容の入力・保存対象キー（4 項目）。
+export const FORM2_TREATMENT_KEYS: (keyof Form2Treatment)[] = [
+  "policy",
+  "goal",
+  "medication",
+  "program",
 ];
 
 function emptyBasic(): Form2BasicInformation {
@@ -102,6 +129,12 @@ function emptyHistory(): Form2History {
   return history;
 }
 
+function emptyTreatment(): Form2Treatment {
+  const treatment = {} as Form2Treatment;
+  for (const key of FORM2_TREATMENT_KEYS) treatment[key] = "";
+  return treatment;
+}
+
 // 未入力状態の初期データ（安定参照は呼び出し側で管理する）。
 export function createEmptyForm2(patientId: string): Form2Data {
   return {
@@ -111,7 +144,7 @@ export function createEmptyForm2(patientId: string): Form2Data {
     period: { start: "", end: "" },
     basicInformation: emptyBasic(),
     history: emptyHistory(),
-    treatment: { policyAndContent: "" },
+    treatment: emptyTreatment(),
     updatedAt: "",
   };
 }
@@ -145,6 +178,26 @@ export function normalizeForm2(raw: unknown, patientId: string): Form2Data {
   for (const key of FORM2_HISTORY_KEYS) {
     normalizedHistory[key] = pickString(history, key);
   }
+  // 旧構成の履歴値は削除・上書き・自動統合せず、値がある場合のみ温存する
+  // （UI 非表示・新規保存対象外だが、既存 JSON の消失を防ぐ）。
+  for (const legacyKey of FORM2_HISTORY_LEGACY_KEYS) {
+    const legacyValue = pickString(history, legacyKey);
+    if (legacyValue) normalizedHistory[legacyKey] = legacyValue;
+  }
+
+  const normalizedTreatment = emptyTreatment();
+  for (const key of FORM2_TREATMENT_KEYS) {
+    normalizedTreatment[key] = pickString(treatment, key);
+  }
+  // 旧 policyAndContent は互換のため温存し、新 policy が空のときのみラベル付きで移行する
+  // （旧値は削除しない）。
+  const legacyPolicyAndContent = pickString(treatment, "policyAndContent");
+  if (legacyPolicyAndContent) {
+    normalizedTreatment.policyAndContent = legacyPolicyAndContent;
+    if (!normalizedTreatment.policy.trim()) {
+      normalizedTreatment.policy = `【旧・医師の治療方針・内容】\n${legacyPolicyAndContent}`;
+    }
+  }
 
   return {
     version: FORM2_VERSION,
@@ -159,7 +212,25 @@ export function normalizeForm2(raw: unknown, patientId: string): Form2Data {
     },
     basicInformation: normalizedBasic,
     history: normalizedHistory,
-    treatment: { policyAndContent: pickString(treatment, "policyAndContent") },
+    treatment: normalizedTreatment,
     updatedAt: typeof v.updatedAt === "string" ? v.updatedAt : "",
   };
+}
+
+// 治療4項目を、入力済みのものだけ小ラベル付きで1つの治療欄へ統合する（様式表示・印刷用）。
+// 表示順：治療方針 → 治療の目標 → 内服 → 治療プログラム（参加状況を含む）。空欄は表示しない。
+const TREATMENT_MERGE: { key: keyof Form2Treatment; label: string }[] = [
+  { key: "policy", label: "治療方針" },
+  { key: "goal", label: "治療の目標" },
+  { key: "medication", label: "内服" },
+  { key: "program", label: "治療プログラム（参加状況を含む）" },
+];
+
+export function mergeTreatmentText(treatment: Form2Treatment): string {
+  return TREATMENT_MERGE.map(({ key, label }) => {
+    const value = (treatment[key] ?? "").trim();
+    return value ? `【${label}】\n${value}` : "";
+  })
+    .filter((s) => s.length > 0)
+    .join("\n\n");
 }

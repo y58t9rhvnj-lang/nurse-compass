@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { FORM2_HISTORY_KEYS, type Form2Data } from "@/lib/form2/form2Types";
+import {
+  FORM2_HISTORY_KEYS,
+  mergeTreatmentText,
+  type Form2Data,
+} from "@/lib/form2/form2Types";
 import {
   computeForm2Layout,
   FORM2_FONT_STACK,
@@ -48,7 +52,18 @@ function CellText({
   );
 }
 
-export default function Form2SheetView({ data }: { data: Form2Data }) {
+export default function Form2SheetView({
+  data,
+  // 画面プレビュー時の最大拡大率（Sprint D-2D 追加修正③）。
+  //   既定 1 ＝従来どおり「A4 原寸（190mm）で頭打ち」＝印刷用紙の固定幅を画面にもそのまま適用。
+  //   V2 の左メニュー「様式2」画面だけは、印刷用紙幅と画面表示の責務を分けるため 1 より大きい値を
+  //   渡し、利用可能なメイン幅までプレビューを拡大して余白の偏りを解消する（印刷は @media print で
+  //   transform をリセットするため影響しない）。V1 やその他の呼び出しは既定 1 のままで挙動不変。
+  maxScreenScale = 1,
+}: {
+  data: Form2Data;
+  maxScreenScale?: number;
+}) {
   const b = data.basicInformation;
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -62,7 +77,7 @@ export default function Form2SheetView({ data }: { data: Form2Data }) {
 
   const historyMerged = useMemo(
     () =>
-      FORM2_HISTORY_KEYS.map((key) => data.history[key].trim())
+      FORM2_HISTORY_KEYS.map((key) => (data.history[key] ?? "").trim())
         .filter((t) => t.length > 0)
         .join("\n\n"),
     [data.history],
@@ -85,7 +100,7 @@ export default function Form2SheetView({ data }: { data: Form2Data }) {
     admissionType: fallback(b.admissionType),
     chiefComplaint: fallback(b.chiefComplaint),
     history: fallback(historyMerged),
-    treatment: fallback(data.treatment.policyAndContent),
+    treatment: fallback(mergeTreatmentText(data.treatment)),
   };
   const continuations = layout?.continuations ?? [];
   const totalPages = 1 + continuations.length;
@@ -102,7 +117,9 @@ export default function Form2SheetView({ data }: { data: Form2Data }) {
       const naturalW = pages.offsetWidth;
       const naturalH = pages.offsetHeight;
       if (naturalW === 0) return;
-      const scale = Math.min(1, container.clientWidth / naturalW);
+      // コンテナ幅に合わせて拡縮。最大は maxScreenScale（既定 1＝原寸で頭打ち）で、
+      // 大きすぎる拡大を防ぎつつ、画面の横幅を有効活用する。
+      const scale = Math.min(maxScreenScale, container.clientWidth / naturalW);
       pages.style.transformOrigin = "top left";
       pages.style.transform = `scale(${scale})`;
       wrap.style.width = `${naturalW * scale}px`;
@@ -114,7 +131,7 @@ export default function Form2SheetView({ data }: { data: Form2Data }) {
     ro.observe(container);
     ro.observe(pages);
     return () => ro.disconnect();
-  }, []);
+  }, [maxScreenScale]);
 
   const period = `${data.period.start || "　月　日"}　～　${
     data.period.end || "　月　日"

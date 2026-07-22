@@ -39,6 +39,7 @@ export default function WorkspaceHost({
   userId,
   initialForm2,
   onForm2Persisted,
+  onOpenEvidenceReview,
   facingState,
   onChangeFacingState,
 }: {
@@ -48,6 +49,8 @@ export default function WorkspaceHost({
   userId: string;
   initialForm2: Form2Snapshot | null;
   onForm2Persisted?: (snapshot: Form2Snapshot) => void;
+  // 第2段階「Evidence 整理」ビューへの導線（様式2 ヘッダーの控えめなボタン）。
+  onOpenEvidenceReview?: () => void;
   // 会話（患者との会話）の状態。Workspace 左ペインの「会話」タブが Core と同一 state を共有する。
   facingState: FacingConvoState;
   onChangeFacingState: (next: FacingConvoState) => void;
@@ -61,6 +64,7 @@ export default function WorkspaceHost({
           userId={userId}
           initialForm2={initialForm2}
           onForm2Persisted={onForm2Persisted}
+          onOpenEvidenceReview={onOpenEvidenceReview}
           facingState={facingState}
           onChangeFacingState={onChangeFacingState}
         />

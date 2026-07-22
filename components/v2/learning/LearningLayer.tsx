@@ -17,6 +17,7 @@
 //   本層はその成果物（inspectorHeader / inspectorOverlay ノード）を配置するのみ。
 
 import type { ReactNode } from "react";
+import { X } from "lucide-react";
 import Notice from "@/components/Notice";
 import WorkspaceHost, {
   type LearningWorkspaceView,
@@ -38,6 +39,7 @@ export default function LearningLayer({
   patient,
   initialForm2,
   onForm2Persisted,
+  onOpenEvidenceReview,
   facingState,
   onChangeFacingState,
 }: {
@@ -55,28 +57,41 @@ export default function LearningLayer({
   patient: Patient;
   initialForm2: Form2Snapshot | null;
   onForm2Persisted?: (snapshot: Form2Snapshot) => void;
+  // 第2段階「Evidence 整理」ビューへの導線（様式2 ヘッダーの控えめなボタン）。
+  onOpenEvidenceReview?: () => void;
   // 会話（患者との会話）の状態。Workspace 左ペインの「会話」タブが Core と同一 state を共有する。
   facingState: FacingConvoState;
   onChangeFacingState: (next: FacingConvoState) => void;
 }) {
-  // 他患者選択中に Learning 画面へ進んだときの案内（受け持ち患者へ戻る導線のみ）。
+  // 思考ワークスペースを開いたときの案内メッセージ（Sprint D-2D ③）。
+  //   主ボタンは「閉じる」= メッセージのみを閉じ、そのまま思考ワークスペースを表示する
+  //   （患者トップ・病棟ホームへは遷移しない）。右上の × も同じ動作。
+  //   onBackToTarget は受け持ち患者を選択状態にして本ワークスペースを表示するだけで、画面遷移は行わない。
   const lockedView = (
     <div className="flex min-h-0 flex-1 items-center justify-center px-6">
-      <div className="w-full max-w-[440px] rounded-2xl border border-[#E5E5EA] bg-white p-6 text-center shadow-sm">
+      <div className="relative w-full max-w-[440px] rounded-2xl border border-[#E5E5EA] bg-white p-6 text-center shadow-sm">
+        <button
+          type="button"
+          onClick={onBackToTarget}
+          aria-label="閉じる"
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-[#8E8E93] transition-colors hover:bg-[#F2F2F5]"
+        >
+          <X className="h-4 w-4" strokeWidth={2} />
+        </button>
         <h2 className="text-[15px] font-bold text-[#1D1D1F]">
-          受け持ち患者の学習画面です
+          思考ワークスペース
         </h2>
         <p className="mt-2 text-[13px] leading-relaxed text-[#6E6E73]">
-          思考ワークスペースと様式は、受け持ち患者について利用できます。
+          電子カルテや会話で集めた情報と Compassノートを見ながら、
           <br />
-          受け持ち患者に戻って、情報を振り返りましょう。
+          受け持ち患者について様式2 へ整理していきましょう。
         </p>
         <button
           type="button"
           onClick={onBackToTarget}
           className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-full bg-[#0A5FCC] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#0A54B5]"
         >
-          受け持ち患者に戻る
+          閉じる
         </button>
       </div>
     </div>
@@ -104,6 +119,7 @@ export default function LearningLayer({
             userId={userId}
             initialForm2={initialForm2}
             onForm2Persisted={onForm2Persisted}
+            onOpenEvidenceReview={onOpenEvidenceReview}
             facingState={facingState}
             onChangeFacingState={onChangeFacingState}
           />

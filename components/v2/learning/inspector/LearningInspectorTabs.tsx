@@ -15,13 +15,12 @@
 //   Coach のロジック・Question 生成（questions / controller）は変更しない（初期表示と見せ方のみ調整）。
 
 import { useState } from "react";
-import { ChevronDown, MessageCircle, Sparkles } from "lucide-react";
+import { ChevronDown, MessageCircle } from "lucide-react";
 import type { Question, QuestionStatus } from "@/lib/v2/question/questionTypes";
 import { QUESTION_STATUS_LABEL } from "@/lib/v2/question/questionTypes";
 import type { QuestionPanelController } from "@/hooks/v2/useQuestionPanel";
 import QuestionPanel from "@/components/v2/workspace/panels/QuestionPanel";
-import NoteZone from "@/components/patient/notes/NoteZone";
-import LearningSupportColumn from "@/components/v2/learning/LearningSupportColumn";
+import LearningSupportAside from "@/components/v2/learning/LearningSupportAside";
 
 export default function LearningInspectorPanels({
   questions,
@@ -32,10 +31,12 @@ export default function LearningInspectorPanels({
   questionController: QuestionPanelController;
   patientId: string;
 }) {
-  // 患者トップ・会話画面と同じ学習支援カラム（ノート上 / Coach 下・上下独立スクロール）で統一。
+  // 患者トップ・会話・電子カルテと同じ共通レイアウト（LearningSupportAside）で統一。
+  //   上: Compassノート（主役・独立スクロール） / 下: Compass Coach（折りたたみ）。
+  // Coach 見出し・開閉は LearningSupportAside が持つため、InspectorCoach は見出しなしの本文だけを渡す。
   return (
-    <LearningSupportColumn
-      note={<NoteZone patientId={patientId} variant="fill" />}
+    <LearningSupportAside
+      patientId={patientId}
       coach={
         <InspectorCoach questions={questions} controller={questionController} />
       }
@@ -50,39 +51,31 @@ function InspectorCoach({
   questions: Question[];
   controller: QuestionPanelController;
 }) {
-  // 既定は折りたたみ（最小表示）。Workspace を開くたびに最小から始める。
+  // 既定は最小表示（問いを並べない）。学生が必要なときに全問へ展開できる。
   const [expanded, setExpanded] = useState(false);
   // これまでに触れた問い（unread 以外）＝過去のやり取り。履歴として確認できる。
   const touched = questions.filter(
     (q) => controller.statusOf(q.id) !== "unread",
   );
 
+  // Coach 本文のみ（見出し・開閉トグルは LearningSupportAside 側が担当・重複させない）。
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {/* 見出し（固定・左 Workspace / 電子カルテと同系の静かな見出し） */}
-      <div className="flex shrink-0 items-center gap-2 px-4 pt-4 pb-2.5">
-        <span className="h-4 w-1 rounded-full bg-[#AF52DE]" />
-        <h3 className="flex items-center gap-1.5 text-[15px] font-bold text-[#1D1D1F]">
-          <Sparkles className="h-4 w-4 text-[#AF52DE]" strokeWidth={1.9} />
-          Compass Coach
-        </h3>
-        {expanded && (
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            className="ml-auto text-[12px] font-medium text-[#8E8E93] transition hover:text-[#3A3A3C]"
-          >
-            とじる
-          </button>
-        )}
-      </div>
-
-      {/* Coach 本文（この領域内でスクロール） */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
-        {expanded ? (
+    <div className="px-4 py-3">
+      {expanded ? (
+        <div className="space-y-2">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="text-[12px] font-medium text-[#8E8E93] transition hover:text-[#3A3A3C]"
+            >
+              とじる
+            </button>
+          </div>
           <QuestionPanel questions={questions} controller={controller} />
-        ) : (
-          <div className="space-y-3">
+        </div>
+      ) : (
+        <div className="space-y-3">
           <p className="text-[12px] leading-relaxed text-[#8E8E93]">
             情報を確認したら、考えるための問いをここで受け取れます。答えや観察項目を先には出しません。
           </p>
@@ -121,12 +114,11 @@ function InspectorCoach({
             className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-full border border-[#E4DAF7] bg-[#F7F2FF] px-3 text-[13px] font-semibold text-[#AF52DE] transition hover:bg-[#F0E6FB]"
           >
             <MessageCircle className="h-4 w-4" strokeWidth={2} />
-            Compass Coach を開く
+            問いを開く
             <ChevronDown className="h-4 w-4" strokeWidth={2} />
           </button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

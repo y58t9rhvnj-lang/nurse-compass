@@ -16,6 +16,7 @@ import {
   type EvidenceCaptureApi,
 } from "@/components/v2/capture/EvidenceCaptureContext";
 import { NotesProvider } from "@/components/v2/notebook/NotesContext";
+import { EvidenceProvider } from "@/components/v2/notebook/EvidenceContext";
 import { useEvidenceSupabase } from "@/hooks/v2/useEvidenceSupabase";
 import { useNotesSupabase } from "@/hooks/v2/useNotesSupabase";
 import type { StudentNoteRecord } from "@/lib/v2/notebook/studentNoteMapper";
@@ -42,6 +43,7 @@ import FirstAssignmentSheet from "@/components/patient/FirstAssignmentSheet";
 import NoteZone from "@/components/patient/notes/NoteZone";
 import ClinicalThinkingWorkspace from "@/components/thinking-workspace/ClinicalThinkingWorkspace";
 import Form2Workspace from "@/components/form2/Form2Workspace";
+import EvidenceReviewWorkspace from "@/components/v2/workspace/EvidenceReviewWorkspace";
 import type { ChartTabId } from "@/lib/chartTabs";
 import type { ChartFocus } from "@/lib/chartNav";
 import {
@@ -253,6 +255,12 @@ export default function AppShell({
     setPendingQuestion(null);
     setActiveView("clinical-workspace");
   };
+  // V2: Evidence 整理専用ビュー（Sprint D-2B 画面構成修正）。思考ワークスペースの様式2 ヘッダーから到達する。
+  const goEvidenceReview = () => {
+    setNotice(null);
+    setPendingQuestion(null);
+    setActiveView("evidence-review");
+  };
   // 電子カルテを開く。tab 指定時はそのタブから、focus 指定時は該当記録へ移動・強調。
   const goChart = (tab?: ChartTabId, focus?: ChartFocus) => {
     setNotice(null);
@@ -447,12 +455,14 @@ export default function AppShell({
           items={STUDENT_NAV_ITEMS}
           identity={identity}
           onLogout={handleLogout}
+          selectedPatientName={selectedPatient?.name}
         />
       </aside>
     );
     return (
       <EvidenceCaptureProvider value={CORE_CAPTURE_ENABLED ? captureApi : null}>
         <NotesProvider value={notes}>
+        <EvidenceProvider value={evidence}>
         <div
           data-shell-mode="v2"
           data-inspector-enabled={inspectorEnabled ? "1" : undefined}
@@ -475,9 +485,38 @@ export default function AppShell({
                 patient={selectedPatient}
                 initialForm2={effectiveForm2}
                 onForm2Persisted={handleForm2Persisted}
+                onOpenEvidenceReview={goEvidenceReview}
                 facingState={facingState}
                 onChangeFacingState={setFacingState}
               />
+            ) : activeView === "evidence-review" ? (
+              // 第2段階「Evidence を整理して患者の全体像を捉える」専用ビュー（Sprint D-2B 画面構成修正）。
+              // 電子カルテ・会話は出さず、左＝様式2 / 右＝Evidence 整理 の 2 カラム。受け持ち患者のみ対象。
+              <>
+                {studentSideNav}
+                <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#F2F2F7]">
+                  {notice && (
+                    <div className="no-print shrink-0 px-4 pt-3">
+                      <Notice text={notice} onClose={() => setNotice(null)} />
+                    </div>
+                  )}
+                  {!isLearningTargetSelected ? (
+                    <Form2ReviewLocked onBackToTarget={backToLearningTarget} />
+                  ) : userId ? (
+                    <EvidenceReviewWorkspace
+                      patient={selectedPatient}
+                      userId={userId}
+                      initialForm2={effectiveForm2}
+                      onForm2Persisted={handleForm2Persisted}
+                      onBackToWorkspace={goClinicalWorkspace}
+                    />
+                  ) : (
+                    <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[13px] text-[#6E6E73]">
+                      根拠の整理を行うにはログインが必要です。
+                    </div>
+                  )}
+                </main>
+              </>
             ) : activeView === "form2" ? (
               // 左メニュー「様式2」＝ 完成した様式2 の最終確認・印刷・提出専用画面（Sprint D-1 追加修正 ⑦）。
               // 思考支援（患者情報ペイン・電子カルテ・会話・ノート・Coach・Inspector）は一切出さない。
@@ -529,13 +568,16 @@ export default function AppShell({
                 onOpenConversation={goConversation}
                 onOpenWorkspace={goClinicalWorkspace}
                 onSelectPatientToTop={(id) => {
+                  // Sprint D-2D ②: 患者タイル選択は「受け持ち患者の選択」のみ。
+                  // 自動遷移はしない（病棟ホームに留まり、以降は左サイドバーから各画面を開く）。
+                  // 選択患者だけを更新し、過去に開いていた患者トップへは戻さない。
                   selectPatient(id);
-                  goPatientOverview();
                 }}
               />
             )}
           </div>
         </div>
+        </EvidenceProvider>
         </NotesProvider>
       </EvidenceCaptureProvider>
     );

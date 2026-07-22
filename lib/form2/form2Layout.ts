@@ -11,7 +11,11 @@
 // 計測は body に付与した不可視要素で行うため、クライアント専用。
 // SSR では null を返し、呼び出し側でフォールバック描画する。
 
-import { FORM2_HISTORY_KEYS, type Form2Data } from "@/lib/form2/form2Types";
+import {
+  FORM2_HISTORY_KEYS,
+  mergeTreatmentText,
+  type Form2Data,
+} from "@/lib/form2/form2Types";
 
 // 原本と同じ帳票（A4縦）を基準にした固定寸法。1mm = 96/25.4 px（96dpi）。
 const MM = 96 / 25.4;
@@ -258,7 +262,7 @@ export function computeForm2Layout(data: Form2Data): Form2Layout | null {
   if (typeof document === "undefined") return null;
 
   const historyMerged = FORM2_HISTORY_KEYS.map((key) =>
-    data.history[key].trim(),
+    (data.history[key] ?? "").trim(),
   )
     .filter((t) => t.length > 0)
     .join("\n\n");
@@ -308,7 +312,7 @@ export function computeForm2Layout(data: Form2Data): Form2Layout | null {
     {
       id: "treatment",
       title: "医師の治療方針・治療内容",
-      text: data.treatment.policyAndContent,
+      text: mergeTreatmentText(data.treatment),
       w: COL5_W,
       h: H_TREAT,
     },

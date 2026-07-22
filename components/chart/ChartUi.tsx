@@ -126,10 +126,12 @@ export function FilterChips({
   compact?: boolean;
 }) {
   return (
+    // overflow-x-auto は overflow-y を auto（クリップ）に計算するため、上下方向に余白を確保して
+    // チップ上端の ring/枠線が見切れないようにする（Sprint D-2D ⑤）。大きな余白は足さない。
     <div
       className={[
-        "flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-        compact ? "gap-1" : "mb-2 gap-1.5 pb-1",
+        "flex items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        compact ? "gap-1 py-0.5" : "mb-1.5 gap-1.5 py-1",
       ].join(" ")}
     >
       {options.map((opt) => {

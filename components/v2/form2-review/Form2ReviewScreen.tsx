@@ -19,6 +19,7 @@ import Form2SheetView from "@/components/form2/Form2SheetView";
 import { useForm2Supabase } from "@/hooks/v2/useForm2Supabase";
 import {
   FORM2_HISTORY_KEYS,
+  mergeTreatmentText,
   type Form2Data,
 } from "@/lib/form2/form2Types";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
@@ -40,13 +41,13 @@ function collectMissing(data: Form2Data): string[] {
     ["既往歴", b.pastHistory],
     ["入院形態", b.admissionType],
     ["主訴", b.chiefComplaint],
-    ["医師の治療方針・治療内容", data.treatment.policyAndContent],
+    ["医師の治療方針・治療内容", mergeTreatmentText(data.treatment)],
   ];
   for (const [label, value] of req) {
     if (!value || value.trim() === "") missing.push(label);
   }
   const historyEmpty = FORM2_HISTORY_KEYS.every(
-    (k) => data.history[k].trim() === "",
+    (k) => (data.history[k] ?? "").trim() === "",
   );
   if (historyEmpty) missing.push("受け持つまでの経過（生育歴・現病歴）");
   return missing;
@@ -79,7 +80,12 @@ export default function Form2ReviewScreen({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[900px] px-4 py-5">
+      {/* Sprint D-2D 追加修正③: 編集/確認画面はメイン幅を有効活用し、左右余白を均等にする。
+          左右パディングを割合（5%）にすることで、iPad Landscape でもメイン幅の約 90% を使い、
+          左右対称・中央配置になる（固定 max-width で iPad を狭めない。過大化は max-w で抑制）。
+          印刷用紙（190mm 固定）の幅を画面にそのまま適用しないよう、A4 プレビューは下の
+          maxScreenScale で利用可能幅まで拡大する（印刷は @media print で等倍に戻すため影響なし）。 */}
+      <div className="mx-auto w-full max-w-[1500px] px-[5%] py-5">
         {/* ヘッダー（印刷しない）。目的＝最終確認・印刷・提出。 */}
         <header className="no-print mb-4">
           <p className="text-[12px] font-medium text-[#8E8E93]">
@@ -151,9 +157,11 @@ export default function Form2ReviewScreen({
           )}
         </div>
 
-        {/* 様式2 全体（原本レイアウト・印刷対象） */}
+        {/* 様式2 全体（原本レイアウト・印刷対象）。画面ではコンテナ幅（メインの約 90%）まで
+            拡大（最大 2.2 倍）し、iPad Landscape でも用紙を大きく・左右対称に表示する。
+            印刷時は @media print が transform を打ち消し、190mm 原寸で出力する（回帰なし）。 */}
         <div className="rounded-2xl border border-[#EBEBF0] bg-white p-3">
-          <Form2SheetView data={data} />
+          <Form2SheetView data={data} maxScreenScale={2.2} />
         </div>
       </div>
     </div>

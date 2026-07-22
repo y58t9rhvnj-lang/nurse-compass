@@ -1,52 +1,51 @@
 // Compass Version2 — 初期 Question セット（静的・決定論）。
 //
-// 精神看護の患者理解に汎用的に使える問い。特定患者へ強く依存させない。
-// すべて問いの形で、診断・正解・様式2 転記文を含めない（設計書 12 §4.5 / Principles §2）。
+// 患者理解（Sprint D-3A）の役割変更に合わせ、Coach は「答え」を出さず、
+// 各事実の意味づけ（考察）を深める問いだけを提示する。
+// すべて問いの形で、診断・正解・回答例・推測文・様式2 転記文を含めない
+// （Direct Diagnosis 禁止 / 設計書 12 §4.5 / Principles §2）。
 // 文言は教員監修前提の暫定。createdBy は "system"（AI 由来ではない）。
 
 import type { Question } from "./questionTypes";
 
 export const DEFAULT_QUESTIONS: Question[] = [
   {
-    id: "q-confirm-record-gap",
-    category: "confirm",
-    prompt:
-      "患者さんの言葉と、記録に書かれている情報のあいだに、違いはありますか。",
-    purpose: "事実と記録を照らし合わせ、思い込みに気づくため。",
+    id: "q-think-inference",
+    category: "think",
+    prompt: "この情報から、どのようなことが考えられますか。",
+    purpose: "事実から一歩進んで、自分の解釈を言葉にするため。",
     priority: 1,
     createdBy: "system",
   },
   {
-    id: "q-confirm-missing",
+    id: "q-confirm-grounds",
     category: "confirm",
-    prompt: "生活への影響について、まだ確認できていないことはありませんか。",
-    purpose: "情報の偏りや抜けに気づくため。",
+    prompt: "そのように考えた根拠は、どの情報ですか。",
+    purpose: "考察を、様式2で整理した事実と結びつけて確かめるため。",
     priority: 2,
+    createdBy: "system",
+  },
+  {
+    id: "q-think-life",
+    category: "think",
+    prompt: "患者さんは、どのような思いで生活しているでしょうか。",
+    purpose: "患者さんの体験や思いに近づくため。",
+    priority: 3,
     createdBy: "system",
   },
   {
     id: "q-observe-signs",
     category: "observe",
-    prompt:
-      "会話中の表情や声のトーン、視線の変化に、気づいたことはありますか。",
-    purpose: "言葉にならないサインに目を向けるため。",
-    priority: 3,
-    createdBy: "system",
-  },
-  {
-    id: "q-think-perception",
-    category: "think",
-    prompt:
-      "患者さんご自身は、いまの状況をどのように受け止めているでしょうか。",
-    purpose: "患者さんの主観的な体験に近づくため。",
+    prompt: "この患者さんらしさは、どんなところに表れているでしょうか。",
+    purpose: "その人らしさに目を向けるため。",
     priority: 4,
     createdBy: "system",
   },
   {
     id: "q-think-connections",
     category: "think",
-    prompt: "集めた情報どうしには、どのようなつながりがありそうですか。",
-    purpose: "別々の事実を関連づけて理解するため。",
+    prompt: "身体・心理・社会の面は、どのようにつながっていそうですか。",
+    purpose: "各側面を関連づけて患者さんの全体像を捉えるため。",
     priority: 5,
     createdBy: "system",
   },

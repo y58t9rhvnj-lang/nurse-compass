@@ -30,8 +30,7 @@ import ChartSideNav from "@/components/chart/ChartSideNav";
 import FacingPatient from "@/components/patient/facing/FacingPatient";
 import FacingCoachPanel from "@/components/patient/facing/FacingCoachPanel";
 import FirstAssignmentSheet from "@/components/patient/FirstAssignmentSheet";
-import NoteZone from "@/components/patient/notes/NoteZone";
-import LearningSupportColumn from "@/components/v2/learning/LearningSupportColumn";
+import LearningSupportAside from "@/components/v2/learning/LearningSupportAside";
 import StudentPatientTop from "@/components/v2/student-shell/StudentPatientTop";
 import type { AppView } from "@/components/SideNav";
 import type { Patient } from "@/lib/wardData";
@@ -149,14 +148,15 @@ export default function CoreLayer({
           </div>
         </main>
         <aside className="w-[288px] shrink-0 border-l border-[#E5E5EA] bg-white">
-          <LearningSupportColumn
-            note={<NoteZone patientId={selectedId} variant="fill" />}
+          <LearningSupportAside
+            patientId={selectedId}
             coach={
               <FacingCoachPanel
                 patient={selectedPatient}
                 state={facingState}
                 onChange={onChangeFacingState}
                 onOpenChart={onOpenChart}
+                hideHeading
               />
             }
           />
@@ -186,14 +186,15 @@ export default function CoreLayer({
           </div>
         </main>
         <aside className="w-[288px] shrink-0 border-l border-[#E5E5EA] bg-white">
-          <LearningSupportColumn
-            note={<NoteZone patientId={selectedId} variant="fill" />}
+          <LearningSupportAside
+            patientId={selectedId}
             coach={
               <FacingCoachPanel
                 patient={selectedPatient}
                 state={facingState}
                 onChange={onChangeFacingState}
                 onOpenChart={onOpenChart}
+                hideHeading
               />
             }
           />

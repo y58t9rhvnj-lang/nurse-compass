@@ -147,7 +147,7 @@ function QuestionCard({
 
             {relatedCount > 0 && (
               <p className="text-[12px] text-[#8E8E93]">
-                関連する根拠: {relatedCount}件
+                関連する気づき: {relatedCount}件
               </p>
             )}
 
@@ -215,7 +215,7 @@ function QuestionEmpty() {
       </p>
       <div className="rounded-2xl border border-[#EBEBF0] bg-[#F7F9FC] px-3.5 py-3">
         <p className="text-[12.5px] leading-relaxed text-[#8E8E93]">
-          患者情報や Evidence を確認すると、考えるための問いがここに表示されます。
+          患者情報や気づきを確認すると、考えるための問いがここに表示されます。
         </p>
       </div>
     </div>

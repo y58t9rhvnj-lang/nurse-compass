@@ -4,7 +4,7 @@
 //
 // 役割（Sprint D-1 追加修正2 ①）:
 //   患者トップは 3 カラム（左メニュー / 中央 / 右学習支援）。本コンポーネントは中央エリアのみ。
-//   Compassノート・Compass Coach は右カラム（CoreLayer 側の LearningSupportColumn）へ移設した。
+//   Compassノート・Compass Coach は右カラム（CoreLayer 側の LearningSupportAside）へ移設した。
 //
 //   中央に表示するもの:
 //     ・患者の基本情報のみ（氏名 / 年齢 / 性別 / 病室 / 入院日 / 主な診断名 / 受け持ち表示）。

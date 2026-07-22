@@ -15,6 +15,7 @@ import type {
   Form2History,
   Form2Period,
   Form2Student,
+  Form2Treatment,
 } from "@/lib/form2/form2Types";
 
 export type Form2SaveStatus = "idle" | "saving" | "saved";
@@ -110,10 +111,10 @@ export function useForm2(patientId: string) {
   );
 
   const updateTreatment = useCallback(
-    (value: string) => {
+    (patch: Partial<Form2Treatment>) => {
       stageForm2(patientId, (prev) => ({
         ...prev,
-        treatment: { ...prev.treatment, policyAndContent: value },
+        treatment: { ...prev.treatment, ...patch },
       }));
       scheduleSave();
     },

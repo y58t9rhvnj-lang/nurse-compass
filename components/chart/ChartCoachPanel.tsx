@@ -5,24 +5,29 @@ import type { Patient } from "@/lib/wardData";
 import { getCompassExtra } from "@/lib/compassPatientData";
 
 // 右ペイン用の控えめな Compass Coach（1問い＋補助問い1件まで）
+// hideHeading: 親が見出し（折りたたみトグル等）を持つ場合に内部見出しを省く（Sprint D-2D ④）。
 export default function ChartCoachPanel({
   patient,
   onUseQuestion,
+  hideHeading,
 }: {
   patient: Patient;
   onUseQuestion: (question: string) => void;
+  hideHeading?: boolean;
 }) {
   const extra = getCompassExtra(patient.id);
   const subQuestion = patient.profile?.coachQuestions?.[0];
 
   return (
     <section className="rounded-xl border border-[#E8E0F5]/60 bg-[#FAF8FF] p-2.5">
-      <div className="mb-2 flex items-center gap-1.5">
-        <Sparkles className="h-3.5 w-3.5 text-[#AF52DE]/70" strokeWidth={2} />
-        <h3 className="text-[11px] font-semibold text-[#6E6E73]">
-          Compass Coach
-        </h3>
-      </div>
+      {!hideHeading && (
+        <div className="mb-2 flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-[#AF52DE]/70" strokeWidth={2} />
+          <h3 className="text-[11px] font-semibold text-[#6E6E73]">
+            Compass Coach
+          </h3>
+        </div>
+      )}
 
       <p className="text-[12px] leading-relaxed text-[#5C4A7A]">
         {extra.coachPrompt}

@@ -31,7 +31,10 @@ export type AppView =
   | "form2"
   | "patient-top"
   | "conversation"
-  | "clinical-workspace";
+  | "clinical-workspace"
+  // Evidence 整理専用の内部ビュー（Sprint D-2B 画面構成修正）。サイドバー項目にはせず、
+  // 思考ワークスペースの様式2 ヘッダーにある「根拠を整理する」からのみ到達する。
+  | "evidence-review";
 
 export type NavItem = {
   label: string;
@@ -102,6 +105,7 @@ export default function SideNav({
   items = navItems,
   identity = DEFAULT_IDENTITY,
   onLogout,
+  selectedPatientName,
 }: {
   activeView: AppView;
   onNavigate: (view: AppView) => void;
@@ -110,12 +114,18 @@ export default function SideNav({
   // 指定時（V2 学生シェル）は最下部の識別情報を「ユーザーメニュー」にし、ログアウトを提供する。
   // 未指定時（V1）は従来どおり静的なプロフィール表示のまま（挙動不変）。
   onLogout?: () => void;
+  // 選択中（受け持ち）の患者名。指定時はブランド直下に控えめに表示する（Sprint D-2D ②）。
+  // 病棟ホームで患者タイルを選ぶと自動遷移せず、この表示で選択状態が分かる。
+  selectedPatientName?: string;
 }) {
   return (
-    <nav className="flex h-full w-full flex-col px-3 py-4">
+    // サイドバーは画面高に収める縦 flex（ページスクロールを起こさない）。
+    // ブランド／患者カード／学生メニューは固定（shrink-0）、中央のナビ一覧のみが内部スクロールする。
+    // 最下部は home indicator / Safari UI と重ならないよう safe-area 分の余白を足す。
+    <nav className="flex h-full min-h-0 w-full flex-col overflow-hidden px-3 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       {/* ブランド（シンボルマーク＋名称）。アイコンは共有素材を参照（描き直さない）。
           隣に「Nurse Compass」テキストがあるためシンボルは装飾（alt=""）とする。 */}
-      <div className="mb-4 flex items-center gap-2.5 px-1">
+      <div className="mb-4 flex shrink-0 items-center gap-2.5 px-1">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E5E5EA] bg-white">
           <NurseCompassLogo variant="symbol" size={22} alt="" />
         </div>
@@ -129,8 +139,26 @@ export default function SideNav({
         </div>
       </div>
 
-      {/* ナビ */}
-      <ul className="flex flex-1 flex-col gap-1">
+      {/* 受け持ち患者（選択状態）の表示（Sprint D-2D ②）。V2 学生シェルのみ（selectedPatientName 指定時）。 */}
+      {selectedPatientName && (
+        <div className="mb-3 flex shrink-0 items-center gap-2 rounded-xl border border-[#D6E6FA] bg-[#F2F7FF] px-2.5 py-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white">
+            <Users className="h-4 w-4 text-[#0A6CD6]" strokeWidth={1.9} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-medium leading-tight text-[#6E86A8]">
+              受け持ち患者
+            </span>
+            <span className="block truncate text-[13px] font-semibold leading-tight text-[#0A5FCC]">
+              {selectedPatientName}
+            </span>
+          </span>
+        </div>
+      )}
+
+      {/* ナビ一覧（唯一のスクロール領域）。min-h-0 で親 flex 内で縮み、収まらないときだけ縦スクロール。
+          pr-1 でスクロールバーが文字・アイコンに被らない余白を確保。iPad Safari 慣性スクロール対応。 */}
+      <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]">
         {items
           .filter((item) => !item.flag || isFeatureEnabled(item.flag))
           .map(({ label, icon: Icon, view, badge }) => {
@@ -172,11 +200,12 @@ export default function SideNav({
         })}
       </ul>
 
-      {/* 識別情報（最下部）。onLogout 指定時はユーザーメニュー、未指定時は静的表示。 */}
+      {/* 識別情報（最下部・固定）。onLogout 指定時はユーザーメニュー、未指定時は静的表示。
+          shrink-0 でスクロール領域に含めず、常に画面内に表示する。 */}
       {onLogout ? (
         <UserMenu identity={identity} onLogout={onLogout} />
       ) : (
-        <div className="mt-3 flex items-center gap-2.5 rounded-2xl border border-[#EBEBF0] bg-[#FAFAFC] p-2.5">
+        <div className="mt-3 flex shrink-0 items-center gap-2.5 rounded-2xl border border-[#EBEBF0] bg-[#FAFAFC] p-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7FB2F0] to-[#0A84FF]">
             <User className="h-5 w-5 text-white" strokeWidth={1.75} />
           </div>
@@ -206,7 +235,8 @@ function UserMenu({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="relative mt-3">
+    // 最下部固定（スクロール領域に含めない）。ポップアップは上方向（bottom-full）に開くため画面外に出ない。
+    <div className="relative mt-3 shrink-0">
       {open && (
         <>
           {/* 外側クリックで閉じる透明バックドロップ。 */}

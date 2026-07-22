@@ -1,6 +1,7 @@
 import type {
   Form2BasicInformation,
   Form2History,
+  Form2Treatment,
 } from "./form2Types";
 
 // 各入力欄のメタ情報。helper は「答え」ではなく、
@@ -15,6 +16,12 @@ export interface Form2BasicFieldMeta {
 
 export interface Form2HistoryFieldMeta {
   key: keyof Form2History;
+  label: string;
+  helper: string;
+}
+
+export interface Form2TreatmentFieldMeta {
+  key: keyof Form2Treatment;
   label: string;
   helper: string;
 }
@@ -63,18 +70,18 @@ export const FORM2_BASIC_FIELDS: Form2BasicFieldMeta[] = [
   },
 ];
 
-// 受け持つまでの経過（生育歴・現病歴）— 編集時の小項目。
+// 受け持つまでの経過（生育歴・現病歴）— 編集時の小項目（9 項目）。
 export const FORM2_HISTORY_FIELDS: Form2HistoryFieldMeta[] = [
+  {
+    key: "developmentalHistory",
+    label: "生育歴",
+    helper: "生い立ちや、現在の患者理解につながる育ちの情報を整理してください。",
+  },
   {
     key: "familyBackground",
     label: "家族背景",
     helper:
       "家族構成やキーパーソン、家族との関係が分かる情報を確認して整理してください。",
-  },
-  {
-    key: "developmentalHistory",
-    label: "生育歴",
-    helper: "生い立ちや、現在の患者理解につながる育ちの情報を整理してください。",
   },
   {
     key: "schoolHistory",
@@ -93,54 +100,56 @@ export const FORM2_HISTORY_FIELDS: Form2HistoryFieldMeta[] = [
       "発症時期や、そのころの生活・様子が分かる情報を時系列で整理してください。",
   },
   {
-    key: "firstAdmission",
-    label: "初回入院までの経過",
-    helper:
-      "初回受診・初回入院に至るまでの経過を、出所を意識して整理してください。",
-  },
-  {
     key: "subsequentCourse",
-    label: "その後の入退院歴",
+    label: "その後の入退院歴および経過",
     helper: "その後の入退院や地域生活の経過を時系列で整理してください。",
   },
   {
     key: "currentAdmissionCourse",
-    label: "今回または現在の入院に至る経過",
+    label: "今回の入院に至る経過",
     helper: "今回の入院のきっかけや、入院に至る経緯を確認して整理してください。",
   },
   {
     key: "currentCondition",
-    label: "現在の病状",
+    label: "入院から現在までの病状",
     helper:
-      "現在みられる精神症状や、治療参加状況、本人の発言が分かる情報を整理してください。",
+      "入院時から現在までの精神症状や、治療参加状況、本人の発言が分かる情報を整理してください。",
   },
   {
     key: "currentLife",
     label: "現在の生活状況",
     helper: "睡眠・食事・活動・対人交流など、病棟での過ごし方を整理してください。",
   },
+];
+
+// 医師の治療方針・内容（4 項目）。何を整理するかの観点のみ提示する（模範解答は含めない）。
+export const FORM2_TREATMENT_FIELDS: Form2TreatmentFieldMeta[] = [
   {
-    key: "insight",
-    label: "本人の病識",
-    helper:
-      "自分の病気や症状を本人がどう受けとめているか、発言をもとに整理してください。",
+    key: "policy",
+    label: "治療方針",
+    helper: "主治医が示している治療の方針を確認して整理してください。",
   },
   {
-    key: "medicationRecognition",
-    label: "服薬に対する認識",
-    helper:
-      "服薬の必要性や服薬状況を本人がどうとらえているか、発言や記録から整理してください。",
+    key: "goal",
+    label: "治療の目標",
+    helper: "治療で目指している状態や、退院に向けた目標を整理してください。",
   },
   {
-    key: "dischargeThoughts",
-    label: "退院に対する思い",
+    key: "medication",
+    label: "内服",
     helper:
-      "退院や退院後の生活について、本人がどう感じているか整理してください。",
+      "処方されている内服薬と、その目的・服薬状況を確認して整理してください。",
+  },
+  {
+    key: "program",
+    label: "治療プログラム（参加状況を含む）",
+    helper:
+      "作業療法・SST・心理教育などのプログラムと、本人の参加状況を整理してください。",
   },
 ];
 
-// 医師の治療方針・内容（1欄に統合）。何を整理するかの観点のみ提示する。
+// 治療セクションの導入文（観点のみ。答えは示さない）。
 export const FORM2_TREATMENT_HELPER =
-  "電子カルテと患者会話をもとに、次の観点をふまえて自分の言葉で整理してください：治療の目標／退院に向けた方向性／薬物療法・精神療法・作業療法・SST・心理教育・その他の治療や支援／現在参加している治療／不参加または拒否している治療／治療に対する本人の反応や認識。単なる一覧の転記ではなく、治療方針と各治療内容の関係が分かるようにまとめてください。";
+  "治療方針・治療の目標・内服・治療プログラム（参加状況を含む）に分けて、電子カルテと患者会話をもとに自分の言葉で整理してください。単なる転記ではなく、治療方針と各内容のつながりが分かるようにまとめましょう。";
 
 export const FORM2_TREATMENT_LABEL = "医師の治療方針・治療内容";

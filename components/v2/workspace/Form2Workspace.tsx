@@ -20,12 +20,16 @@
 //   CompassChart は initialTab 未指定で常に「診療録」から開始する。key={patient.id} で
 //   患者切替時は再マウントし、必ず診療録から開始する（タブ未選択状態は発生しない）。
 //
-// Evidence について（設計 §4.1 / §4.2）:
-//   Evidence は本 Workspace の主役ではないため表示しない（様式3 Workspace で扱う）。
-//   内部実装（EvidencePane / useEvidenceSupabase）は削除せず残す（表示のみ変更）。
+// Evidence について（Sprint D-2B 画面構成修正）:
+//   学習過程を 2 段階に分ける。第1段階（本コンポーネント＝思考ワークスペース）は、電子カルテと
+//   患者との会話を参照しながら「様式2 を作成する」ことに専念する。Evidence の整理（根拠リンク）は
+//   様式2 の表示領域を圧迫しないよう、第2段階の専用ビュー（EvidenceReviewWorkspace）へ分離した。
+//   ここでは様式2 ヘッダー右に「患者理解を深める」への控えめな導線だけを置き、様式2 を主役に保つ。
+//   なお学生向け UI では Evidence／根拠 という語を出さず、気づき・情報・患者理解・全体像へ統一する
+//   （内部実装・コメントは従来の開発用語を維持）。
 
 import { useState } from "react";
-import { FileText, MessagesSquare } from "lucide-react";
+import { FileText, MessagesSquare, Sparkles } from "lucide-react";
 import type { Patient } from "@/lib/wardData";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
 import type { FacingConvoState } from "@/lib/patientFacingData";
@@ -42,6 +46,7 @@ export default function Form2Workspace({
   userId,
   initialForm2,
   onForm2Persisted,
+  onOpenEvidenceReview,
   facingState,
   onChangeFacingState,
 }: {
@@ -50,6 +55,8 @@ export default function Form2Workspace({
   // 様式2 の初期表示（AppShell のセッション snapshot 優先・無ければサーバ値）。保存の正は Supabase。
   initialForm2: Form2Snapshot | null;
   onForm2Persisted?: (snapshot: Form2Snapshot) => void;
+  // 第2段階「Evidence 整理」ビューへの導線（様式2 ヘッダー右の控えめなボタン）。
+  onOpenEvidenceReview?: () => void;
   // 会話（患者との会話）の状態。Core の会話画面と同一 state を共有する（AppShell が患者別に保持）。
   facingState: FacingConvoState;
   onChangeFacingState: (next: FacingConvoState) => void;
@@ -115,13 +122,26 @@ export default function Form2Workspace({
         className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-[#F2F2F7]"
       >
         <div className="mx-auto w-full max-w-[900px] px-4 py-5">
-          <header className="no-print mb-3">
-            <h2 className="text-[15px] font-bold text-[#1D1D1F]">
-              精神様式2 受け持ち対象記録
-            </h2>
-            <p className="mt-0.5 text-[12px] leading-relaxed text-[#8E8E93]">
-              左の電子カルテ・患者との会話を参照しながら、受け持ち対象記録へ整理します。自動保存されます。
-            </p>
+          <header className="no-print mb-3 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-bold text-[#1D1D1F]">
+                精神様式2 受け持ち対象記録
+              </h2>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-[#8E8E93]">
+                左の電子カルテ・患者との会話を参照しながら、受け持ち対象記録へ整理します。自動保存されます。
+              </p>
+            </div>
+            {/* 第2段階「Evidence 整理」への控えめな導線（様式2 本文を押し下げない）。 */}
+            {onOpenEvidenceReview && (
+              <button
+                type="button"
+                onClick={onOpenEvidenceReview}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#D6E6FA] bg-[#F2F7FF] px-3 py-1.5 text-[12px] font-medium text-[#0A6CD6] transition hover:bg-[#E4EFFF]"
+              >
+                <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
+                患者理解を深める
+              </button>
+            )}
           </header>
           <WorkspaceForm2Section
             patientId={patient.id}

@@ -16,6 +16,7 @@ import {
   type Form2History,
   type Form2Period,
   type Form2Student,
+  type Form2Treatment,
 } from "@/lib/form2/form2Types";
 import { caseIdForPatient } from "@/lib/v2/notebook/caseId";
 import {
@@ -279,10 +280,10 @@ export function useForm2Supabase({
     [onEdited],
   );
   const updateTreatment = useCallback(
-    (value: string) =>
+    (patch: Partial<Form2Treatment>) =>
       onEdited({
         ...dataRef.current,
-        treatment: { ...dataRef.current.treatment, policyAndContent: value },
+        treatment: { ...dataRef.current.treatment, ...patch },
       }),
     [onEdited],
   );
