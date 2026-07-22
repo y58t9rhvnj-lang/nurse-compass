@@ -11,9 +11,11 @@ export default async function V2IndexPage() {
   const profile = await getCurrentProfile();
   if (!profile || !profile.isActive) redirect("/v2/login");
 
-  // admin は今回 teacher 相当（admin 専用画面は未実装）。
-  if (profile.role === "teacher" || profile.role === "admin") {
-    redirect("/v2/teacher");
-  }
+  // 初回パスワード未変更のユーザーは、role 別画面より先に変更画面へ誘導する。
+  if (profile.mustChangePassword) redirect("/v2/change-password");
+
+  // role 別ルーティング（student / teacher / admin）。
+  if (profile.role === "admin") redirect("/v2/admin");
+  if (profile.role === "teacher") redirect("/v2/teacher");
   redirect("/v2/student");
 }
