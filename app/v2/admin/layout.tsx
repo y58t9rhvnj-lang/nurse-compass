@@ -18,5 +18,11 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   await requireRole("admin");
-  return children;
+  // globals.css は html/body に overflow:hidden; height:100dvh を課しており
+  // （iPad バウンス防止のアプリシェル設計）、各画面が内部スクロール領域を持つ前提。
+  // Admin ページは通常のドキュメントフローなので、ここで /v2/admin/* 専用の
+  // 縦スクロール領域を用意する（集計 → 登録ボタン → 一覧 まで到達できるようにする）。
+  return (
+    <div className="h-dvh overflow-y-auto overscroll-contain">{children}</div>
+  );
 }

@@ -265,9 +265,9 @@ export default function ImportForm() {
             <Stat label="形式エラー" value={previewCounts.validationErrorCount} />
           </dl>
 
-          <RowList rows={previewRows} />
-
-          <div className="flex items-center gap-3">
+          {/* 登録アクションは一覧の「上」に置き、長いプレビュー行に隠れないようにする。
+              登録可能件数 > 0 の場合は必ず表示する（0件のときのみ無効化＋案内）。 */}
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
             <button
               type="button"
               onClick={onImport}
@@ -284,6 +284,8 @@ export default function ImportForm() {
               </span>
             ) : null}
           </div>
+
+          <RowList rows={previewRows} />
         </div>
       ) : null}
     </div>
