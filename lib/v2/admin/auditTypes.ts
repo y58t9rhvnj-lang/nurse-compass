@@ -12,6 +12,11 @@ export const ADMIN_AUDIT_ACTIONS = {
   USER_REACTIVATE: "user.reactivate",
   PASSWORD_RESET: "user.password_reset",
   CSV_IMPORT: "user.csv_import",
+  // D-3F: 学生管理（氏名編集・利用停止/再開・初期パスワードリセット）。
+  STUDENT_PROFILE_UPDATED: "student.profile_updated",
+  STUDENT_DEACTIVATED: "student.deactivated",
+  STUDENT_REACTIVATED: "student.reactivated",
+  STUDENT_PASSWORD_RESET: "student.password_reset",
 } as const;
 
 export const ADMIN_AUDIT_TARGET_TYPES = {

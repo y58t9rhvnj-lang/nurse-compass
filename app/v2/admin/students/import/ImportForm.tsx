@@ -114,6 +114,19 @@ export default function ImportForm() {
     useState<StudentCsvImportCounts | null>(null);
   const [auditWarning, setAuditWarning] = useState(false);
 
+  // 完了後に「続けてCSV登録」する場合、フォームを初期状態へ戻す。
+  function onStartOver() {
+    setFileName("");
+    setCsvText("");
+    setError(null);
+    setPreviewRows([]);
+    setPreviewCounts(null);
+    setResultRows([]);
+    setResultCounts(null);
+    setAuditWarning(false);
+    setPhase("idle");
+  }
+
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
     setPhase("idle");
@@ -205,13 +218,20 @@ export default function ImportForm() {
 
         <RowList rows={resultRows} />
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Link
             href="/v2/admin/students"
             className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700"
           >
-            学生一覧へ
+            学生一覧を確認
           </Link>
+          <button
+            type="button"
+            onClick={onStartOver}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            続けてCSV登録
+          </button>
         </div>
       </div>
     );

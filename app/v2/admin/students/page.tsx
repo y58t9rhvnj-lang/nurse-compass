@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdminProfile } from "@/lib/v2/auth/currentUser";
 import { listStudents, STUDENTS_PAGE_SIZE } from "@/lib/v2/admin/studentRepository";
 import type { AdminStudentListItem } from "@/lib/v2/admin/studentTypes";
+import StudentManagementNav from "@/components/v2/admin/StudentManagementNav";
 import StudentSearchForm from "./StudentSearchForm";
 
 export const dynamic = "force-dynamic";
@@ -92,23 +93,11 @@ export default async function AdminStudentsPage({
         </Link>
       </div>
 
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <header className="mb-4">
         <h1 className="text-2xl font-bold text-slate-900">学生一覧</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/v2/admin/students/import"
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            CSV一括登録
-          </Link>
-          <Link
-            href="/v2/admin/students/new"
-            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700"
-          >
-            学生を登録
-          </Link>
-        </div>
       </header>
+
+      <StudentManagementNav current="list" />
 
       <div className="mb-4">
         <StudentSearchForm defaultQuery={q} />

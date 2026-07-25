@@ -134,12 +134,18 @@ export default function NewStudentForm() {
           学生は初回ログイン後、必ずパスワードの変更を求められます。
         </p>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Link
             href={`/v2/admin/students/${success.studentId}?created=1`}
             className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700"
           >
             学生詳細へ
+          </Link>
+          <Link
+            href="/v2/admin/students"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            学生一覧へ戻る
           </Link>
         </div>
       </div>

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import NewStudentForm from "./NewStudentForm";
+import StudentManagementNav from "@/components/v2/admin/StudentManagementNav";
 
 export const dynamic = "force-dynamic";
 
@@ -7,14 +7,7 @@ export const dynamic = "force-dynamic";
 export default function NewStudentPage() {
   return (
     <main className="mx-auto w-full max-w-xl px-4 py-8 sm:px-6">
-      <div className="mb-2">
-        <Link
-          href="/v2/admin/students"
-          className="text-sm text-sky-700 hover:underline"
-        >
-          ← 学生一覧
-        </Link>
-      </div>
+      <StudentManagementNav current="new" />
 
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">学生を登録</h1>

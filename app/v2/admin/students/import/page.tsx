@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { requireAdminProfile } from "@/lib/v2/auth/currentUser";
 import ImportForm from "./ImportForm";
+import StudentManagementNav from "@/components/v2/admin/StudentManagementNav";
 
 export const dynamic = "force-dynamic";
 
@@ -10,14 +10,7 @@ export default async function ImportStudentsPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <div className="mb-2">
-        <Link
-          href="/v2/admin/students"
-          className="text-sm text-sky-700 hover:underline"
-        >
-          ← 学生一覧
-        </Link>
-      </div>
+      <StudentManagementNav current="import" />
 
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">CSV一括登録</h1>
