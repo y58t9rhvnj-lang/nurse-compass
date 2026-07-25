@@ -1,13 +1,14 @@
+import Link from "next/link";
 import { getCurrentProfile } from "@/lib/v2/auth/currentUser";
 import LogoutButton from "@/components/v2/LogoutButton";
 
 export const dynamic = "force-dynamic";
 
-// Admin ホーム（D-3C 時点の最小プレースホルダ）。
+// Admin ホーム。
 // role 判定は app/v2/admin/layout.tsx の requireRole("admin") に集約済み。
 // ここでは表示用にプロフィールのみ取得する（重複した role 判定は行わない）。
-// 学生/教員一覧・登録フォーム・CSV・パスワードリセット・監査ログ一覧・
-// ダッシュボード指標は、後続スプリントで実装する（本ページには置かない）。
+// 実装済みの学生管理機能への導線のみを置く。未実装機能のリンクは追加しない。
+// スクロールは app/v2/admin/layout.tsx の単一コンテナに委ねる（本ページでは追加しない）。
 export default async function AdminHomePage() {
   const profile = await getCurrentProfile();
 
@@ -30,8 +31,71 @@ export default async function AdminHomePage() {
         <LogoutButton />
       </header>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-slate-700">管理者機能は準備中です。</p>
+      <section aria-labelledby="admin-menu-heading" className="space-y-4">
+        <h2
+          id="admin-menu-heading"
+          className="text-sm font-semibold text-slate-500"
+        >
+          学生管理
+        </h2>
+
+        {/* 主導線：学生管理（最も分かりやすく強調） */}
+        <Link
+          href="/v2/admin/students"
+          className="group flex min-h-[88px] flex-col justify-center rounded-xl border border-sky-200 bg-sky-50 p-6 shadow-sm transition hover:border-sky-400 hover:bg-sky-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+        >
+          <span className="flex items-center gap-2 text-lg font-bold text-sky-900">
+            学生管理
+            <span
+              aria-hidden="true"
+              className="text-sky-500 transition group-hover:translate-x-0.5"
+            >
+              →
+            </span>
+          </span>
+          <span className="mt-1 text-sm text-sky-800/80">
+            学生一覧の確認、氏名修正、利用停止、パスワード初期化
+          </span>
+        </Link>
+
+        {/* 副導線：登録系（狭い画面では縦並び、広い画面では2列） */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Link
+            href="/v2/admin/students/new"
+            className="group flex min-h-[88px] flex-col justify-center rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+          >
+            <span className="flex items-center gap-2 text-base font-semibold text-slate-900">
+              学生を1名登録
+              <span
+                aria-hidden="true"
+                className="text-slate-400 transition group-hover:translate-x-0.5"
+              >
+                →
+              </span>
+            </span>
+            <span className="mt-1 text-sm text-slate-500">
+              学生アカウントを個別に登録
+            </span>
+          </Link>
+
+          <Link
+            href="/v2/admin/students/import"
+            className="group flex min-h-[88px] flex-col justify-center rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+          >
+            <span className="flex items-center gap-2 text-base font-semibold text-slate-900">
+              CSV一括登録
+              <span
+                aria-hidden="true"
+                className="text-slate-400 transition group-hover:translate-x-0.5"
+              >
+                →
+              </span>
+            </span>
+            <span className="mt-1 text-sm text-slate-500">
+              CSVファイルから学生をまとめて登録
+            </span>
+          </Link>
+        </div>
       </section>
     </main>
   );
