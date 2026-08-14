@@ -59,7 +59,7 @@ export default function Form3Header({
               </span>
             ) : null}
           </h1>
-          <p className="mt-0.5 text-[12px] text-[#8E8E93]">
+          <p className="mt-0.5 hidden text-[12px] text-[#8E8E93] xl:block">
             1つの健康パターンに集中して、患者理解を深めます
           </p>
         </div>
