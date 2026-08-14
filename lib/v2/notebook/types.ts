@@ -10,6 +10,10 @@
 
 import type { Form2Data } from "@/lib/form2/form2Types";
 import type {
+  Form3Data,
+  Form3PatternKey,
+} from "@/lib/form3/form3Types";
+import type {
   InformationCard,
   InformationSourceReference,
   InformationSourceType,
@@ -53,6 +57,74 @@ export type Form2SaveResult =
       kind: Exclude<ActionErrorKind, "conflict">;
       message: string;
     };
+
+// ===== 様式3 =====
+// SaveResult の kind は Day 2 仕様の語彙（saved / conflict / validation_error 等）を使う。
+// Form2 の ActionErrorKind（unauthorized / validation / db_error）とは別名だが、意味は対応する。
+
+export interface Form3Snapshot {
+  payload: Form3Data;
+  /** DB レコードバージョン（楽観ロック）。payload.schemaVersion とは別物。 */
+  version: number;
+  updatedAt: string;
+}
+
+export interface Form3SaveInput {
+  patientId: string;
+  /** クライアント由来。sanitize 後にのみ保存する。 */
+  payload: unknown;
+  /** 初回保存は null、更新は現在の DB version。 */
+  expectedVersion: number | null;
+}
+
+export type Form3SaveWarning = {
+  code: "invalid_reviewed_reset";
+  patternKey: Form3PatternKey;
+};
+
+export type Form3ActionErrorKind =
+  | "validation_error"
+  | "auth_error"
+  | "not_found"
+  | "database_error";
+
+export type Form3LoadResult =
+  | { ok: true; data: Form3Snapshot | null }
+  | { ok: false; kind: Form3ActionErrorKind; message: string };
+
+export type Form3SaveResult =
+  | {
+      ok: true;
+      kind: "saved";
+      data: Form3Snapshot;
+      warnings: Form3SaveWarning[];
+    }
+  | {
+      ok: false;
+      kind: "conflict";
+      message: string;
+      latest: Form3Snapshot | null;
+    }
+  | { ok: false; kind: Form3ActionErrorKind; message: string };
+
+/** classifyDbError の結果を Form3 Save/Load の kind へ写す。 */
+export function toForm3ActionErrorKind(
+  kind: Exclude<ActionErrorKind, "conflict">,
+): Form3ActionErrorKind {
+  switch (kind) {
+    case "unauthorized":
+    case "not_configured":
+      return "auth_error";
+    case "validation":
+      return "validation_error";
+    case "not_found":
+      return "not_found";
+    case "duplicate":
+    case "db_error":
+    default:
+      return "database_error";
+  }
+}
 
 // ===== 情報カード =====
 

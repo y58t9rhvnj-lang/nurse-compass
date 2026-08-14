@@ -146,11 +146,18 @@ type Form3PatternData = {
 
 ---
 
-## 9. Day 2 予定
+## 9. Day 2（保存基盤）
 
-- `0016_form3_records.sql` 作成（適用は承認後）
-- `form3Repository` / `form3Mapper` / `saveForm3Action` / `loadForm3Action`
-- sanitize・楽観ロック・conflict 返却
+実装済み（**マイグレーション未適用・人間レビュー待ち**）:
+
+- `supabase/migrations/0016_form3_records.sql`
+- `lib/v2/notebook/form3Mapper.ts`（sanitize / Snapshot）
+- `lib/v2/notebook/form3Repository.ts`
+- `app/v2/actions/form3.ts`（load / save）
+- `lib/v2/notebook/types.ts`（Form3Snapshot / SaveResult）
+- `scripts/validate-form3-day2.ts`
+
+UI / Hook / SideNav / AppShell は Day 3 以降。
 
 ---
 
