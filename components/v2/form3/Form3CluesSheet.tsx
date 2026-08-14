@@ -56,7 +56,7 @@ export default function Form3CluesSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-10 flex h-full w-full max-w-full flex-col bg-white shadow-xl sm:max-w-[28rem] md:max-w-[32rem] pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]"
+        className="relative z-10 flex h-full w-full max-w-full flex-col bg-white shadow-xl pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] lg:max-w-[36rem] xl:max-w-[40rem]"
       >
         <header className="flex shrink-0 items-start gap-3 border-b border-[#E5E5EA] px-4 py-3">
           <div className="min-w-0 flex-1">
@@ -117,7 +117,8 @@ export default function Form3CluesSheet({
               読み取り専用です。内容のコピーや転記はしません。
             </p>
             <div className="overflow-x-hidden rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] p-2">
-              <Form2SheetView data={sheetData} maxScreenScale={1.15} />
+              {/* iPad 全幅 Sheet では読める縮尺。狭い PC サイドでもはみ出さない */}
+              <Form2SheetView data={sheetData} maxScreenScale={2.2} />
             </div>
           </section>
         </div>
