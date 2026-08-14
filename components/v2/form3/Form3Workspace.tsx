@@ -67,6 +67,7 @@ export default function Form3Workspace({
   );
   const [reviewIssues, setReviewIssues] = useState<Form3ReviewIssue[]>([]);
   const [cluesOpen, setCluesOpen] = useState(false);
+  const editorScrollRef = useRef<HTMLElement | null>(null);
 
   const navItems = useMemo(
     () => buildForm3NavItems(data, activeKey),
@@ -78,6 +79,12 @@ export default function Form3Workspace({
   );
 
   const pattern = data.patterns[activeKey];
+
+  // パターン切替時は編集領域を先頭へ戻し、別パターンの途中表示に見えないようにする。
+  useEffect(() => {
+    const el = editorScrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [activeKey]);
 
   const handleSelect = (key: Form3PatternKey) => {
     setActiveKey(key);
@@ -128,7 +135,10 @@ export default function Form3Workspace({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden xl:flex-row">
         <Form3PatternNav items={navItems} onSelect={handleSelect} />
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <main
+          ref={editorScrollRef}
+          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        >
           <Form3PatternEditor
             patternKey={activeKey}
             pattern={pattern}
