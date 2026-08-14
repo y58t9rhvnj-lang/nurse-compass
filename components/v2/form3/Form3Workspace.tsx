@@ -59,6 +59,7 @@ export default function Form3Workspace({
     loadLatestOnConflict,
     restoreDraft,
     discardDraft,
+    flush,
   } = useForm3Supabase({ patientId, userId, initial, onPersisted });
 
   const [activeKey, setActiveKey] = useState<Form3PatternKey>(() =>

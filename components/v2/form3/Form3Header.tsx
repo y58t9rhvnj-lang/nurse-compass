@@ -16,6 +16,8 @@ export type Form3HeaderProps = {
   onLoadLatest?: () => void;
   /** 「患者理解の手がかり」参照シートを開く（転記ではない） */
   onOpenClues?: () => void;
+  /** 保存失敗時の明示再試行（オートセーブ失敗からの復帰） */
+  onRetrySave?: () => void;
 };
 
 export default function Form3Header({
@@ -27,6 +29,7 @@ export default function Form3Header({
   totalPatterns,
   onLoadLatest,
   onOpenClues,
+  onRetrySave,
 }: Form3HeaderProps) {
   const saveView = getForm3SaveStatusView(saveStatus, lastSavedAt, hydrated);
   const progressLabel = formatForm3OverallProgressLabel(
