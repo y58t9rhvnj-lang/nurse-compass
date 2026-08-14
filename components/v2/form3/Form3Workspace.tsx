@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Form3CluesSheet from "@/components/v2/form3/Form3CluesSheet";
 import Form3Header from "@/components/v2/form3/Form3Header";
 import Form3PatternEditor from "@/components/v2/form3/Form3PatternEditor";
@@ -99,6 +99,7 @@ export default function Form3Workspace({
             : undefined
         }
         onOpenClues={showClues ? () => setCluesOpen(true) : undefined}
+        onRetrySave={saveStatus === "error" ? flush : undefined}
       />
 
       {pendingDraft ? (
