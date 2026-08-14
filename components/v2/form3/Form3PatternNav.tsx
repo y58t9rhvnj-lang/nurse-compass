@@ -16,10 +16,10 @@ export default function Form3PatternNav({
   return (
     <nav
       aria-label="健康パターン一覧"
-      className="shrink-0 border-b border-[#E5E5EA] bg-white md:border-b-0 md:border-r"
+      className="shrink-0 border-b border-[#E5E5EA] bg-white xl:border-b-0 xl:border-r"
     >
-      {/* iPad / 狭幅: 横スクロールチップ */}
-      <ul className="flex gap-2 overflow-x-auto overscroll-x-contain px-3 py-2.5 [-ms-overflow-style:none] [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+      {/* iPad First: xl 未満は横スクロールチップ。xl 以上のみ PC 縦ナビ。 */}
+      <ul className="flex gap-2 overflow-x-auto overscroll-x-contain px-3 py-2.5 [-ms-overflow-style:none] [scrollbar-width:none] xl:hidden [&::-webkit-scrollbar]:hidden">
         {items.map((item) => (
           <li key={item.key} className="shrink-0">
             <NavChip item={item} onSelect={onSelect} />
@@ -27,8 +27,8 @@ export default function Form3PatternNav({
         ))}
       </ul>
 
-      {/* PC: 縦リスト（1カラム側） */}
-      <ul className="hidden max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain p-2 md:block md:w-[13.5rem] lg:w-[15rem]">
+      {/* PC（広い画面）: 縦リスト */}
+      <ul className="hidden max-h-full overflow-y-auto overscroll-contain p-2 xl:block xl:w-[13.5rem] 2xl:w-[15rem]">
         {items.map((item) => (
           <li key={item.key}>
             <NavRow item={item} onSelect={onSelect} />

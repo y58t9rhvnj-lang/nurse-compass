@@ -122,8 +122,8 @@ export default function Form3Workspace({
         </div>
       ) : null}
 
-      {/* iPad: 縦積み（ナビ横スクロール＋本体1カラム）。PC: 左ナビ＋右エディタ。メインスクロールは本体1本。 */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row">
+      {/* iPad First: xl 未満は縦積み（チップ＋1カラム）。広い PC のみ横並び。 */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden xl:flex-row">
         <Form3PatternNav items={navItems} onSelect={handleSelect} />
 
         <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-[max(1.5rem,env(safe-area-inset-bottom))]">
