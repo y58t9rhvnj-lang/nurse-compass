@@ -101,6 +101,15 @@ export default function Form3Header({
                 最新版を読み込む
               </button>
             ) : null}
+            {saveStatus === "error" && onRetrySave ? (
+              <button
+                type="button"
+                onClick={onRetrySave}
+                className="inline-flex min-h-[44px] items-center rounded-lg border border-[#D1D1D6] bg-white px-3 text-[12px] font-semibold text-[#3A3A3C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A84FF]"
+              >
+                もう一度保存を試す
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
