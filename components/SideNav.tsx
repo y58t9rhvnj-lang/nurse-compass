@@ -8,6 +8,7 @@ import {
   ClipboardList,
   FileText,
   Home,
+  LayoutList,
   LogOut,
   MessageCircle,
   Network,
@@ -29,6 +30,7 @@ export type AppView =
   | "chart"
   | "workspace"
   | "form2"
+  | "form3"
   | "patient-top"
   | "conversation"
   | "clinical-workspace"
@@ -90,6 +92,7 @@ export const STUDENT_NAV_ITEMS: NavItem[] = [
   { label: "電子カルテ", icon: FileText, view: "chart" },
   { label: "思考ワークスペース", icon: NotebookPen, view: "clinical-workspace" },
   { label: "様式2", icon: ClipboardList, view: "form2" },
+  { label: "様式3", icon: LayoutList, view: "form3" },
   { label: "情報BOX", icon: MessageCircle, badge: 2 },
   { label: "申し送り", icon: MessageCircle },
   { label: "スケジュール", icon: Calendar },

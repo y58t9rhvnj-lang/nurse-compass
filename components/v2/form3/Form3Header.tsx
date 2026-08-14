@@ -14,6 +14,8 @@ export type Form3HeaderProps = {
   reviewedCount: number;
   totalPatterns: number;
   onLoadLatest?: () => void;
+  /** 「患者理解の手がかり」参照シートを開く（転記ではない） */
+  onOpenClues?: () => void;
 };
 
 export default function Form3Header({
@@ -24,6 +26,7 @@ export default function Form3Header({
   reviewedCount,
   totalPatterns,
   onLoadLatest,
+  onOpenClues,
 }: Form3HeaderProps) {
   const saveView = getForm3SaveStatusView(saveStatus, lastSavedAt, hydrated);
   const progressLabel = formatForm3OverallProgressLabel(
@@ -59,12 +62,23 @@ export default function Form3Header({
         </div>
 
         <div className="flex w-full flex-col items-stretch gap-1.5 sm:ml-auto sm:w-auto sm:items-end">
-          <p
-            className="text-[12px] font-medium tabular-nums text-[#3A3A3C]"
-            aria-label={progressLabel}
-          >
-            {progressLabel}
-          </p>
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            {onOpenClues ? (
+              <button
+                type="button"
+                onClick={onOpenClues}
+                className="inline-flex min-h-[44px] items-center rounded-lg border border-[#D1D1D6] bg-white px-3 text-[12px] font-medium text-[#3A3A3C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A84FF]"
+              >
+                患者理解の手がかり
+              </button>
+            ) : null}
+            <p
+              className="text-[12px] font-medium tabular-nums text-[#3A3A3C]"
+              aria-label={progressLabel}
+            >
+              {progressLabel}
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             {saveView.label ? (
               <span

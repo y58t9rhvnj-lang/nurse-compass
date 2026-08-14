@@ -20,7 +20,7 @@ import { EvidenceProvider } from "@/components/v2/notebook/EvidenceContext";
 import { useEvidenceSupabase } from "@/hooks/v2/useEvidenceSupabase";
 import { useNotesSupabase } from "@/hooks/v2/useNotesSupabase";
 import type { StudentNoteRecord } from "@/lib/v2/notebook/studentNoteMapper";
-import type { Form2Snapshot } from "@/lib/v2/notebook/types";
+import type { Form2Snapshot, Form3Snapshot } from "@/lib/v2/notebook/types";
 import type { InformationCard } from "@/lib/information/informationCard";
 import { useWorkspaceInspector } from "@/hooks/v2/useWorkspaceInspector";
 import { useQuestionPanel } from "@/hooks/v2/useQuestionPanel";
@@ -108,6 +108,10 @@ export interface AppShellProps {
   // V2 様式2 の初期スナップショット（server page が Repository から取得して注入）。
   // V1 既定は undefined（V1 分岐では未使用）。
   initialForm2?: Form2Snapshot | null;
+  // V2 様式3 の初期スナップショット（Day5）。V1 既定は undefined。
+  initialForm3?: Form3Snapshot | null;
+  // 「私が捉えた患者さん」参照テキスト（様式3の手がかり用・読み取り専用）。
+  initialPatientOverviewText?: string;
   // サイドバー識別情報。既定は看護師プロフィール（V1）。V2 は学生本人。
   identity?: SideNavIdentity;
   // V2 の受け持ち対象固定（例 "A"）。指定時は病棟マップ選択を出さない。
@@ -185,6 +189,8 @@ export default function AppShell({
   fixedPatientId,
   inspectorEnabled = false,
   initialForm2,
+  initialForm3,
+  initialPatientOverviewText,
   initialEvidence,
   initialNotes,
 }: AppShellProps = {}) {
@@ -261,6 +267,12 @@ export default function AppShell({
     setPendingQuestion(null);
     setActiveView("evidence-review");
   };
+  // V2 Day5: 様式3 Assessment Workspace（Learning Layer）。
+  const goForm3 = () => {
+    setNotice(null);
+    setPendingQuestion(null);
+    setActiveView("form3");
+  };
   // 電子カルテを開く。tab 指定時はそのタブから、focus 指定時は該当記録へ移動・強調。
   const goChart = (tab?: ChartTabId, focus?: ChartFocus) => {
     setNotice(null);
@@ -287,6 +299,7 @@ export default function AppShell({
     else if (view === "workspace" && NOTEBOOK_ENABLED) goWorkspace();
     // 様式2 は V1 では flag 依存、V2 では常に到達可能（flag は変更しない）。
     else if (view === "form2" && (FORM2_ENABLED || mode === "v2")) goForm2();
+    else if (view === "form3" && mode === "v2") goForm3();
   };
 
   // ── Version2 学習支援 Inspector（P4） ───────────────────────────
@@ -360,6 +373,18 @@ export default function AppShell({
   );
   // 再マウント時の initial: 同一セッションの保存済みスナップショット優先・無ければサーバ値。
   const effectiveForm2 = form2Sessions[selectedId] ?? initialForm2 ?? null;
+
+  // 様式3 も同様にセッション内スナップショットを保持（ビュー切替での巻き戻り防止）。
+  const [form3Sessions, setForm3Sessions] = useState<
+    Record<string, Form3Snapshot>
+  >({});
+  const handleForm3Persisted = useCallback(
+    (snapshot: Form3Snapshot) => {
+      setForm3Sessions((prev) => ({ ...prev, [selectedId]: snapshot }));
+    },
+    [selectedId],
+  );
+  const effectiveForm3 = form3Sessions[selectedId] ?? initialForm3 ?? null;
 
   // ── Learning Layer 対象患者ガード（受入確認で発見した不整合の修正） ──────────
   // 現段階の Version2 では、Learning Layer（思考ワークスペース・Evidence・様式2）は
@@ -485,6 +510,9 @@ export default function AppShell({
                 patient={selectedPatient}
                 initialForm2={effectiveForm2}
                 onForm2Persisted={handleForm2Persisted}
+                initialForm3={effectiveForm3}
+                onForm3Persisted={handleForm3Persisted}
+                patientOverviewText={initialPatientOverviewText ?? ""}
                 onOpenEvidenceReview={goEvidenceReview}
                 facingState={facingState}
                 onChangeFacingState={setFacingState}
