@@ -14,7 +14,7 @@ import type { Form2Snapshot, Form3Snapshot } from "@/lib/v2/notebook/types";
 import type { FacingConvoState } from "@/lib/patientFacingData";
 import type { Form2Data } from "@/lib/form2/form2Types";
 import Form2Workspace from "@/components/v2/workspace/Form2Workspace";
-import Form3PhaseBPlaceholder from "@/components/v2/form3/Form3PhaseBPlaceholder";
+import Form3PhaseBWorkspace from "@/components/v2/form3/Form3PhaseBWorkspace";
 import Form3Workspace from "@/components/v2/form3/Form3Workspace";
 import {
   isLearningWorkspaceView,
@@ -66,7 +66,14 @@ export default function WorkspaceHost({
       );
     case "form3": {
       if (isFeatureEnabled("form3PhaseB")) {
-        return <Form3PhaseBPlaceholder patientName={patient.name} />;
+        return (
+          <Form3PhaseBWorkspace
+            patientId={patient.id}
+            patientName={patient.name}
+            userId={userId}
+            initial={initialForm3}
+          />
+        );
       }
       const form2Data: Form2Data | null = initialForm2?.payload ?? null;
       return (
