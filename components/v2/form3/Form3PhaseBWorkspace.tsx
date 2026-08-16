@@ -5,6 +5,7 @@ import Form3InformationCardList from "@/components/v2/form3/Form3InformationCard
 import { getForm3PhaseBPersistLabel } from "@/components/v2/form3/form3PhaseBLabels";
 import { useForm3Supabase } from "@/hooks/v2/useForm3Supabase";
 import type { Form3PatternKey } from "@/lib/form3/form3Types";
+import type { Form3V2AutosaveReason } from "@/lib/form3/v2/form3V2AutosaveReasons";
 import { createEmptyForm3V2 } from "@/lib/form3/v2/form3V2Factory";
 import {
   addForm3InformationCard,
@@ -29,8 +30,9 @@ export type Form3PhaseBWorkspaceProps = {
 };
 
 /**
- * Form3 Phase B Workspace（B3: Information Card UI）。
- * Autosave / saveNowV2 は接続しない。編集時は markUserEditedV2 のみ。
+ * Form3 Phase B Workspace（B3 UI + B2-2C2 Autosave Activation）。
+ * 操作後は markUserEditedV2(next, reason) のみ。
+ * saveNowV2 は呼ばない（Hook 内 Controller が debounce → flush）。
  */
 export default function Form3PhaseBWorkspace({
   patientId,
@@ -64,14 +66,14 @@ export default function Form3PhaseBWorkspace({
   });
 
   const applyEdit = useCallback(
-    (next: Form3DataV2) => {
-      markUserEditedV2(next);
+    (next: Form3DataV2, reason: Form3V2AutosaveReason) => {
+      markUserEditedV2(next, reason);
     },
     [markUserEditedV2],
   );
 
   const onAdd = useCallback(() => {
-    applyEdit(addForm3InformationCard(data));
+    applyEdit(addForm3InformationCard(data), "information_added");
   }, [applyEdit, data]);
 
   const onPatch = useCallback(
@@ -84,35 +86,50 @@ export default function Form3PhaseBWorkspace({
         patternKeys?: Form3PatternKey[];
       },
     ) => {
-      applyEdit(updateForm3InformationCard(data, cardId, patch));
+      applyEdit(
+        updateForm3InformationCard(data, cardId, patch),
+        "information_updated",
+      );
     },
     [applyEdit, data],
   );
 
   const onArchive = useCallback(
     (cardId: string) => {
-      applyEdit(archiveForm3InformationCard(data, cardId));
+      applyEdit(
+        archiveForm3InformationCard(data, cardId),
+        "information_archived",
+      );
     },
     [applyEdit, data],
   );
 
   const onUnarchive = useCallback(
     (cardId: string) => {
-      applyEdit(unarchiveForm3InformationCard(data, cardId));
+      applyEdit(
+        unarchiveForm3InformationCard(data, cardId),
+        "information_restored",
+      );
     },
     [applyEdit, data],
   );
 
   const onMoveUp = useCallback(
     (cardId: string) => {
-      applyEdit(moveForm3InformationCard(data, cardId, "up"));
+      applyEdit(
+        moveForm3InformationCard(data, cardId, "up"),
+        "information_reordered",
+      );
     },
     [applyEdit, data],
   );
 
   const onMoveDown = useCallback(
     (cardId: string) => {
-      applyEdit(moveForm3InformationCard(data, cardId, "down"));
+      applyEdit(
+        moveForm3InformationCard(data, cardId, "down"),
+        "information_reordered",
+      );
     },
     [applyEdit, data],
   );

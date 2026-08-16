@@ -20,6 +20,12 @@ import type { Form3SnapshotV2 } from "@/lib/form3/v2/form3V2Mapper";
 import type { Form3V2PersistGateResult } from "@/lib/form3/v2/form3V2SaveGate";
 import type { Form3DataV2 } from "@/lib/form3/v2/form3V2Types";
 import {
+  createForm3V2AutosaveController,
+  type Form3V2AutosaveController,
+  type Form3V2AutosaveSaveResult,
+} from "@/lib/form3/v2/form3V2AutosaveController";
+import type { Form3V2AutosaveReason } from "@/lib/form3/v2/form3V2AutosaveReasons";
+import {
   applyForm3V2SaveConflict,
   applyForm3V2SaveError,
   applyForm3V2SaveSuccess,
@@ -62,7 +68,8 @@ import type {
 // 様式3 を Supabase（Server Action 経由）へ保存する V2 専用フック。
 //
 // Phase B2-2A: Flag ON で読込 hydrate（dirty なし・save なし）。
-// Phase B2-2B: Flag ON で明示保存 saveNowV2 / flushV2（Autosave なし）。
+// Phase B2-2B: Flag ON で明示保存 saveNowV2 / flushV2。
+// Phase B2-2C2: Flag ON で Autosave Activation（Controller + enableTimer）。
 // Flag OFF: 従来 v1 autosave 経路のみ。
 
 const AUTOSAVE_DEBOUNCE_MS = 1000;
@@ -160,6 +167,14 @@ export function useForm3Supabase({
   const saveRef = useRef<() => Promise<void>>(async () => {});
   const onPersistedRef = useRef(onPersisted);
   const onPersistedV2Ref = useRef(onPersistedV2);
+  const saveNowV2Ref = useRef<
+    (opts?: { requireUserEdit?: boolean }) => Promise<SaveNowV2Result>
+  >(async () => ({
+    ok: false,
+    kind: "error",
+    message: "saveNowV2 not ready",
+  }));
+  const autosaveControllerRef = useRef<Form3V2AutosaveController | null>(null);
 
   useEffect(() => {
     onPersistedRef.current = onPersisted;
@@ -391,9 +406,9 @@ export function useForm3Supabase({
     void saveRef.current();
   }, [phaseB]);
 
-  /** Phase B: ユーザー編集を記録（UI 未接続・テスト／将来 B3+ 用） */
+  /** Phase B: ユーザー編集を記録 → Autosave notifyDirty（C2） */
   const markUserEditedV2 = useCallback(
-    (next?: Form3DataV2) => {
+    (next?: Form3DataV2, reason?: Form3V2AutosaveReason) => {
       if (!phaseB) return;
       const current = dataV2Ref.current;
       if (!current && !next) return;
@@ -402,11 +417,16 @@ export function useForm3Supabase({
         setDataV2AndRef(marked.dataV2);
       }
       setWriteFlagsAndRef(marked.flags);
+      autosaveControllerRef.current?.notifyDirty({
+        dirty: marked.flags.dirty,
+        hasUserEdited: marked.flags.hasUserEdited,
+        reason,
+      });
     },
     [phaseB, setDataV2AndRef, setWriteFlagsAndRef],
   );
 
-  /** Phase B: 明示保存（Autosave なし） */
+  /** Phase B: 明示保存（Autosave Controller からも呼ばれる） */
   const saveNowV2 = useCallback(
     async (opts?: { requireUserEdit?: boolean }): Promise<SaveNowV2Result> => {
       if (!phaseB) {
@@ -496,6 +516,55 @@ export function useForm3Supabase({
       setWriteFlagsAndRef,
     ],
   );
+
+  useEffect(() => {
+    saveNowV2Ref.current = saveNowV2;
+  }, [saveNowV2]);
+
+  // Phase B2-2C2: Autosave Controller Activation（enableTimer）
+  useEffect(() => {
+    if (!phaseB) {
+      autosaveControllerRef.current?.cancel();
+      autosaveControllerRef.current = null;
+      return;
+    }
+
+    const controller = createForm3V2AutosaveController({
+      getGateInput: () => {
+        const flags = writeFlagsRef.current;
+        return {
+          featureEnabled: isFeatureEnabled("form3PhaseB"),
+          hasUserEdited: flags.hasUserEdited,
+          dirty: flags.dirty,
+          saveStatus: flags.saveStatus,
+          hasConflict: flags.saveStatus === "conflict",
+        };
+      },
+      saveNowV2: async (): Promise<Form3V2AutosaveSaveResult> => {
+        const result = await saveNowV2Ref.current();
+        if (result.ok) {
+          return { ok: true, kind: "saved" };
+        }
+        if (result.kind === "gate_rejected") {
+          return { ok: false, kind: "gate_rejected", gate: result.gate };
+        }
+        if (result.kind === "conflict") {
+          return { ok: false, kind: "conflict" };
+        }
+        return { ok: false, kind: "error", message: result.message };
+      },
+      enableTimer: true,
+      debounceMs: AUTOSAVE_DEBOUNCE_MS,
+    });
+    autosaveControllerRef.current = controller;
+
+    return () => {
+      controller.cancel();
+      if (autosaveControllerRef.current === controller) {
+        autosaveControllerRef.current = null;
+      }
+    };
+  }, [phaseB]);
 
   const flushV2 = useCallback(
     async (opts?: { requireUserEdit?: boolean }) => {

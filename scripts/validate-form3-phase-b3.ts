@@ -144,7 +144,10 @@ const NOW = "2026-08-17T00:00:00.000Z";
     join(root, "components/v2/learning/workspace/WorkspaceHost.tsx"),
     "utf8",
   );
-  check("Workspace が markUserEditedV2 を使う", ws.includes("markUserEditedV2"));
+  check(
+    "Workspace が markUserEditedV2 を使う",
+    ws.includes("markUserEditedV2"),
+  );
   check(
     "Workspace が saveNowV2 を呼ばない",
     !/\bsaveNowV2\s*\(/.test(ws) && !/\bsaveNowV2\s*,/.test(ws) && !/\bsaveNowV2\s*\}/.test(ws),
@@ -152,6 +155,10 @@ const NOW = "2026-08-17T00:00:00.000Z";
   check(
     "Workspace が hasPersistedV2 をラベルに渡す",
     ws.includes("hasPersistedV2"),
+  );
+  check(
+    "Workspace が AutosaveReason を渡す",
+    ws.includes("information_added") && ws.includes("information_updated"),
   );
   check(
     "WorkspaceHost が Form3PhaseBWorkspace を使う",

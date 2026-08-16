@@ -278,9 +278,9 @@ async function main() {
       FORM3_V2_AUTOSAVE_DEBOUNCE_MS_DEFAULT === 1000,
     );
     check(
-      "Hook が AutosaveController を未 import（C1）",
-      !hookSrc.includes("form3V2AutosaveController") &&
-        !hookSrc.includes("createForm3V2AutosaveController"),
+      "Controller コメント: 既定 timer 非起動（C1 契約）",
+      ctrlSrc.includes("enableTimer: false") ||
+        ctrlSrc.includes("タイマー既定は起動しない"),
     );
     check(
       "Action に Autosave 変更なし",
@@ -291,6 +291,8 @@ async function main() {
       "FEATURE_FLAGS.form3PhaseB false",
       FEATURE_FLAGS.form3PhaseB === false,
     );
+    // Hook 接続は B2-2C2。C1 では Controller 単体契約のみ確認。
+    void hookSrc;
   }
 
   const failed = checks.filter((c) => !c.ok);

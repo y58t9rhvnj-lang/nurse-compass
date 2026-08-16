@@ -1,14 +1,15 @@
-// Form3 Phase B2-2C1 — Autosave Engine（Controller のみ）
+// Form3 Phase B2-2C1 — Autosave Engine（Controller）
+// Phase B2-2C2 — Hook が enableTimer: true で Activation（本ファイルの保存ロジックは不変）
 //
 // 目的:
 //   debounce 予約 / pending / cancel / flush / Save Gate / saveNowV2 接続
 //
-// 制約（B2-2C1）:
-//   ・タイマーはデフォルト起動しない（enableTimer: false）
-//   ・Hook / UI へは未接続
+// 制約:
+//   ・タイマー既定は起動しない（enableTimer: false）。C2 で Hook が true を渡す
 //   ・Migration のみでは schedule されない
-//   ・schedule だけでは保存しない。flush（または将来の timer）で saveNowV2
+//   ・schedule だけでは保存しない。flush（または timer）で saveNowV2
 
+import type { Form3V2AutosaveReason } from "./form3V2AutosaveReasons";
 import {
   canPersistForm3V2,
   type CanPersistForm3V2Input,
@@ -36,6 +37,8 @@ export type Form3V2AutosaveControllerState = {
   timerEnabled: boolean;
   /** タイマーが実際にセットされているか */
   timerArmed: boolean;
+  /** 直近の notifyDirty reason（C2） */
+  lastReason: Form3V2AutosaveReason | null;
 };
 
 export type Form3V2AutosaveControllerDeps = {
@@ -60,7 +63,11 @@ export type Form3V2AutosaveController = {
    * dirty && hasUserEdited のときだけ debounce 予約。
    * Migration（未編集）では予約しない。
    */
-  notifyDirty: (flags: { dirty: boolean; hasUserEdited: boolean }) => void;
+  notifyDirty: (flags: {
+    dirty: boolean;
+    hasUserEdited: boolean;
+    reason?: Form3V2AutosaveReason;
+  }) => void;
   /** 明示的に debounce 予約（Gate の dirty/edited も確認） */
   schedule: () => void;
   /** 予約キャンセル（保存しない） */
@@ -87,6 +94,7 @@ export function createForm3V2AutosaveController(
   let pending = false;
   let saving = false;
   let queued = false;
+  let lastReason: Form3V2AutosaveReason | null = null;
   let timerId: ReturnType<typeof setTimeout> | null = null;
 
   function clearTimer() {
@@ -104,6 +112,7 @@ export function createForm3V2AutosaveController(
       debounceMs,
       timerEnabled,
       timerArmed: timerId !== null,
+      lastReason,
     };
   }
 
@@ -134,7 +143,14 @@ export function createForm3V2AutosaveController(
     armTimerIfEnabled();
   }
 
-  function notifyDirty(flags: { dirty: boolean; hasUserEdited: boolean }): void {
+  function notifyDirty(flags: {
+    dirty: boolean;
+    hasUserEdited: boolean;
+    reason?: Form3V2AutosaveReason;
+  }): void {
+    if (flags.reason !== undefined) {
+      lastReason = flags.reason;
+    }
     if (!flags.dirty || !flags.hasUserEdited) {
       return;
     }
