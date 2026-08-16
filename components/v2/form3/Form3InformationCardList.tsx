@@ -6,6 +6,7 @@ import type {
   Form3InformationCardV2,
   Form3InformationSourceType,
   Form3SoType,
+  Form3SourceReference,
 } from "@/lib/form3/v2/form3V2Types";
 
 export type Form3InformationCardListProps = {
@@ -19,6 +20,8 @@ export type Form3InformationCardListProps = {
       content?: string;
       soType?: Form3SoType | null;
       sourceType?: Form3InformationSourceType;
+      sourceLabel?: string | null;
+      sourceReference?: Form3SourceReference | null;
       patternKeys?: Form3PatternKey[];
     },
   ) => void;

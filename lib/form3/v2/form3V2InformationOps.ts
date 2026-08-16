@@ -9,12 +9,15 @@ import type {
   Form3InformationCardV2,
   Form3InformationSourceType,
   Form3SoType,
+  Form3SourceReference,
 } from "./form3V2Types";
 
 export type Form3InformationCardPatch = Partial<{
   content: string;
   soType: Form3SoType | null;
   sourceType: Form3InformationSourceType;
+  sourceReference: Form3SourceReference | null;
+  sourceLabel: string | null;
   patternKeys: Form3PatternKey[];
   status: Form3InformationCardStatus;
 }>;
@@ -89,14 +92,33 @@ export function updateForm3InformationCard(
     ...data,
     informationCards: data.informationCards.map((c) => {
       if (c.id !== cardId) return c;
-      return {
+      const {
+        sourceLabel,
+        sourceReference,
+        patternKeys,
+        ...rest
+      } = patch;
+      const next: Form3InformationCardV2 = {
         ...c,
-        ...patch,
-        patternKeys: patch.patternKeys
-          ? [...new Set(patch.patternKeys)]
-          : c.patternKeys,
+        ...rest,
+        patternKeys: patternKeys ? [...new Set(patternKeys)] : c.patternKeys,
         updatedAt: t,
       };
+      if (sourceLabel !== undefined) {
+        if (sourceLabel === null || sourceLabel.trim() === "") {
+          delete next.sourceLabel;
+        } else {
+          next.sourceLabel = sourceLabel;
+        }
+      }
+      if (sourceReference !== undefined) {
+        if (sourceReference === null) {
+          delete next.sourceReference;
+        } else {
+          next.sourceReference = sourceReference;
+        }
+      }
+      return next;
     }),
   };
 }

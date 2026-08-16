@@ -70,6 +70,8 @@ export default function WorkspaceHost({
           <Form3PhaseBWorkspace
             patientId={patient.id}
             patientName={patient.name}
+            patient={patient}
+            facingState={facingState}
             userId={userId}
             initial={initialForm3}
           />

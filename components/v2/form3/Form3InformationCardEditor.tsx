@@ -6,6 +6,7 @@ import type {
   Form3InformationCardV2,
   Form3InformationSourceType,
   Form3SoType,
+  Form3SourceReference,
 } from "@/lib/form3/v2/form3V2Types";
 import { FORM3_INFORMATION_SOURCE_TYPES } from "@/lib/form3/v2/form3V2Types";
 import {
@@ -21,6 +22,8 @@ export type Form3InformationCardEditorProps = {
     content?: string;
     soType?: Form3SoType | null;
     sourceType?: Form3InformationSourceType;
+    sourceLabel?: string | null;
+    sourceReference?: Form3SourceReference | null;
     patternKeys?: Form3PatternKey[];
   }) => void;
   onArchive: () => void;
@@ -162,6 +165,53 @@ export default function Form3InformationCardEditor({
             </option>
           ))}
         </select>
+      </label>
+
+      <label className="mt-5 block">
+        <span className="text-[13px] font-medium text-[#1D1D1F]">
+          出所メモ（sourceLabel）
+        </span>
+        <input
+          type="text"
+          className="mt-2 min-h-[48px] w-full rounded-2xl border-0 bg-[#F2F2F7] px-4 text-[16px] text-[#1D1D1F] outline-none focus:ring-1 focus:ring-[#0A6CD6] disabled:opacity-60"
+          placeholder="例: 看護記録 7/4 · 患者との会話"
+          value={card.sourceLabel ?? ""}
+          disabled={archived}
+          onChange={(e) => {
+            const value = e.target.value;
+            const trimmed = value.trim();
+            const ref = card.sourceReference;
+            const isStructured =
+              ref != null &&
+              (ref.kind === "fixture" ||
+                ref.kind === "db" ||
+                ref.kind === "migration");
+
+            // 構造化参照がある場合は label のみ更新（manual へ上書きしない）
+            if (isStructured) {
+              onChange({
+                sourceLabel: trimmed === "" ? null : value,
+              });
+              return;
+            }
+
+            // 手入力のみ（未設定 / manual）: label に合わせて manual を維持
+            onChange({
+              sourceLabel: trimmed === "" ? null : value,
+              sourceReference:
+                trimmed === ""
+                  ? null
+                  : {
+                      kind: "manual",
+                      sourceType: card.sourceType,
+                      note: trimmed,
+                    },
+            });
+          }}
+        />
+        <span className="mt-2 block text-[12px] leading-relaxed text-[#8E8E93]">
+          Patient Source から自動入力しません。参照しながら手で書いてください。
+        </span>
       </label>
 
       <div className="mt-5">
