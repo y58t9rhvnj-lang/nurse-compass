@@ -85,10 +85,10 @@
 | 定義 | 学生が患者理解を深めるための作業空間。提出様式そのものではない。 |
 | 含むもの | Information / Assessment の編集、一次情報参照、問い |
 | 含まないもの | 学校提出の最終様式画面そのもの（それは Artifact UI） |
-| 他概念との関係 | Module が提供する体験の総称。Core の上に載る |
+| 他概念との関係 | Module が提供する体験の総称。Core の上に載る。製品カテゴリは Clinical Reasoning Platform |
 | UI表示名の候補 | ワークスペース / 思考ワークスペース / アセスメント・ワークスペース |
 | コード上の推奨名 | `LearningWorkspace` / `*Workspace` |
-| 避ける類似語 | 「入力フォーム」「提出画面」— Workspace と Artifact の混同 |
+| 避ける類似語 | 「入力フォーム」「提出画面」— Workspace と Artifact の混同；**Learning Platform**（旧 Vision 表現・非推奨。Learning Workspace に統一）；**Clinical Workspace**（正式名にしない） |
 
 ### Patient Understanding
 
@@ -100,7 +100,7 @@
 | 含むもの | Information・Assessment・Clinical Reasoning を通じた理解の深化 |
 | 含まないもの | 特定の DB テーブル名、単一テキスト欄への固定 |
 | 他概念との関係 | Compass の目的語。Artifact はその表現の一部 |
-| UI表示名の候補 | 患者理解 / 私が捉えた患者さん（※後者は特定 Artifact 候補・未決） |
+| UI表示名の候補 | 患者理解 / （振り返り Artifact のタイトル例は Module） |
 | コード上の推奨名 | `PatientUnderstanding`（概念）。特定テーブルと1:1固定しない |
 | 避ける類似語 | 「患者理解度スコア」— 点数化は Vision に反する |
 
@@ -108,15 +108,15 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| 正式英語名 | Clinical Reasoning |
-| 正式日本語名 | 臨床推論 |
-| 定義 | Assessment 同士や Information との関係を構造化し、優先・病態理解・看護問題につながる推論の層（Core）。 |
-| 含むもの | Reasoning Node / Edge、関係の種類、短い rationale |
+| 正式英語名 | Clinical Reasoning（層名）／**Clinical Reasoning Network**（同層の構造名） |
+| 正式日本語名 | 臨床推論／臨床推論ネットワーク |
+| 定義 | Assessment 同士や Information との関係を構造化し、優先・病態理解・看護問題につながる推論の層（Core）。構造としては Node＋Edge の Network。 |
+| 含むもの | Reasoning Node / Edge、関係の種類、短い rationale、Network としての関係集合 |
 | 含まないもの | 関連図の座標・色・折りたたみ、完成した看護問題文（Artifact） |
-| 他概念との関係 | Core 第4層。Related Map Module が表示する |
+| 他概念との関係 | Core 第4層。**Related Map Module** が表示する。層名と Network は同一層の呼び分けであり別層ではない |
 | UI表示名の候補 | 臨床推論 / 患者理解を関連付ける |
-| コード上の推奨名 | `ClinicalReasoning` / `ClinicalReasoningEdge` |
-| 避ける類似語 | 「関連図」を Core 名に使うこと — Module と混同する |
+| コード上の推奨名 | `ClinicalReasoning` / `ClinicalReasoningNetwork` / `ClinicalReasoningEdge` |
+| 避ける類似語 | 「関連図」を Core 名に使うこと — Module と混同する；Assessment を Clinical Reasoning と呼ぶこと — 点と関係の混同 |
 
 ### Learning Process
 
@@ -317,7 +317,7 @@
 | 他概念との関係 | 複数 Assessment から参照可。関連図ノード候補 |
 | UI表示名の候補 | 情報カード / 事実カード |
 | コード上の推奨名 | `InformationCard` / DB `information_cards` |
-| 避ける類似語 | Evidence Card（Evidence は Assessment を支える別概念） |
+| 避ける類似語 | Evidence Card（**採用しない**。Knowledge Evidence は Evidence Link） |
 
 **必須性質（再掲）:** 1カード1事実／解釈を書かない／元情報参照／複数 Assessment 参照可。
 
@@ -424,8 +424,8 @@
 
 | 用語 | 定義 | 備考 |
 | --- | --- | --- |
-| Care Need | 援助の必要性に関する学生メモ（任意） | 正式看護問題文ではない。位置付けは未決寄り |
-| Additional Information Needed | 不足情報・今後確認したいこと | 情報不足時に特に重要 |
+| Care Need | 援助の必要性に関する学生の記述 | **Artifact 責務**（学校様式の「援助の必要性」等）。Assessment / Clinical Reasoning Core には置かない（Core Patch） |
+| Additional Information Needed | 不足情報・今後確認したいこと（Need More Information） | Assessment 任意フィールド。情報不足時に特に重要 |
 | Assessment Status | draft / active / archived / deleted 等 | Module の「整理済み」と混同注意 |
 
 ---
@@ -453,22 +453,23 @@ Core の関係構造。Related Map ではない。
 
 | 用語 | 定義 | 位置 |
 | --- | --- | --- |
-| Priority | 優先の置き方（推論上の重み） | Reasoning または Artifact。未決の細部あり |
+| Priority | 優先の置き方 | **作業用**＝Clinical Reasoning Network／**提出用**＝Artifact（Core Patch）。Assessment に priority フィールドは置かない |
 | Nursing Relevance | 看護上の重要性の認識 | 同上 |
 
 ### Reasoning Map / Related Map
 
 | 項目 | Reasoning Map | Related Map |
 | --- | --- | --- |
-| 正式英語名 | Reasoning Map（概念図） | Related Map |
-| 正式日本語名 | 推論マップ（概念） | 関連図 |
-| 定義 | Clinical Reasoning の関係集合の別名的概念 | 関係を表示・編集する **Module** |
-| 含むもの | Edge / Node 参照 | 座標・色・折りたたみ・ジェスチャ |
-| 含まないもの | UI 座標 | Core の関係意味の再定義 |
-| コード上の推奨名 | （Core 側は Edge） | `RelatedMap` Module |
-| 避ける類似語 | 関連図＝Clinical Reasoning Core |
+| 正式英語名 | （非推奨・説明用） | Related Map |
+| 正式日本語名 | （使わない） | 関連図 |
+| 定義 | Clinical Reasoning Network の俗称になりやすいため **正式名にしない** | 関係を表示・編集する **Module** |
+| 含むもの | — | 座標・色・折りたたみ・ジェスチャ |
+| 含まないもの | — | Core の関係意味の再定義 |
+| コード上の推奨名 | — | `RelatedMap` Module |
+| 避ける類似語 | Reasoning Map／関連図＝Clinical Reasoning Core | |
 
-**明記:** 座標・色・折りたたみは Module。Clinical Reasoning Core には含めない。
+**明記:** 座標・色・折りたたみは Module。Clinical Reasoning Network Core には含めない。  
+**日本語 UI:** 「関連図」を Related Map の正式日本語 UI 名とする（Core Patch）。
 
 ---
 
@@ -508,21 +509,23 @@ Core の関係構造。Related Map ではない。
 | --- | --- | --- |
 | Nursing Problem | 看護問題（提出・計画に載る表現） | Assessment や classification=problem と同一視しない |
 | Nursing Plan | 看護計画 Artifact | |
-| Reflection Record | 振り返り記録 | patient_understanding との関係は未決 |
+| Reflection Record | 振り返り記録（Reflection Artifact） | Version2 `patient_understanding_records` の正式位置（Core Patch） |
 
 ---
 
 ## 7. Evidence と Coach
 
-### Evidence / Evidence Card / Evidence Link
+### Evidence / Evidence Information / Evidence Link
 
 | 用語 | 定義 |
 | --- | --- |
-| Evidence | **Assessment を支える**知識・根拠の結び。Patient の生情報そのものではない |
-| Evidence Card | （名称継続は未決）根拠を扱う UI／オブジェクト候補 |
-| Evidence Link | Assessment と Information（または知識）のリンク |
+| Evidence（Knowledge Evidence） | **Assessment を支える**知識・根拠の結び。Patient の生情報そのものではない |
+| Evidence Information | Assessment が根拠とする **Information Card** の集合（`evidenceInformationIds`）。事実側 |
+| Evidence Link | Knowledge Evidence と Assessment を結ぶ Module 側リンク |
+| Evidence Card | **採用しない**（Core Patch）。UI／オブジェクト名に使わない |
 
-**重要:** Information を Evidence と呼ばない。Evidence は Information に付けない。
+**重要:** Information を Evidence と呼ばない。Evidence（知識）は Information に付けない。  
+事実根拠の SSOT は `evidenceInformationIds`（`supports` Edge は導出表示のみ→Related Map 本格時に一本化）。
 
 ### Compass Coach / Coach Prompt / Coach Hint / Coach Question
 
@@ -695,8 +698,9 @@ Patient
                   → Artifact
                       ← Institution-defined Form (Template)
 
-Evidence ──supports──► Assessment
+Evidence (Knowledge / Evidence Link) ──supports──► Assessment
   (Information に直接付けない)
+  (事実根拠 SSOT は evidenceInformationIds)
 
 Coach
   → reads Information / Assessment / Clinical Reasoning
@@ -709,20 +713,43 @@ Learning Workspace
 
 Form2 / Form3 Final Text
   → kinds of Artifact
+
+Reflection Artifact（V2 patient_understanding_records）
+  → Artifact（振り返り）。Patient Core ではない
 ```
+
+---
+
+## 14.1 正式名称統一表（Core Patch）
+
+| 使う正式名 | 使わない／非推奨 | 備考 |
+| --- | --- | --- |
+| Learning Workspace | Learning Platform, Clinical Workspace | Platform＝製品カテゴリは Clinical Reasoning Platform |
+| Clinical Reasoning Platform | （製品カテゴリとして維持） | Workspace と混同しない |
+| Information Card | Fact（型名）, Patient Data（総称） | |
+| Assessment Card | 看護問題, 正解アセスメント | |
+| Clinical Reasoning / Clinical Reasoning Network | Reasoning Map（正式名にしない） | 層名／構造名。同一層 |
+| Related Map（関連図） | 関連図＝Core と呼ぶこと | Module |
+| Artifact | 成果物を学習目的と呼ぶこと | |
+| Evidence Information（`evidenceInformationIds`） | Information を Evidence と呼ぶ | 事実根拠 |
+| Evidence Link / Knowledge Evidence | Evidence Card | Module |
+| Care Need | Assessment.careNeed | Artifact |
+| Reflection Artifact | patient_understanding を Patient/Assessment と呼ぶ | V2 テーブル名は当面維持 |
 
 ---
 
 ## 15. 未決事項
 
-1. `patient_understanding_records` を Assessment / Artifact / Reflection のどれに正式分類するか。  
+1. ~~`patient_understanding_records`~~ → **Reflection Artifact**（Core Patch 確定）  
 2. 既存ノート系 `information_cards` を Information Card へ統合するか、別名のまま並行するか。  
-3. Related Map の正式日本語 UI 名（「関連図」で確定か、別表記か）。  
-4. Nursing Problem を Clinical Reasoning と Artifact のどちらを正本とするか（本言語は Artifact 寄り、推論は Reasoning）。  
-5. Care Need の正式位置（Assessment 任意メモか、様式項目か、看護問題前段か）。  
-6. Evidence Card という名称を継続するか、Evidence Link のみにするか。  
+3. ~~Related Map の正式日本語 UI 名~~ → **「関連図」**（Core Patch 確定）  
+4. Nursing Problem を Clinical Reasoning と Artifact のどちらで扱うか（本言語は Artifact 寄り、推論は Reasoning）。  
+5. ~~Care Need~~ → **Artifact**（Core Patch 確定）  
+6. ~~Evidence Card~~ → **採用しない**。Evidence Link（Module）のみ（Core Patch 確定）  
 7. Learning State / Intervention Level の具体値域。  
 8. Analysis を Interpretation の別名にするか、学校ラベル専用にするか。  
+9. working priority の具体表現（順序／重み／Edge）。  
+10. Form3 Workspace と Final の物理分離時期。  
 
 ---
 

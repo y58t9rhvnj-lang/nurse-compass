@@ -252,8 +252,7 @@ AssessmentCard {
   interpretation
   classification             // functioning_normally | strength | problem |
                              // risk | insufficient_information | null
-  evidenceInformationIds[]   // 1..N
-  careNeed?                  // 任意。看護上のニーズメモ（提出問題文ではない）
+  evidenceInformationIds[]   // 1..N  ※事実根拠の唯一正本（Core Patch）
   additionalInformationNeeded?
   relatedAssessmentIds[]     // 任意。弱いリンク。本関係は Reasoning へ寄せる
   status                     // draft | active | archived | deleted(soft)
@@ -261,6 +260,7 @@ AssessmentCard {
   createdAt
   updatedAt
 }
+// careNeed は Assessment Core に持たない（Artifact 責務。Core Patch）
 ```
 
 ### 6.3 検討事項への方針
@@ -270,11 +270,11 @@ AssessmentCard {
 | 根拠 Information 削除 | soft delete。参照切れは `missing_evidence` 状態として UI 警告。Assessment を自動削除しない |
 | Assessment 間参照 | 本格関係は **Clinical Reasoning Edge**。`relatedAssessmentIds` は暫定・薄く |
 | 複数パターンにまたがる Assessment | 原則 **1 patternKey**。またがりは Reasoning で表現 |
-| careNeed の位置 | Assessment に **短いメモとして任意**。正式な看護問題文は Artifacts |
+| careNeed の位置 | **Artifact 責務**（学校様式の「援助の必要性」等）。Assessment Core には持たない（Core Patch） |
 | 整理済み条件 | Module（様式3 Final 等）が定義。Core は `status` と必須根拠数などの最小制約のみ |
 | 履歴 | V3初期は `updatedAt`。思考履歴テーブルは V3後半 |
 | Coach 問いと回答 | **Coach Module のログ**（Core Assessment 本文に混ぜない） |
-| Evidence 紐付け | Vision どおり Evidence は Assessment を支える。`evidenceInformationIds` が最小実装。別 Evidence オブジェクトは Module 拡張 |
+| Evidence 紐付け | **事実根拠**＝`evidenceInformationIds`（唯一正本）。**Knowledge Evidence**＝Module の Evidence Link。`supports` Edge は導出表示のみ→一本化は Related Map 本格時（Core Patch） |
 | 教員コメント | Artifact／レビュー Module。Assessment 本文と分離 |
 
 ---
@@ -344,7 +344,12 @@ ClinicalReasoningEdge {
 | エッジ削除 | soft delete。参照先ノード削除時はエッジも soft |
 | Coach 参照範囲 | Edge＋端点の Information/Assessment（成果物本文は見ない） |
 
-**Information→Assessment の根拠**は、当面 Assessment の `evidenceInformationIds` を正とし、Reasoning Edge の `supports` は関連図・高度推論用に段階追加（二重管理を避ける移行順は §17）。
+**Information→Assessment の根拠（SSOT・Core Patch）:**
+
+1. **唯一正本:** Assessment の `evidenceInformationIds[]`  
+2. **Related Map 本格化まで:** `supports` Edge を **永続正本にしない**。UI は配列から **導出表示**してよい  
+3. **一本化時:** 移行ジョブで必要な `supports` Edge を生成し、配列を deprecated（同時必須正本にしない）  
+4. **Knowledge Evidence / Evidence Link:** Assessment を支える Module。Network Node にしない。Information に付けない
 
 ---
 
@@ -561,7 +566,7 @@ DB 採番のみにすると、未保存カードを根拠参照できず教育UX
 | --- | --- |
 | `form3_records` schemaVersion 1 | → v2 論理（カード）→ Core 分離 |
 | `form3_records` schemaVersion 2（設計中） | Workspace=Core的、Final=Artifact |
-| `patient_understanding_records` | 「私が捉えた患者さん」は Artifact／振り返り寄り。Patient Core ではない |
+| `patient_understanding_records` | **Reflection Artifact**（振り返り成果物）。Patient / Information / Assessment / Network Core ではない（Core Patch） |
 | `form2_evidence_links` | Evidence Module。Assessment 根拠モデルへ将来接続 |
 
 ### 13.4 廃止候補（すぐ削除せず段階）
@@ -675,12 +680,14 @@ Core ─X→ Modules
 ## 18. 未決事項
 
 1. **既存ノート `information_cards` と Form3 Information Card の統合時期・同一テーブル可否**  
-2. **Information→Assessment 根拠を Assessment 配列のみとするか、初期から Reasoning Edge と二重化するか**（本設計は当面配列正）  
-3. **`patient_understanding_records` を Artifact（振り返り）と Core のどちらに正式分類するか**  
+2. ~~根拠の配列 vs `supports`~~ → **Core Patch で確定**（配列唯一正本。一本化は Related Map 本格時）  
+3. ~~`patient_understanding_records`~~ → **Core Patch で確定**（Reflection Artifact）  
 4. **クライアント ULID を全 Core で標準化するか、DB uuid のみにするか**（本設計は ULID 許容推奨）  
 5. **提出スナップショットの保存粒度**（全文のみ／根拠カード要約を含むか）  
 6. **教員が Assessment にコメントする場合の格納先**（レビュー Module の詳細）  
 7. **1 Patient : N Case を講義でいつ有効化するか**  
+8. **working priority の具体表現**（順序配列 / 重み / 専用 Edge）  
+9. **Form3 payload 内 Workspace と Final の論理境界（Phase B 契約の詳細）**  
 
 ---
 

@@ -32,7 +32,7 @@ Assessment Layer を完全設計し、**Assessment Card を「学生の思考」
 ## 2. 最重要原則
 
 1. **Assessment は正解ではない。**  
-2. Assessment は、その時点での学生の Clinical Reasoning（思考の単位）である。  
+2. Assessment は、その時点での学生の **思考の単位（Assessment Card）** である。Clinical Reasoning Network（関係の層）とは別である。  
 3. 教員との対話、Evidence（知識の支え）、追加情報の収集によって **変化してよい。**  
 4. 学校提出文ではない。様式への自動文章生成は禁止。  
 5. 事実のコピーは持たない。根拠は Information ID 参照。  
@@ -87,9 +87,23 @@ Assessment Layer を完全設計し、**Assessment Card を「学生の思考」
 | 複数の独立した解釈の連結 | 複数 Assessment Card |
 | 因果・優先・対立の本格構造 | Clinical Reasoning |
 | 正式な看護問題文・計画文 | Artifact |
+| 援助の必要性（Care Need） | **Artifact**（Assessment に置かない。Core Patch） |
 | 学校様式の完成欄 | Final Assessment Text（Artifact） |
 | 教員コメント本文 | Review Module（別 Entity） |
 | Coach の問い／回答ログ | Coach Module |
+
+---
+
+### 3.5 Care Need（Core Patch 決定）
+
+| 案 | 置き場所 | 判定 |
+| --- | --- | --- |
+| A. Assessment | 解釈カードに援助メモ | 様式「援助の必要性」の先取り・看護問題化リスク |
+| B. Clinical Reasoning Network | 関係の途中データ | Emergence と矛盾（援助は結果表現） |
+| C. Artifact | 学校様式・計画前段 | **採用** |
+
+**正式責務:** Care Need は Artifact。Assessment / Network Core フィールドにしない。  
+**V2:** 既存 `careNeed` は Final／Artifact 欄へ移行マッピング（自動転記 UI は作らない）。
 
 ---
 
@@ -143,7 +157,7 @@ AssessmentCard {
 
   interpretation             // 思考本文（1 Interpretation）— §7
   classification             // 5区分 + null（draft）— §6
-  evidenceInformationIds[]   // 1..N — §8
+  evidenceInformationIds[]   // 1..N — §8（事実根拠の唯一正本）
   needMoreInformation?       // 追加で欲しい情報 — §9
                              // （別名候補: additionalInformationNeeded）
 
@@ -153,8 +167,8 @@ AssessmentCard {
   deletedAt?
 
   // 任意・薄い（恒久正本にしない）
-  careNeed?                  // 援助ニーズの短いメモ。正式看護問題文ではない（位置付け一部未決）
   relatedAssessmentIds[]     // 暫定。本格関係は Reasoning へ
+  // careNeed は持たない（Artifact 責務。Core Patch）
 
   createdAt
   updatedAt
@@ -171,7 +185,7 @@ AssessmentCard {
 | `needMoreInformation` | 任意。`insufficient_information` 時は Module が強く推奨 | |
 | `patternKey` | Form3 Workspace では実質必須 | 所有ではない |
 | `status` / `order` / 日時 | 必須 | |
-| `careNeed` | 任意 | Artifact／看護問題と混同しない |
+| `careNeed` | **持たない** | Artifact（学校様式の援助の必要性等）へ。Core Patch |
 | `relatedAssessmentIds` | 任意・薄い | Reasoning 本格化後に縮小 |
 
 ### 5.2 所有軸
@@ -269,9 +283,10 @@ Assessment の本文。Information から学生が行った意味づけ。
 
 ### 8.3 知識 Evidence との関係
 
-- 最小実装: `evidenceInformationIds` のみ  
-- 知識 Evidence Link は Assessment に付く（Information には付けない）  
-- Evidence Card 名称の継続は未決（Domain Language）  
+- 最小実装: `evidenceInformationIds` のみ（**事実根拠の唯一正本**）  
+- Knowledge Evidence は **Evidence Link（Module）** で Assessment に付く（Information には付けない）  
+- **Evidence Card は採用しない**（Core Patch）  
+- `supports` Edge は Related Map 本格まで導出表示のみ（永続正本にしない） 
 
 ---
 
@@ -473,11 +488,13 @@ Related Map の座標・色・折りたたみは Module（Assessment / Reasoning
 | `judgmentRationale` | Artifact。Assessment 短文とは別 |
 | `relatedInformation`（Workspace 長文） | **Information Card** へ分解。Final の同名欄は Artifact のまま |
 | `assessment`（長文一体） | 複数 Assessment Card へ |
-| `careNeed` | 任意メモ `careNeed?`（正式看護問題ではない。位置付け一部未決） |
+| `careNeed` | **Assessment に置かない**。Artifact（援助の必要性等）へ移行（Core Patch） |
 | `additionalInformationNeeded` | `needMoreInformation` |
 | `reviewed` / `isReviewed` | **Artifact / Module** の整理済み。Assessment `status` と混同しない |
 | `evidenceCardIds` / 根拠 | `evidenceInformationIds` |
 | 色付き判断 UI | Classification の Module 表現 |
+
+**V2 `careNeed` 移行:** Assessment Core フィールドとしては採用しない。既存値がある場合は Final Form／Artifact の「援助の必要性」相当欄へマッピングする（自動転記 UI は作らず、移行スクリプトまたは手動整理）。
 
 ### 19.3 方針
 
@@ -500,7 +517,7 @@ Information Model と同じ方針:
 
 推測で確定しない。
 
-1. `careNeed` の最終位置（Assessment 任意メモのままか、Artifact／看護問題前段へ移すか）  
+1. ~~`careNeed`~~ → **Artifact 責務**（Core Patch 確定）。V2 既存値は Final／Artifact 欄へ移行マッピング  
 2. `relatedAssessmentIds` を Reasoning 本格化後に廃止するか残すか  
 3. `needMoreInformation` と Reasoning 上の情報ギャップ構造の将来接続  
 4. 教員コメント Entity の詳細（スレッド・可視範囲・差し戻し）  

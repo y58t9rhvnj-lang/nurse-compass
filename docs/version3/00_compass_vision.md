@@ -20,7 +20,7 @@ Compass の目的は、成果物を作ることではない。
 電子カルテの代替でも、看護記録ソフトでも、様式入力システムでもない。  
 学校指定様式を置き換えるシステムでもない。
 
-Compass は、学生が患者さんについて考え続けられるための **Learning Platform** である。
+Compass は、学生が患者さんについて考え続けられるための **Learning Workspace**（製品カテゴリとしては Clinical Reasoning Platform）である。
 
 ---
 
@@ -211,7 +211,7 @@ Evidence は **Assessment を支える**。
 
 - 項目名、入力順序、様式の構成、様式の意味は、Compass の都合で変更しない。
 - Compass は学校指定様式を書くためのシステムではない。
-- Compass は、指定された様式でより深く考えられるよう支援する Learning Platform である。
+- Compass は、指定された様式でより深く考えられるよう支援する Learning Workspace である。
 
 教育効果の向上は、様式の改変ではなく次で行う:
 

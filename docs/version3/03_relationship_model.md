@@ -38,7 +38,13 @@ Compass Core に存在する概念同士の **Relationship** を定義する。
 | 患者の一次情報 | **Patient**（Source Record） | コピー禁止。Information は参照＋学生の切り出し |
 | 事実 | **Information**（Information Card） | Assessment / Artifact は ID 参照。本文の二重保持はしない |
 | 思考 | **Assessment**（Assessment Card） | Artifact の提出文は学生が統合した別表現。自動同期しない |
-| 関係 | **Clinical Reasoning**（Edge） | Related Map は座標等のみ。関係意味のコピー正本にしない |
+| 事実根拠リンク | **Assessment.`evidenceInformationIds`** | `supports` Edge は導出表示のみ（Related Map 本格まで永続正本にしない） |
+| Knowledge Evidence | **Evidence Link（Module）** | Assessment を支える。Network Node にしない。Information に付けない |
+| 関係 | **Clinical Reasoning Network**（Edge） | Related Map は座標等のみ。関係意味のコピー正本にしない |
+| 作業用優先 | **Clinical Reasoning Network**（メタ／表現は後決） | Assessment に priority フィールドを置かない |
+| 提出用優先 | **Artifact** | 学生が記述。自動転記しない |
+| 援助の必要性（Care Need） | **Artifact** | Assessment / Network Core に置かない |
+| 振り返り（patient_understanding） | **Reflection Artifact** | Patient / Network Core ではない |
 | 提出物 | **Artifacts** | Core の全文をコピーし続けない。Draft は参照、Submission は Snapshot |
 
 Modules は Core を **参照して利用**する。コピー同期を基本としない。
@@ -174,11 +180,16 @@ Coach ─X──────────────────► Artifact 完
 | 相手 | Information Card |
 | 関係 | Assessment の根拠（Evidence Information） |
 | 多重度 | N:N（1 Information を複数 Assessment が参照可。1 Assessment は **最低 1** Information） |
-| 参照方向 | **Assessment → Information**（`evidenceInformationIds[]` が当面の正本） |
+| 参照方向 | **Assessment → Information**（`evidenceInformationIds[]` が **唯一正本**） |
 | 更新責任 | 学生（Assessment 所有者） |
 | 削除時の扱い | Information は **soft delete**。Assessment は自動削除しない。参照切れは `missing_evidence` 等として UI 警告。hard delete は参照ゼロかつ期間経過後のみ検討 |
 
-**二重管理の回避:** Information→Assessment の「根拠」は当面 Assessment 側配列を正とする。Clinical Reasoning の `supports` Edge は関連図・高度推論用に段階追加し、同時期に両方を必須正本にしない（移行順は未決・Core Architecture と一致）。
+**SSOT（Core Patch）:**
+
+1. 事実根拠の唯一正本＝`evidenceInformationIds`  
+2. Related Map 本格化まで `supports` Edge は **永続正本にしない**（配列から導出表示可）  
+3. 一本化時は移行ジョブで Edge 生成→配列 deprecated。同時必須正本にしない  
+4. Evidence Link（Knowledge Evidence）は Module。本 R3 の代替ではない 
 
 ---
 
@@ -281,7 +292,7 @@ Coach ─X──────────────────► Artifact 完
 | 付く先 | Assessment の根拠集合の一方（事実側） | Assessment（支え側） |
 | 付かない先 | （Evidence と呼ばない） | Information に直接付けない |
 
-最小実装では `evidenceInformationIds`（事実根拠）が Assessment に付き、別 Evidence オブジェクトは Module 拡張（Domain Language 未決と一致）。
+最小実装では `evidenceInformationIds`（事実根拠）が Assessment に付き、Knowledge Evidence は **Evidence Link（Module）**。Evidence Card は採用しない（Core Patch）。
 
 ---
 
@@ -454,7 +465,7 @@ Patient Source ──► Information ──► Assessment ◄── Evidence
 
 - Evidence は Information に直接付けない。  
 - Assessment の「根拠情報」集合（事実 ID）と、Evidence（知識リンク）は混同しない。  
-- 名称 `Evidence Card` の継続は Domain Language 未決。Relationship 上の責務は上図で固定。
+- 名称 **Evidence Card は採用しない**。Knowledge Evidence は Evidence Link（Module）。Relationship 上の責務は上図で固定（Core Patch）。
 
 ---
 
@@ -538,7 +549,7 @@ Core → Modules
 | 関連図（Related Map） | Clinical Reasoning（＋端点の Information/Assessment） | 座標は Module |
 | 看護問題 | Artifact が正本寄り。Reasoning は優先・関係 | Domain Language 未決を継承 |
 | 看護計画 | Artifact。Assessment / Reasoning を参照 | 自動生成しない |
-| Reflection | Artifact（振り返り）。Core は参照のみ | `patient_understanding` 分類は未決 |
+| Reflection | **Reflection Artifact**。Core は参照のみ | V2 `patient_understanding_records`＝本種（Core Patch） |
 | 学習分析 | Information / Assessment / Reasoning のメタ（個人特定最小化） | 点数化・順位付けしない |
 | OSCE | Case / Patient + Assessment / Reasoning の一部 | 教材境界を守る |
 | 国家試験演習 | 原則 Core 外の学習 Module。必要なら一般知識 Evidence | 患者 SSOT を汚染しない |
@@ -552,11 +563,21 @@ Core → Modules
 | `form3_records` | **Artifact 永続化**（現状 payload に Workspace 論理も内包） | Workspace 部分 → Information / Assessment 関係へ分離。Final → Artifact。Draft 参照 → 提出時 Snapshot |
 | `form3_records.payload` 内カード論理 | 移行期の **Information→Assessment** 関係の入れ物 | Core 昇格後も同一 ID 参照を維持 |
 | `form2_records` | **Artifact**（Form2） | Core 参照＋Snapshot 方針へ寄せる |
-| `patient_understanding_records` | Patient Core **ではない**。Artifact／Reflection 寄り | 正式分類は未決のまま Relationship 上は Artifact 候補 |
+| `patient_understanding_records` | **Reflection Artifact** | Patient / Network ではない。テーブル名は当面維持し、意味を振り返り成果物として扱う（Core Patch） |
 | `information_cards`（ノート／Evidence 系） | Information Core の **先祖**、または Evidence Module 併存 | Form3 Information Card との統合は未決。統合するなら R2/R3 の Information 正本へ |
 | `form2_evidence_links` / evidence_links | **Evidence → Assessment**（または Form2 Artifact 付帯） | Assessment 根拠モデル（R3/R8）へ接続。Information 直付けにしない |
 | 関連図 UI（将来） | Module → Clinical Reasoning（R12） | |
 | 所有軸・RLS・楽観ロック | Case スコープ関係（R10）の実装基盤 | 維持 |
+
+**Reflection 分類比較（Core Patch）:**
+
+| 案 | 判定 |
+| --- | --- |
+| Assessment | 不採用（解釈カードではない） |
+| 独立 Module（Core 外の別層） | 不採用（成果物として Artifact に属する） |
+| Reflection Artifact | **採用** |
+
+**V2 移行:** `patient_understanding_records` をすぐ削除しない。所有軸・RLS・autosave を維持し、Artifact Model で Reflection テンプレートとして契約する。Coach は原則本文完成に使わない。
 
 ---
 
@@ -576,15 +597,17 @@ Core → Modules
 
 推測で確定しない。
 
-1. Information→Assessment 根拠を **永続的に Assessment 配列のみ**とするか、Related Map 本格化時に Reasoning `supports` とどう一本化するか。  
+1. ~~根拠の配列 vs `supports`~~ → **Core Patch 確定**（配列唯一正本。一本化は Related Map 本格時＋移行ジョブ）  
 2. Assessment ↔ Assessment の薄いリンクを **残すか廃止か**（Reasoning へ完全委譲するか）。  
 3. Submission Snapshot の粒度（ID のみ／カード要約を含むか／Related Map レイアウトを含むか）。  
-4. `patient_understanding_records` の正式 Relationship（Artifact vs Reflection vs 別）。  
+4. ~~`patient_understanding_records`~~ → **Reflection Artifact**（Core Patch 確定）  
 5. 既存 `information_cards` と Form3 Information の同一正本化時期。  
-6. Evidence オブジェクトを Core 第1級にするか、Module 拡張に留めるか。  
+6. ~~Evidence オブジェクト第1級~~ → Knowledge Evidence は Module（Evidence Link）。Core 第1級にしない（Core Patch）  
 7. Nursing Problem を Artifact のみとするか、Reasoning に「問題ノード」を許すか。  
 8. 教員コメントの格納 Relationship（Review Module 詳細）。  
 9. 1 Patient : N Case 有効化時の Source／思考スコープ境界の詳細。  
+10. working priority の具体表現。  
+11. Form3 Workspace／Final の物理分離時期（Phase B 論理境界は方針済み）。 
 
 ---
 

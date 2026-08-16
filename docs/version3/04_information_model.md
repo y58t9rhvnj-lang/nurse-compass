@@ -446,14 +446,14 @@ Assessment が指す Information 集合は Domain Language 上 **根拠情報（
 | | Information | Evidence |
 | --- | --- | --- |
 | 何か | この患者について切り出した **事実** | Assessment を支える **知識・根拠の結び** |
-| 層 | Information Layer（Core） | Evidence Module／拡張（第1級化は未決） |
+| 層 | Information Layer（Core） | Evidence Module（Knowledge Evidence / Evidence Link） |
 | 付く先 | Assessment の事実根拠 | Assessment（支え） |
 | 付かない先 | — | **Information に直接付けない** |
 | 例 | SpO₂ 91% | 「慢性呼吸器疾患の観察ポイント」へのリンク等 |
 
-**避ける表現:** Information を Evidence と呼ぶ。
+**避ける表現:** Information を Evidence と呼ぶ。**Evidence Card は採用しない。**
 
-最小実装: Assessment の `evidenceInformationIds` のみで事実根拠を表現。別 Evidence Card は未決。
+最小実装: Assessment の `evidenceInformationIds` のみで事実根拠を表現。Knowledge Evidence は Module。
 
 ---
 

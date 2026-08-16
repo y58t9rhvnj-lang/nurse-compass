@@ -188,14 +188,16 @@ ClinicalReasoningEdge {
 
 **原則:** UI が選ばない関係は作らない。種類を増やしすぎない。
 
-### 6.4 `supports` と Assessment.evidenceInformationIds
+### 6.4 `supports` と Assessment.evidenceInformationIds（SSOT・Core Patch）
 
-| 根拠の表現 | 当面の正本 | 備考 |
+| 根拠の表現 | 正本 | 備考 |
 | --- | --- | --- |
-| Assessment → Information | **`evidenceInformationIds`** | Assessment Model / Relationship R3 |
-| Reasoning Edge `supports` | 関連図・高度推論の段階追加 | **同時期に両方を必須正本にしない** |
+| Assessment → Information | **`evidenceInformationIds`（唯一正本）** | Assessment Model / Relationship R3 |
+| Reasoning Edge `supports` | Related Map 本格まで **永続正本にしない** | 配列から **導出表示**可 |
+| 一本化 | Related Map 本格時 | 移行ジョブで Edge 生成→配列 deprecated。同時必須化しない |
+| Knowledge Evidence / Evidence Link | Module | Network Node にしない |
 
-Network 上で Information→Assessment を描く UI は、初期は evidenceInformationIds から **導出表示**してよい。Edge として永続化する時期は移行計画（未決の詳細あり）。
+Network 上で Information→Assessment を描く UI は、初期は evidenceInformationIds から導出表示する。
 
 ---
 
@@ -435,7 +437,7 @@ Network Edge も soft delete / archive 方針は他 Core に準拠。
 | Form3 Workspace（Information / Assessment Cards） | Network の **Node 供給源**。Form3 は Module |
 | Form3 Final（judgment 等） | **Artifact**。Network から自動生成しない |
 | パターン全体の単一 `judgment` | 廃止方向（Assessment 複数化）。Network の代替ではない |
-| `patient_understanding_records` | Patient / Network Core ではない。Artifact／Reflection 候補（分類未決） |
+| `patient_understanding_records` | **Reflection Artifact**。Patient / Network Core ではない（Core Patch） |
 | Evidence / `form2_evidence_links` | Assessment を支える Module。Network Node にしない |
 | `relatedAssessmentIds`（薄い） | Network Edge へ寄せる移行対象 |
 | `form3_records` payload | 当面 Artifact＋Workspace。Network Edge テーブル化は関連図本格化時（Core Architecture 案C） |
@@ -448,13 +450,13 @@ Network Edge も soft delete / archive 方針は他 Core に準拠。
 
 1. Network を「Edge 集合のみ」とするか、明示的 Network 行／メタを持つか  
 2. working priority の具体表現（順序配列 / 重み / 専用 Edge）  
-3. `supports` Edge を evidenceInformationIds からいつ永続二重化／一本化するか  
+3. ~~`supports` 一本化時期の方針~~ → **Core Patch 確定**（Related Map 本格時＋移行ジョブ。それまで導出のみ）  
 4. `requires_more_information` Edge と Assessment.`needMoreInformation` の運用ルール詳細  
 5. Patient Source 直接 Node の許可時期  
 6. `relatedAssessmentIds` の廃止時期  
 7. 関係密度などの導出指標の教育利用ガイドライン（数値の見せ方）  
 8. Edge の `confidence` 導入可否（Assessment Confidence 保留と揃えるか）  
-9. 提出用関連図 Snapshot に Module レイアウトを含めるか（Relationship / Artifact 未決と連動）  
+9. 提出用関連図 Snapshot に Module レイアウトを含めるか（Artifact Model と連動）  
 
 ---
 
