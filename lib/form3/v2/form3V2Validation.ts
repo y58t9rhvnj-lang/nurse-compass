@@ -1,5 +1,6 @@
 // Form3 Phase B — Validation 純関数（提出条件は扱わない）
 
+import { FORM3_PATTERN_KEYS } from "../form3Types";
 import type {
   Form3AssessmentCardV2,
   Form3DataV2,
@@ -102,4 +103,63 @@ export function isForm3FinalPatternEmpty(pattern: Form3FinalPatternV2): boolean 
     pattern.informationSO.trim() === "" &&
     pattern.interpretationAnalysisCareNeed.trim() === ""
   );
+}
+
+export type Form3V2PersistenceIssue =
+  | "invalid_schema_version"
+  | "patient_id_required"
+  | "information_ids_not_unique"
+  | "assessment_ids_not_unique"
+  | "final_form_incomplete"
+  | "dangling_evidence_reference";
+
+/**
+ * 永続化用の構造検証（提出条件・reviewed 必須とは別）。
+ * serialize 前 / deserialize 後の往復で用いる。
+ */
+export function validateForm3V2Persistence(
+  data: Form3DataV2,
+): Form3V2CheckResult<Form3V2PersistenceIssue> {
+  const issues: Form3V2PersistenceIssue[] = [];
+
+  if (data.schemaVersion !== 2) {
+    issues.push("invalid_schema_version");
+  }
+  if (typeof data.patientId !== "string" || data.patientId.trim() === "") {
+    issues.push("patient_id_required");
+  }
+
+  const infoIds = data.informationCards.map((c) => c.id);
+  if (new Set(infoIds).size !== infoIds.length) {
+    issues.push("information_ids_not_unique");
+  }
+  const assessIds = data.assessmentCards.map((c) => c.id);
+  if (new Set(assessIds).size !== assessIds.length) {
+    issues.push("assessment_ids_not_unique");
+  }
+
+  for (const key of FORM3_PATTERN_KEYS) {
+    const p = data.finalForm[key];
+    if (
+      !p ||
+      typeof p.informationSO !== "string" ||
+      typeof p.interpretationAnalysisCareNeed !== "string"
+    ) {
+      issues.push("final_form_incomplete");
+      break;
+    }
+  }
+
+  const infoSet = new Set(infoIds);
+  for (const card of data.assessmentCards) {
+    for (const id of card.evidenceInformationIds) {
+      if (!infoSet.has(id)) {
+        issues.push("dangling_evidence_reference");
+        break;
+      }
+    }
+    if (issues.includes("dangling_evidence_reference")) break;
+  }
+
+  return { ok: issues.length === 0, issues };
 }

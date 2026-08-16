@@ -6,6 +6,9 @@
 //   ・ユーザ別 ＋ ケース別にキーを分離する。
 //   ・保存成功時に必ず破棄する。SSR 安全（window ガード）・失敗は握りつぶす。
 //   ・JSON 破損・patientId 不一致は null（復元しない）。
+//
+// Phase B2-1: schemaVersion 2 Draft は lib/form3/v2/form3V2Draft.ts
+//   （キー compass:v2sb:form3:draft:v2:）。本ファイル（v1）は維持。
 
 import {
   FORM3_SCHEMA_VERSION,

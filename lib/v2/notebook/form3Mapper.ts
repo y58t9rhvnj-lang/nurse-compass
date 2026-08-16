@@ -7,6 +7,9 @@
 //   ・様式2本文・患者理解全文などの転記フィールドは受け取っても捨てる。
 //   ・不正な isReviewed:true は false へ戻し、本文は保持する（保存拒否しない）。
 //   ・DB 列 version（レコード版）と Form3Data.schemaVersion（スキーマ版）は別物。
+//
+// Phase B2-1: v2 正規化は lib/form3/v2/form3V2Mapper.ts（Repository 未接続）。
+//   sanitizeForm3PayloadAsV2 / rowToForm3SnapshotV2 / prepareForm3V2ForPersist
 
 import {
   FORM3_PATTERN_KEYS,
