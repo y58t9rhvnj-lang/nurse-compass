@@ -9,8 +9,14 @@ import {
 } from "react";
 import { saveForm3Action } from "@/app/v2/actions/form3";
 import { callAction } from "@/lib/v2/callAction";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 import { type Form3Data, type Form3PatternKey } from "@/lib/form3/form3Types";
 import type { Form3ReviewIssue } from "@/lib/form3/form3Validation";
+import {
+  hydrateForm3ReadFromSnapshotPayload,
+  type Form3ReadHydration,
+} from "@/lib/form3/v2/form3V2ReadPath";
+import type { Form3DataV2 } from "@/lib/form3/v2/form3V2Types";
 import { caseIdForPatient } from "@/lib/v2/notebook/caseId";
 import {
   clearForm3Draft,
@@ -22,6 +28,7 @@ import {
 import {
   applyPatternField,
   initialForm3Data,
+  initialForm3SaveStatusAfterRead,
   interpretForm3SaveResult,
   markPatternReviewed,
   resolveConflictWithLatest,
@@ -50,6 +57,11 @@ import type {
 //   ・error 時の一定間隔自動再試行は行わない（明示 flush / 次の編集のみ）。
 //   ・整理済みパターンの本文編集で isReviewed を false へ戻す。
 //   ・Server Action の warnings を保持する。
+//
+// Phase B2-2A (form3PhaseB ON):
+//   ・読込のみ v2 hydrate（migrate→sanitize）。dirty=false。Repository save しない。
+//   ・保存処理（doSave / saveForm3Action）は変更しないが、読込 hydrate からは呼ばない。
+//   ・Flag OFF では従来どおり（data のみ・autosave あり）。
 
 const AUTOSAVE_DEBOUNCE_MS = 1000;
 
@@ -69,6 +81,7 @@ export function useForm3Supabase({
   onPersisted,
 }: UseForm3SupabaseArgs) {
   const caseId = caseIdForPatient(patientId) ?? patientId;
+  const phaseB = isFeatureEnabled("form3PhaseB");
 
   const hydrated = useSyncExternalStore(
     () => () => {},
@@ -85,7 +98,23 @@ export function useForm3Supabase({
   const [data, setData] = useState<Form3Data>(() =>
     initialForm3Data(patientId, initial),
   );
-  const [saveStatus, setSaveStatus] = useState<Form3SaveStatus>("idle");
+
+  const [readHydration, setReadHydration] = useState<Form3ReadHydration | null>(
+    () => {
+      if (!phaseB) return null;
+      return hydrateForm3ReadFromSnapshotPayload(
+        initial?.payload ?? null,
+        patientId,
+      );
+    },
+  );
+  const [dataV2, setDataV2] = useState<Form3DataV2 | null>(
+    () => readHydration?.dataV2 ?? null,
+  );
+
+  const [saveStatus, setSaveStatus] = useState<Form3SaveStatus>(() =>
+    phaseB ? initialForm3SaveStatusAfterRead(false) : "idle",
+  );
   const [lastSavedAt, setLastSavedAt] = useState<string>(
     initial?.updatedAt ?? "",
   );
@@ -96,7 +125,9 @@ export function useForm3Supabase({
 
   const dataRef = useRef(data);
   const versionRef = useRef<number | null>(initial?.version ?? null);
-  const statusRef = useRef<Form3SaveStatus>("idle");
+  const statusRef = useRef<Form3SaveStatus>(
+    phaseB ? initialForm3SaveStatusAfterRead(false) : "idle",
+  );
   const inFlightRef = useRef(false);
   const dirtyDuringSaveRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,6 +155,8 @@ export function useForm3Supabase({
   }, []);
 
   const scheduleAutosave = useCallback(() => {
+    // B2-2A: Phase B 読込パスでは Migration / 未編集で autosave しない
+    if (phaseB) return;
     if (statusRef.current === "conflict") return;
     setSaveStatus((prev) => (prev === "saving" ? prev : "dirty"));
     clearDebounce();
@@ -131,7 +164,7 @@ export function useForm3Supabase({
       debounceRef.current = null;
       void saveRef.current();
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [clearDebounce]);
+  }, [clearDebounce, phaseB]);
 
   const doSave = useCallback(async () => {
     clearDebounce();
@@ -222,10 +255,13 @@ export function useForm3Supabase({
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
-        void saveRef.current();
+        // Phase B 読込のみ: 未スケジュールなら何もしない。debounce 中のみ flush。
+        if (!phaseB) {
+          void saveRef.current();
+        }
       }
     };
-  }, []);
+  }, [phaseB]);
 
   useEffect(() => {
     const unsaved =
@@ -302,8 +338,10 @@ export function useForm3Supabase({
 
   const flush = useCallback(() => {
     if (statusRef.current === "conflict") return;
+    // B2-2A: Phase B では読込由来の永続化をしない（保存処理本体は未変更）
+    if (phaseB) return;
     void saveRef.current();
-  }, []);
+  }, [phaseB]);
 
   const loadLatestOnConflict = useCallback(() => {
     if (!conflictSnapshot) return;
@@ -311,11 +349,21 @@ export function useForm3Supabase({
     setDataAndRef(resolved.data);
     versionRef.current = resolved.version;
     setLastSavedAt(resolved.updatedAt);
+    if (phaseB) {
+      const hydration = hydrateForm3ReadFromSnapshotPayload(
+        conflictSnapshot.payload,
+        patientId,
+      );
+      setReadHydration(hydration);
+      setDataV2(hydration.dataV2);
+      setSaveStatus(initialForm3SaveStatusAfterRead(hydration.dirty));
+    } else {
+      setSaveStatus("saved");
+    }
     clearForm3Draft(userId, caseId);
     setConflictSnapshot(null);
     setWarnings([]);
-    setSaveStatus("saved");
-  }, [conflictSnapshot, setDataAndRef, userId, caseId]);
+  }, [conflictSnapshot, setDataAndRef, userId, caseId, phaseB, patientId]);
 
   const pendingDraft: Form3Data | null =
     hydrated && !draftDismissed && draft ? draft.payload : null;
@@ -325,8 +373,19 @@ export function useForm3Supabase({
     setDataAndRef(draft.payload);
     versionRef.current = draft.version;
     setDraftDismissed(true);
+    if (phaseB) {
+      const hydration = hydrateForm3ReadFromSnapshotPayload(
+        draft.payload,
+        patientId,
+      );
+      setReadHydration(hydration);
+      setDataV2(hydration.dataV2);
+      // Draft 復元はユーザー操作だが、B2-2A ではまだ Phase B 保存しない
+      setSaveStatus(initialForm3SaveStatusAfterRead(false));
+      return;
+    }
     scheduleAutosave();
-  }, [draft, setDataAndRef, scheduleAutosave]);
+  }, [draft, setDataAndRef, scheduleAutosave, phaseB, patientId]);
 
   const discardDraft = useCallback(() => {
     clearForm3Draft(userId, caseId);
@@ -335,6 +394,11 @@ export function useForm3Supabase({
 
   return {
     data,
+    /** Phase B ON 時のみ。読込 hydrate 済み v2。Migration では dirty/save しない */
+    dataV2,
+    /** Phase B 読込メタ（テスト・次フェーズ用）。Flag OFF では null */
+    readHydration,
+    phaseB,
     hydrated,
     saveStatus,
     lastSavedAt,

@@ -103,6 +103,14 @@ export function initialForm3Data(
   return initial?.payload ?? createEmptyForm3(patientId);
 }
 
+/**
+ * Phase B2-2A: 読込 hydrate 後の Hook 初期 saveStatus。
+ * Migration は dirty にしない → 常に "idle"。
+ */
+export function initialForm3SaveStatusAfterRead(dirty: boolean): Form3SaveStatus {
+  return dirty ? "dirty" : "idle";
+}
+
 export type Form3SaveOutcome =
   | {
       kind: "saved";
