@@ -23,6 +23,7 @@ import {
   type Form3Patterns,
 } from "@/lib/form3/form3Types";
 import { meetsForm3ReviewRequirements } from "@/lib/form3/form3Validation";
+import { detectForm3PayloadSchema } from "@/lib/form3/v2/form3V2SchemaDetect";
 import type { Form3SaveWarning, Form3Snapshot } from "./types";
 
 export interface Form3Row {
@@ -132,11 +133,15 @@ export function rowToForm3Snapshot(
   row: Form3Row,
   patientId: string,
 ): Form3Snapshot {
-  const { payload } = sanitizeForm3Payload(row.payload, patientId);
+  const rawPayload = row.payload;
+  const detected = detectForm3PayloadSchema(rawPayload).schemaVersion;
+  const { payload } = sanitizeForm3Payload(rawPayload, patientId);
   return {
     payload,
     version: row.version,
     updatedAt: row.updated_at,
+    persistedSchemaVersion: detected ?? 1,
+    rawPayload,
   };
 }
 

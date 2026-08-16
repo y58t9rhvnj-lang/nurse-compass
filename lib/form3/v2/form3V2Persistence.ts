@@ -7,6 +7,10 @@ import { sanitizeForm3Payload } from "@/lib/v2/notebook/form3Mapper";
 import { createEmptyForm3V2 } from "./form3V2Factory";
 import { migrateForm3V1ToV2 } from "./form3V2Migration";
 import {
+  detectForm3PayloadSchema,
+  type Form3PayloadSchemaVersion,
+} from "./form3V2SchemaDetect";
+import {
   parseForm3JsonPayload,
   serializeForm3DataV2,
   serializeForm3DataV2ToJson,
@@ -23,41 +27,8 @@ import {
   type Form3V2PersistenceIssue,
 } from "./form3V2Validation";
 
-export type Form3PayloadSchemaVersion = 1 | 2;
-
-export type DetectForm3PayloadSchemaResult = {
-  schemaVersion: Form3PayloadSchemaVersion | null;
-};
-
-/**
- * payload の schema 判定。
- * - schemaVersion 明示を優先
- * - 欠落時は構造ヒューリスティック（patterns → v1、cards+finalForm → v2）
- */
-export function detectForm3PayloadSchema(
-  raw: unknown,
-): DetectForm3PayloadSchemaResult {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return { schemaVersion: null };
-  }
-  const v = raw as Record<string, unknown>;
-
-  if (v.schemaVersion === 2) return { schemaVersion: 2 };
-  if (v.schemaVersion === 1) return { schemaVersion: 1 };
-
-  if (
-    Array.isArray(v.informationCards) &&
-    Array.isArray(v.assessmentCards) &&
-    v.finalForm !== null &&
-    typeof v.finalForm === "object"
-  ) {
-    return { schemaVersion: 2 };
-  }
-  if (v.patterns !== null && typeof v.patterns === "object") {
-    return { schemaVersion: 1 };
-  }
-  return { schemaVersion: null };
-}
+export type { Form3PayloadSchemaVersion };
+export { detectForm3PayloadSchema };
 
 export type LoadForm3PayloadOptions = {
   /** migrate の migratedAt 固定（テスト用） */
@@ -142,17 +113,12 @@ export type SaveForm3PayloadResult =
 
 /**
  * Form3DataV2 を保存用 payload へ変換する。
- * validate → sanitize → serialize。Repository には接続しない。
+ * 一本道: sanitize → validation → serialize。Repository には接続しない。
  */
 export function saveForm3Payload(
   data: Form3DataV2,
   patientId: string,
 ): SaveForm3PayloadResult {
-  const before = validateForm3V2Persistence(data);
-  if (!before.ok) {
-    return { ok: false, issues: before.issues, warnings: [] };
-  }
-
   const { data: sanitized, warnings } = sanitizeForm3V2Payload(data, patientId);
   const after = validateForm3V2Persistence(sanitized);
   if (!after.ok) {

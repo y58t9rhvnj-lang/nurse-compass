@@ -21,6 +21,13 @@ import {
   sanitizeForm3Payload,
 } from "@/lib/v2/notebook/form3Mapper";
 import {
+  prepareForm3V2ForPersist,
+  rowToForm3SnapshotV2,
+  sanitizeForm3PayloadAsV2,
+  type Form3SnapshotV2,
+} from "@/lib/form3/v2/form3V2Mapper";
+import { isFeatureEnabled } from "@/lib/featureFlags";
+import {
   getForm3,
   insertForm3,
   updateForm3WithVersion,
@@ -31,6 +38,8 @@ import {
   type Form3LoadResult,
   type Form3SaveInput,
   type Form3SaveResult,
+  type Form3SaveV2Input,
+  type Form3SaveV2Result,
 } from "@/lib/v2/notebook/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -171,3 +180,129 @@ export async function saveForm3Action(
     warnings,
   };
 }
+
+/**
+ * Phase B2-2B — Form3DataV2 明示保存。
+ * Feature Flag OFF では拒否（v1 saveForm3Action を使う）。
+ * 一本道: prepareForm3V2ForPersist → insert/update → SnapshotV2。
+ * Autosave からは呼ばない（Hook の Save Gate 側）。
+ */
+export async function saveForm3V2Action(
+  input: Form3SaveV2Input,
+): Promise<Form3SaveV2Result> {
+  if (!isFeatureEnabled("form3PhaseB")) {
+    return {
+      ok: false,
+      kind: "validation_error",
+      message: "form3 phase b disabled",
+    };
+  }
+
+  const ctx = await requireStudentContext();
+  if (!ctx.ok) return { ok: false, kind: ctx.kind, message: ctx.message };
+
+  const { patientId, payload, expectedVersion } = input;
+  const caseId = caseIdForPatient(patientId);
+  if (!caseId) {
+    return { ok: false, kind: "validation_error", message: "unknown case" };
+  }
+
+  if (
+    expectedVersion !== null &&
+    (!Number.isInteger(expectedVersion) || expectedVersion < 1)
+  ) {
+    return { ok: false, kind: "validation_error", message: "invalid version" };
+  }
+
+  // raw をそのまま DB に入れない（sanitize → validation → serialize）
+  const normalized = sanitizeForm3PayloadAsV2(payload, patientId);
+  const prepared = prepareForm3V2ForPersist(normalized.payload, patientId);
+  if (!prepared.ok) {
+    return {
+      ok: false,
+      kind: "validation_error",
+      message: "payload validation failed",
+      issues: prepared.issues,
+    };
+  }
+
+  const safePayload = prepared.payload;
+
+  if (expectedVersion === null) {
+    const { row, error } = await insertForm3(ctx.supabase, {
+      user_id: ctx.profile.id,
+      organization_id: ctx.profile.organizationId,
+      academic_year: ctx.profile.academicYear,
+      case_id: caseId,
+      payload: safePayload,
+    });
+    if (error) {
+      const classified = classifyDbError(error);
+      if (classified === "duplicate") {
+        const { row: latest } = await getForm3(
+          ctx.supabase,
+          ctx.profile.id,
+          caseId,
+        );
+        return {
+          ok: false,
+          kind: "conflict",
+          message: "record already exists",
+          latest: latest ? rowToForm3SnapshotV2(latest, patientId) : null,
+        };
+      }
+      return {
+        ok: false,
+        kind: toForm3ActionErrorKind(classified),
+        message: "failed to save form3",
+      };
+    }
+    if (!row) {
+      return {
+        ok: false,
+        kind: "database_error",
+        message: "failed to save form3",
+      };
+    }
+    const snap = rowToForm3SnapshotV2(row, patientId);
+    return {
+      ok: true,
+      kind: "saved",
+      data: snap,
+      warnings: [...prepared.warnings, ...snap.warnings],
+    };
+  }
+
+  const { row, error } = await updateForm3WithVersion(ctx.supabase, {
+    userId: ctx.profile.id,
+    caseId,
+    expectedVersion,
+    payload: safePayload,
+  });
+  if (error) {
+    return {
+      ok: false,
+      kind: toForm3ActionErrorKind(classifyDbError(error)),
+      message: "failed to save form3",
+    };
+  }
+  if (!row) {
+    const { row: latest } = await getForm3(ctx.supabase, ctx.profile.id, caseId);
+    return {
+      ok: false,
+      kind: "conflict",
+      message: "version conflict",
+      latest: latest ? rowToForm3SnapshotV2(latest, patientId) : null,
+    };
+  }
+  const snap = rowToForm3SnapshotV2(row, patientId);
+  return {
+    ok: true,
+    kind: "saved",
+    data: snap,
+    warnings: [...prepared.warnings, ...snap.warnings],
+  };
+}
+
+/** 型再エクスポート（テスト用） */
+export type { Form3SnapshotV2 };
