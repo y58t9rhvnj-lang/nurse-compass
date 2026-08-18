@@ -29,5 +29,13 @@ export const FEATURE_FLAGS = {
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
 
 export function isFeatureEnabled(key: FeatureFlagKey): boolean {
+  // Local-only override: set NEXT_PUBLIC_FORM3_PHASE_B=true in .env.local.
+  // Unset / any other value keeps the source default (false). Does not affect other flags.
+  if (
+    key === "form3PhaseB" &&
+    process.env.NEXT_PUBLIC_FORM3_PHASE_B === "true"
+  ) {
+    return true;
+  }
   return FEATURE_FLAGS[key];
 }
