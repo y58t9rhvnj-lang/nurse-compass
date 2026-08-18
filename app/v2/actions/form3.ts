@@ -24,7 +24,6 @@ import {
   prepareForm3V2ForPersist,
   rowToForm3SnapshotV2,
   sanitizeForm3PayloadAsV2,
-  type Form3SnapshotV2,
 } from "@/lib/form3/v2/form3V2Mapper";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import {
@@ -303,6 +302,3 @@ export async function saveForm3V2Action(
     warnings: [...prepared.warnings, ...snap.warnings],
   };
 }
-
-/** 型再エクスポート（テスト用） */
-export type { Form3SnapshotV2 };
