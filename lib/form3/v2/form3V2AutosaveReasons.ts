@@ -13,6 +13,7 @@ export const FORM3_V2_AUTOSAVE_REASONS = [
   "assessment_updated",
   "assessment_archived",
   "assessment_restored",
+  "final_updated",
 ] as const;
 
 export type Form3V2AutosaveReason = (typeof FORM3_V2_AUTOSAVE_REASONS)[number];
@@ -30,6 +31,10 @@ export const FORM3_V2_ASSESSMENT_AUTOSAVE_REASONS = [
   "assessment_updated",
   "assessment_archived",
   "assessment_restored",
+] as const satisfies readonly Form3V2AutosaveReason[];
+
+export const FORM3_V2_FINAL_AUTOSAVE_REASONS = [
+  "final_updated",
 ] as const satisfies readonly Form3V2AutosaveReason[];
 
 export function isForm3V2AutosaveReason(

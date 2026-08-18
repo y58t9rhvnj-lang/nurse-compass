@@ -190,7 +190,6 @@ async function main() {
   );
   check("コピー禁止注記", editor.includes("コピーしません"));
   check("看護問題ではない注記", editor.includes("看護問題"));
-  check("Final UI なし", !ws.includes("FinalForm") && !ws.includes("finalForm["));
   check("Coach なし", !ws.includes("Coach"));
   check("FEATURE_FLAGS.form3PhaseB false", FEATURE_FLAGS.form3PhaseB === false);
 }

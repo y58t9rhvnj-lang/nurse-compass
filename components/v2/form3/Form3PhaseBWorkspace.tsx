@@ -2,6 +2,9 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Form3AssessmentCardList from "@/components/v2/form3/Form3AssessmentCardList";
+import Form3FinalFormEditor from "@/components/v2/form3/Form3FinalFormEditor";
+import Form3FinalReferencePanel from "@/components/v2/form3/Form3FinalReferencePanel";
+import Form3FinalReferenceSheet from "@/components/v2/form3/Form3FinalReferenceSheet";
 import Form3InformationCardList from "@/components/v2/form3/Form3InformationCardList";
 import Form3PatientSourcePanel from "@/components/v2/form3/Form3PatientSourcePanel";
 import Form3PatientSourceSheet from "@/components/v2/form3/Form3PatientSourceSheet";
@@ -17,6 +20,7 @@ import {
   updateForm3AssessmentCard,
 } from "@/lib/form3/v2/form3V2AssessmentOps";
 import { createEmptyForm3V2 } from "@/lib/form3/v2/form3V2Factory";
+import { updateForm3FinalPattern } from "@/lib/form3/v2/form3V2FinalOps";
 import {
   addForm3InformationCard,
   archiveForm3InformationCard,
@@ -27,10 +31,12 @@ import {
 } from "@/lib/form3/v2/form3V2InformationOps";
 import type {
   Form3DataV2,
+  Form3FinalPatternV2,
   Form3InformationSourceType,
   Form3SoType,
   Form3SourceReference,
 } from "@/lib/form3/v2/form3V2Types";
+import { createEmptyForm3FinalForm } from "@/lib/form3/v2/form3V2Types";
 import type { FacingConvoState } from "@/lib/patientFacingData";
 import type { Form3Snapshot } from "@/lib/v2/notebook/types";
 import type { Patient } from "@/lib/wardData";
@@ -44,12 +50,12 @@ export type Form3PhaseBWorkspaceProps = {
   facingState?: FacingConvoState | null;
 };
 
-type WorkspaceTab = "information" | "assessment";
+type WorkspaceTab = "information" | "assessment" | "final";
 
 /**
- * Form3 Phase B Workspace（B3 Information + B4 Assessment + B5 Patient Source）。
+ * Form3 Phase B Workspace
+ * （Information / Assessment / Final Artifact / Patient Source）。
  * 操作後は markUserEditedV2(next, reason) のみ。
- * saveNowV2 は呼ばない（Hook 内 Controller が debounce → flush）。
  */
 export default function Form3PhaseBWorkspace({
   patientId,
@@ -72,8 +78,10 @@ export default function Form3PhaseBWorkspace({
   const [showArchivedInfo, setShowArchivedInfo] = useState(false);
   const [showArchivedAssess, setShowArchivedAssess] = useState(false);
   const [sourceSheetOpen, setSourceSheetOpen] = useState(false);
+  const [finalRefSheetOpen, setFinalRefSheetOpen] = useState(false);
 
   const data: Form3DataV2 = dataV2 ?? createEmptyForm3V2(patientId);
+  const finalForm = data.finalForm ?? createEmptyForm3FinalForm();
 
   const infoCards = useMemo(
     () => listForm3InformationCards(data, { includeArchived: true }),
@@ -85,7 +93,6 @@ export default function Form3PhaseBWorkspace({
     [data],
   );
 
-  /** Evidence 候補: 一覧を見ながら選択できるよう全 Information を渡す */
   const evidenceOptions = useMemo(() => {
     const active = infoCards.filter((c) => c.status === "active");
     const archivedSelected = infoCards.filter(
@@ -217,6 +224,20 @@ export default function Form3PhaseBWorkspace({
     [applyEdit, data],
   );
 
+  const onPatchFinal = useCallback(
+    (patternKey: Form3PatternKey, patch: Partial<Form3FinalPatternV2>) => {
+      applyEdit(updateForm3FinalPattern(data, patternKey, patch), "final_updated");
+    },
+    [applyEdit, data],
+  );
+
+  const title =
+    tab === "information"
+      ? "Information Cards"
+      : tab === "assessment"
+        ? "Assessment Cards"
+        : "Final Form";
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-[#F2F2F7]">
       <aside className="hidden h-full min-h-0 w-[min(40%,28rem)] shrink-0 border-r border-[#E5E5EA] lg:flex lg:flex-col">
@@ -230,13 +251,13 @@ export default function Form3PhaseBWorkspace({
 
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="shrink-0 border-b border-[#E5E5EA] bg-white/90 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-3xl flex-wrap items-end justify-between gap-3 px-4 py-4 sm:px-6">
+          <div className="mx-auto flex w-full max-w-3xl flex-wrap items-end justify-between gap-3 px-4 py-4 sm:px-6 xl:max-w-none xl:px-6">
             <div className="min-w-0">
               <p className="text-[11px] font-medium tracking-wide text-[#8E8E93]">
                 様式3 · Phase B
               </p>
               <h1 className="mt-1 text-[20px] font-semibold tracking-tight text-[#1D1D1F]">
-                {tab === "information" ? "Information Cards" : "Assessment Cards"}
+                {title}
               </h1>
               {patientName ? (
                 <p className="mt-1 text-[14px] text-[#6E6E73]">{patientName}</p>
@@ -250,6 +271,15 @@ export default function Form3PhaseBWorkspace({
               >
                 Patient Source
               </button>
+              {tab === "final" ? (
+                <button
+                  type="button"
+                  className="min-h-[44px] rounded-2xl bg-[#F2F2F7] px-4 text-[15px] font-semibold text-[#1D1D1F] xl:hidden"
+                  onClick={() => setFinalRefSheetOpen(true)}
+                >
+                  Workspace 参照
+                </button>
+              ) : null}
               <div className="text-right">
                 <p className="text-[12px] font-semibold uppercase tracking-wide text-[#8E8E93]">
                   {persistLabel.label}
@@ -261,57 +291,73 @@ export default function Form3PhaseBWorkspace({
             </div>
           </div>
 
-          <div className="mx-auto flex w-full max-w-3xl gap-2 px-4 pb-3 sm:px-6">
-            <button
-              type="button"
-              className={`min-h-[44px] flex-1 rounded-2xl text-[15px] font-semibold ${
-                tab === "information"
-                  ? "bg-[#1D1D1F] text-white"
-                  : "bg-[#F2F2F7] text-[#1D1D1F]"
-              }`}
-              onClick={() => setTab("information")}
-            >
-              Information
-            </button>
-            <button
-              type="button"
-              className={`min-h-[44px] flex-1 rounded-2xl text-[15px] font-semibold ${
-                tab === "assessment"
-                  ? "bg-[#1D1D1F] text-white"
-                  : "bg-[#F2F2F7] text-[#1D1D1F]"
-              }`}
-              onClick={() => setTab("assessment")}
-            >
-              Assessment
-            </button>
+          <div className="mx-auto flex w-full max-w-3xl gap-2 px-4 pb-3 sm:px-6 xl:max-w-none xl:px-6">
+            {(
+              [
+                ["information", "Information"],
+                ["assessment", "Assessment"],
+                ["final", "Final"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`min-h-[44px] flex-1 rounded-2xl text-[15px] font-semibold ${
+                  tab === id
+                    ? "bg-[#1D1D1F] text-white"
+                    : "bg-[#F2F2F7] text-[#1D1D1F]"
+                }`}
+                onClick={() => setTab(id)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {tab === "information" ? (
-            <Form3InformationCardList
-              cards={infoCards}
-              showArchived={showArchivedInfo}
-              onToggleShowArchived={() => setShowArchivedInfo((v) => !v)}
-              onAdd={onAddInfo}
-              onPatch={onPatchInfo}
-              onArchive={onArchiveInfo}
-              onUnarchive={onUnarchiveInfo}
-              onMoveUp={onMoveInfoUp}
-              onMoveDown={onMoveInfoDown}
-            />
-          ) : (
-            <Form3AssessmentCardList
-              cards={assessCards}
-              informationOptions={evidenceOptions}
-              showArchived={showArchivedAssess}
-              onToggleShowArchived={() => setShowArchivedAssess((v) => !v)}
-              onAdd={onAddAssess}
-              onPatch={onPatchAssess}
-              onArchive={onArchiveAssess}
-              onUnarchive={onUnarchiveAssess}
-            />
-          )}
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+            {tab === "information" ? (
+              <Form3InformationCardList
+                cards={infoCards}
+                showArchived={showArchivedInfo}
+                onToggleShowArchived={() => setShowArchivedInfo((v) => !v)}
+                onAdd={onAddInfo}
+                onPatch={onPatchInfo}
+                onArchive={onArchiveInfo}
+                onUnarchive={onUnarchiveInfo}
+                onMoveUp={onMoveInfoUp}
+                onMoveDown={onMoveInfoDown}
+              />
+            ) : null}
+            {tab === "assessment" ? (
+              <Form3AssessmentCardList
+                cards={assessCards}
+                informationOptions={evidenceOptions}
+                showArchived={showArchivedAssess}
+                onToggleShowArchived={() => setShowArchivedAssess((v) => !v)}
+                onAdd={onAddAssess}
+                onPatch={onPatchAssess}
+                onArchive={onArchiveAssess}
+                onUnarchive={onUnarchiveAssess}
+              />
+            ) : null}
+            {tab === "final" ? (
+              <Form3FinalFormEditor
+                finalForm={finalForm}
+                onPatchPattern={onPatchFinal}
+              />
+            ) : null}
+          </div>
+
+          {tab === "final" ? (
+            <aside className="hidden h-full min-h-0 w-[min(36%,24rem)] shrink-0 border-l border-[#E5E5EA] xl:flex xl:flex-col">
+              <Form3FinalReferencePanel
+                informationCards={infoCards}
+                assessmentCards={assessCards}
+              />
+            </aside>
+          ) : null}
         </div>
       </div>
 
@@ -321,6 +367,12 @@ export default function Form3PhaseBWorkspace({
         patientId={patientId}
         patient={patient}
         facing={facingState}
+      />
+      <Form3FinalReferenceSheet
+        open={finalRefSheetOpen}
+        onClose={() => setFinalRefSheetOpen(false)}
+        informationCards={infoCards}
+        assessmentCards={assessCards}
       />
     </div>
   );
