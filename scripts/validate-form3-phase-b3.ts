@@ -165,8 +165,8 @@ const NOW = "2026-08-17T00:00:00.000Z";
     host.includes("Form3PhaseBWorkspace"),
   );
   check(
-    "Assessment UI を入れない",
-    !ws.includes("AssessmentCard") && !ws.includes("Form3Assessment"),
+    "Final / Coach UI を入れない（B3 範囲）",
+    !ws.includes("FinalForm") && !ws.includes("Coach"),
   );
   check("FEATURE_FLAGS.form3PhaseB false", FEATURE_FLAGS.form3PhaseB === false);
 }

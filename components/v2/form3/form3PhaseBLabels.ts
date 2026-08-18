@@ -27,6 +27,10 @@ export function form3PatternShortLabel(key: Form3PatternKey): string {
   return FORM3_PATTERN_SHORT_LABELS[key];
 }
 
+export {
+  FORM3_JUDGMENT_LABELS as FORM3_CLASSIFICATION_LABELS,
+} from "@/components/v2/form3/form3UiLabels";
+
 export type Form3PhaseBPersistLabel =
   | "Ready"
   | "Draft"

@@ -12,6 +12,7 @@ import {
 } from "../lib/form3/v2/form3V2AutosaveController";
 import {
   FORM3_V2_AUTOSAVE_REASONS,
+  FORM3_V2_INFORMATION_AUTOSAVE_REASONS,
   isForm3V2AutosaveReason,
 } from "../lib/form3/v2/form3V2AutosaveReasons";
 import type { CanPersistForm3V2Input } from "../lib/form3/v2/form3V2SaveGate";
@@ -48,17 +49,18 @@ function gateFromFlags(
 async function main() {
   // ── Reasons ──
   {
-    const expected = [
-      "information_added",
-      "information_updated",
-      "information_archived",
-      "information_restored",
-      "information_reordered",
-    ];
     check(
-      "AutosaveReason 5種",
-      FORM3_V2_AUTOSAVE_REASONS.length === 5 &&
-        expected.every((r) => isForm3V2AutosaveReason(r)),
+      "Information AutosaveReason 5種",
+      FORM3_V2_INFORMATION_AUTOSAVE_REASONS.length === 5 &&
+        FORM3_V2_INFORMATION_AUTOSAVE_REASONS.every((r) =>
+          isForm3V2AutosaveReason(r),
+        ),
+    );
+    check(
+      "AutosaveReason に Information を含む",
+      FORM3_V2_INFORMATION_AUTOSAVE_REASONS.every((r) =>
+        (FORM3_V2_AUTOSAVE_REASONS as readonly string[]).includes(r),
+      ),
     );
   }
 
@@ -263,7 +265,7 @@ async function main() {
         !/\bsaveNowV2\s*,/.test(wsSrc) &&
         !/\bsaveNowV2\s*\}/.test(wsSrc),
     );
-    for (const reason of FORM3_V2_AUTOSAVE_REASONS) {
+    for (const reason of FORM3_V2_INFORMATION_AUTOSAVE_REASONS) {
       check(`Workspace が ${reason} を渡す`, wsSrc.includes(`"${reason}"`));
     }
     check(

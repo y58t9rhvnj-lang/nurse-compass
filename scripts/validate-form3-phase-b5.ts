@@ -143,7 +143,7 @@ function check(name: string, ok: boolean) {
       editor.includes("sourceLabel: trimmed === \"\" ? null : value"),
   );
   check("DnD なし", !panel.includes("onDrag") && !ws.includes("onDrop"));
-  check("Assessment UI なし", !ws.includes("AssessmentCard"));
+  check("Coach UI なし", !ws.includes("Coach"));
   check("Host が patient / facing を渡す", host.includes("facingState={facingState}"));
   check("FEATURE_FLAGS.form3PhaseB false", FEATURE_FLAGS.form3PhaseB === false);
 }
