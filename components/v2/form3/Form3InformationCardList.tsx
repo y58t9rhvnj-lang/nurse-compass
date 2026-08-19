@@ -29,6 +29,8 @@ export type Form3InformationCardListProps = {
   onUnarchive: (cardId: string) => void;
   onMoveUp: (cardId: string) => void;
   onMoveDown: (cardId: string) => void;
+  emptyTitle?: string;
+  emptyBody?: string;
 };
 
 export default function Form3InformationCardList({
@@ -41,6 +43,8 @@ export default function Form3InformationCardList({
   onUnarchive,
   onMoveUp,
   onMoveDown,
+  emptyTitle = "まだ事実がありません",
+  emptyBody = "「＋ Information」から、会話・観察・記録で得たひとつの事実を追加してください。",
 }: Form3InformationCardListProps) {
   const visible = showArchived
     ? cards
@@ -48,7 +52,7 @@ export default function Form3InformationCardList({
   const empty = visible.length === 0;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-28 pt-4 sm:px-6">
+    <div className="mx-auto w-full max-w-3xl px-4 pb-10 pt-4 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-[22px] font-semibold tracking-tight text-[#1D1D1F]">
@@ -82,10 +86,10 @@ export default function Form3InformationCardList({
       {empty ? (
         <div className="mt-10 rounded-3xl bg-white px-6 py-14 text-center ring-1 ring-[#E5E5EA]">
           <p className="text-[18px] font-semibold text-[#1D1D1F]">
-            まだ事実がありません
+            {emptyTitle}
           </p>
           <p className="mx-auto mt-3 max-w-sm text-[15px] leading-relaxed text-[#6E6E73]">
-            「＋ Information」から、会話・観察・記録で得たひとつの事実を追加してください。
+            {emptyBody}
           </p>
           <button
             type="button"

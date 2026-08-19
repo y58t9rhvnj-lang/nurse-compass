@@ -50,6 +50,7 @@ export function createForm3InformationCard(
   options: {
     now?: string;
     order?: number;
+    patternKeys?: Form3PatternKey[];
   } = {},
 ): Form3InformationCardV2 {
   const t = nowIso(options.now);
@@ -58,7 +59,9 @@ export function createForm3InformationCard(
     content: "",
     soType: null,
     sourceType: "other",
-    patternKeys: [],
+    patternKeys: options.patternKeys
+      ? [...new Set(options.patternKeys)]
+      : [],
     order: options.order ?? 0,
     status: "active",
     createdAt: t,
@@ -68,12 +71,13 @@ export function createForm3InformationCard(
 
 export function addForm3InformationCard(
   data: Form3DataV2,
-  options: { now?: string } = {},
+  options: { now?: string; patternKeys?: Form3PatternKey[] } = {},
 ): Form3DataV2 {
   const sorted = sortByOrder(data.informationCards);
   const card = createForm3InformationCard({
     now: options.now,
     order: sorted.length,
+    patternKeys: options.patternKeys,
   });
   return {
     ...data,

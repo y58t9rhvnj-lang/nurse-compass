@@ -2,6 +2,20 @@
 
 // Compass Version2 — 様式2 Workspace（Form2 Workspace / Learning Workspace の中核）。
 //
+// Phase C2 メモ（FormWorkspaceShell 未接続）:
+//   Form2 を Shell に載せる際の必要 props / 障害:
+//   - formTitle: 「様式2」（学生向け名称変更は C6）
+//   - patientName: AppShell / LearningLayer から渡す必要あり（現状 Form2Workspace は未受領）
+//   - onBack: C3 で患者トップへ（現状なし）
+//   - saveStatus: WorkspaceForm2Section / useForm2Supabase の状態を slot 化
+//   - headerActions: 「患者理解を深める」・将来の印刷/提出（C7）
+//   - patientReference: WorkspacePatientReferencePane（tabs: chart|conversation）。
+//     現状はインライン CompassChart + WorkspaceConversation（notes なし）
+//   - 障害: LearningLayer Inspector（Coach/Note）が clinical-workspace 専用 sibling。
+//     Shell 化するとメモ導線を左ペイン notes へ寄せるか Inspector を残すか C6 で決定が必要。
+//   - 障害: 左ペイン固定幅 300–380px。Shell は 38% 固定。接続時に幅感が変わる。
+//   - C2 では Form3 で Shell を先に検証するため、ここでは接続しない。
+//
 // 設計（docs/version2/13_ui_architecture.md §4.1 / 16_workspace_mockups.md §3 / Sprint D-1）:
 //   3 カラム構成の「様式2 フェーズ専用の思考空間」。主役は様式2で、常に中央に表示し続ける。
 //     左  = 参照領域。患者情報 / 電子カルテ / 会話 を「左ペイン内だけ」で切り替える

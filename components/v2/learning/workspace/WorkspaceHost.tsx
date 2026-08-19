@@ -72,6 +72,7 @@ export default function WorkspaceHost({
             patientName={patient.name}
             patient={patient}
             facingState={facingState}
+            onChangeFacingState={onChangeFacingState}
             userId={userId}
             initial={initialForm3}
           />

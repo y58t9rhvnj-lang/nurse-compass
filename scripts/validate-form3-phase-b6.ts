@@ -154,7 +154,12 @@ async function main() {
       join(root, "components/v2/form3/Form3FinalReferencePanel.tsx"),
       "utf8",
     );
-    check("Workspace に Final タブ", ws.includes('"final"') && ws.includes("Form3FinalFormEditor"));
+    check(
+      "Workspace に Final 導線",
+      ws.includes('"final"') &&
+        ws.includes("Form3FinalFormEditor") &&
+        (ws.includes("様式表示") || ws.includes("Final Form")),
+    );
     check("Workspace が final_updated を渡す", ws.includes('"final_updated"'));
     check("Workspace が saveNowV2 を呼ばない", !/\bsaveNowV2\s*\(/.test(ws));
     check("2欄のみ informationSO", editor.includes("informationSO"));

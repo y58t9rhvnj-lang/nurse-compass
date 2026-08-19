@@ -43,6 +43,7 @@ export function createForm3AssessmentCard(
   options: {
     now?: string;
     order?: number;
+    patternKey?: Form3PatternKey | null;
   } = {},
 ): Form3AssessmentCardV2 {
   const t = nowIso(options.now);
@@ -52,7 +53,7 @@ export function createForm3AssessmentCard(
     classification: null,
     evidenceInformationIds: [],
     needMoreInformation: "",
-    patternKey: null,
+    patternKey: options.patternKey === undefined ? null : options.patternKey,
     order: options.order ?? 0,
     status: "draft",
     createdAt: t,
@@ -62,12 +63,13 @@ export function createForm3AssessmentCard(
 
 export function addForm3AssessmentCard(
   data: Form3DataV2,
-  options: { now?: string } = {},
+  options: { now?: string; patternKey?: Form3PatternKey | null } = {},
 ): Form3DataV2 {
   const sorted = sortByOrder(data.assessmentCards);
   const card = createForm3AssessmentCard({
     now: options.now,
     order: sorted.length,
+    patternKey: options.patternKey,
   });
   return {
     ...data,

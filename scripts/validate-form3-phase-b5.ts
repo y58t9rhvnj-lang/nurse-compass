@@ -115,8 +115,20 @@ function check(name: string, ok: boolean) {
     join(root, "components/v2/form3/Form3PatientSourcePanel.tsx"),
     "utf8",
   );
-  const sheet = readFileSync(
+  const legacySheet = readFileSync(
     join(root, "components/v2/form3/Form3PatientSourceSheet.tsx"),
+    "utf8",
+  );
+  const refPane = readFileSync(
+    join(root, "components/v2/workspace/WorkspacePatientReferencePane.tsx"),
+    "utf8",
+  );
+  const refSheet = readFileSync(
+    join(root, "components/v2/workspace/WorkspacePatientReferenceSheet.tsx"),
+    "utf8",
+  );
+  const shell = readFileSync(
+    join(root, "components/v2/workspace/FormWorkspaceShell.tsx"),
     "utf8",
   );
   const editor = readFileSync(
@@ -128,12 +140,55 @@ function check(name: string, ok: boolean) {
     "utf8",
   );
 
-  check("Workspace に Patient Source Panel", ws.includes("Form3PatientSourcePanel"));
-  check("Workspace に Sheet（iPad）", ws.includes("Form3PatientSourceSheet"));
-  check("lg で左パネル", ws.includes("lg:flex") && ws.includes("hidden"));
-  check("Sheet は lg:hidden", sheet.includes("lg:hidden"));
-  check("折りたたみ toggle", panel.includes("toggleSection") || panel.includes("aria-expanded"));
-  check("スクロール保持", panel.includes("sessionStorage") && panel.includes("scrollTop"));
+  // R1: 主要左参照は思考 WS 相当の患者参照ペイン。旧 Patient Source はモデル/コンポーネントを残す。
+  // C2: 2ペイン / Sheet 切替は FormWorkspaceShell が担当。
+  check(
+    "Workspace に患者参照ペイン",
+    ws.includes("WorkspacePatientReferencePane"),
+  );
+  check(
+    "Workspace に患者参照 Sheet（狭幅）",
+    ws.includes("WorkspacePatientReferenceSheet"),
+  );
+  check(
+    "Workspace から旧 Patient Source 主要導線を外す",
+    !ws.includes("Form3PatientSourcePanel") &&
+      !ws.includes("Form3PatientSourceSheet"),
+  );
+  check(
+    "Workspace が FormWorkspaceShell を使う",
+    ws.includes("FormWorkspaceShell"),
+  );
+  check(
+    "幅ベースで 2ペイン / Sheet 切替",
+    shell.includes("min-width: 1024px") &&
+      shell.includes("isWideLayout") &&
+      shell.includes("useFormWorkspaceWideLayout"),
+  );
+  check("患者参照 Sheet は lg:hidden", refSheet.includes("lg:hidden"));
+  check(
+    "患者参照ペインが CompassChart を再利用",
+    refPane.includes("CompassChart") && refPane.includes("embedded"),
+  );
+  check(
+    "患者参照ペインが WorkspaceConversation を再利用",
+    refPane.includes("WorkspaceConversation"),
+  );
+  check(
+    "患者参照ペインが NoteZone を再利用",
+    refPane.includes("NoteZone") && refPane.includes('variant="fill"'),
+  );
+  check(
+    "タブ切替で mount 維持（hidden）",
+    refPane.includes(':"hidden"') || refPane.includes(': "hidden"'),
+  );
+  check("旧 Patient Source Panel ファイル残存", panel.includes("Patient Source"));
+  check(
+    "旧 Patient Source Sheet ファイル残存",
+    legacySheet.includes("Form3PatientSourcePanel"),
+  );
+  check("折りたたみ toggle（旧 Panel）", panel.includes("toggleSection") || panel.includes("aria-expanded"));
+  check("スクロール保持（旧 Panel）", panel.includes("sessionStorage") && panel.includes("scrollTop"));
   check("自動入力禁止コメント", editor.includes("自動入力しません"));
   check("sourceLabel 入力あり", editor.includes("sourceLabel"));
   check(
@@ -142,9 +197,13 @@ function check(name: string, ok: boolean) {
       editor.includes('ref.kind === "fixture"') &&
       editor.includes("sourceLabel: trimmed === \"\" ? null : value"),
   );
-  check("DnD なし", !panel.includes("onDrag") && !ws.includes("onDrop"));
+  check("DnD なし", !refPane.includes("onDrag") && !ws.includes("onDrop"));
   check("Coach UI なし", !ws.includes("Coach"));
   check("Host が patient / facing を渡す", host.includes("facingState={facingState}"));
+  check(
+    "Host が onChangeFacingState を渡す",
+    host.includes("onChangeFacingState={onChangeFacingState}"),
+  );
   check("FEATURE_FLAGS.form3PhaseB false", FEATURE_FLAGS.form3PhaseB === false);
 }
 

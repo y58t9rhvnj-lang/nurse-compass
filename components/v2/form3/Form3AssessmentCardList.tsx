@@ -25,6 +25,8 @@ export type Form3AssessmentCardListProps = {
   ) => void;
   onArchive: (cardId: string) => void;
   onUnarchive: (cardId: string) => void;
+  emptyTitle?: string;
+  emptyBody?: string;
 };
 
 export default function Form3AssessmentCardList({
@@ -36,6 +38,8 @@ export default function Form3AssessmentCardList({
   onPatch,
   onArchive,
   onUnarchive,
+  emptyTitle = "まだ解釈がありません",
+  emptyBody = "Information を見ながら、「＋ Assessment」で解釈を追加してください。",
 }: Form3AssessmentCardListProps) {
   const visible = showArchived
     ? cards
@@ -77,10 +81,10 @@ export default function Form3AssessmentCardList({
       {empty ? (
         <div className="mt-10 rounded-3xl bg-white px-6 py-14 text-center ring-1 ring-[#E5E5EA]">
           <p className="text-[18px] font-semibold text-[#1D1D1F]">
-            まだ解釈がありません
+            {emptyTitle}
           </p>
           <p className="mx-auto mt-3 max-w-sm text-[15px] leading-relaxed text-[#6E6E73]">
-            Information を見ながら、「＋ Assessment」で解釈を追加してください。
+            {emptyBody}
           </p>
           <button
             type="button"
