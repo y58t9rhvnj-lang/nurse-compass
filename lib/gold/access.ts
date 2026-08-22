@@ -6,58 +6,71 @@ import "server-only";
  */
 
 import { getCurrentProfile } from "@/lib/v2/auth/currentUser";
-import { caseIdForPatient } from "@/lib/v2/notebook/caseId";
 import { PATIENT_A_CANONICAL_INFORMATION_CATALOG } from "./patientA/canonicalInformationCatalog";
-import { getPatientAGoldStandardV1OrNull } from "./patientA/goldStandardV1";
-import type { GoldStandardDocument } from "./types";
+import {
+  buildGoldStandardListItems,
+  isTeacherOrAdminProfile,
+  loadGoldStandardDetailForPatient,
+  loadGoldStandardDocumentForPatient,
+  type GoldStandardDetailAccessResult,
+  type GoldStandardListItem,
+  type GoldStandardAccessResult,
+} from "./teacherGate";
 
-export type GoldStandardAccessResult =
-  | { ok: true; document: GoldStandardDocument }
-  | {
-      ok: false;
-      kind: "unauthorized" | "not_found" | "not_ready";
-      message: string;
-    };
+export type {
+  GoldStandardAccessResult,
+  GoldStandardDetailAccessResult,
+  GoldStandardListItem,
+} from "./teacherGate";
 
 /**
  * 教員/管理者セッションでのみ Gold Standard を返す（redirect しない）。
- * ソース JSON 未移植時は not_ready。
  */
 export async function requireTeacherGoldStandard(
   patientId: string,
 ): Promise<GoldStandardAccessResult> {
   const profile = await getCurrentProfile();
-  if (
-    !profile ||
-    !profile.isActive ||
-    profile.mustChangePassword ||
-    (profile.role !== "teacher" && profile.role !== "admin")
-  ) {
+  if (!isTeacherOrAdminProfile(profile)) {
     return {
       ok: false,
       kind: "unauthorized",
       message: "teacher or admin role required",
     };
   }
+  return loadGoldStandardDocumentForPatient(patientId);
+}
 
-  const caseId = caseIdForPatient(patientId);
-  if (!caseId) {
-    return { ok: false, kind: "not_found", message: "unknown patient" };
+/**
+ * 詳細表示用。Evidence をカタログ解決し、解決不能なら失敗を返す。
+ */
+export async function requireTeacherGoldStandardDetail(
+  patientId: string,
+): Promise<GoldStandardDetailAccessResult> {
+  const profile = await getCurrentProfile();
+  if (!isTeacherOrAdminProfile(profile)) {
+    return {
+      ok: false,
+      kind: "unauthorized",
+      message: "teacher or admin role required",
+    };
   }
+  return loadGoldStandardDetailForPatient(patientId);
+}
 
-  if (patientId === "A" && caseId === "SP-001") {
-    const doc = getPatientAGoldStandardV1OrNull();
-    if (!doc) {
-      return {
-        ok: false,
-        kind: "not_ready",
-        message: "Patient A Gold Standard v1 failed to load or validate",
-      };
-    }
-    return { ok: true, document: doc };
+/** 一覧用メタ（教員ゲート付き）。現時点は A さん 1 件。 */
+export async function requireTeacherGoldStandardList(): Promise<
+  | { ok: true; items: readonly GoldStandardListItem[] }
+  | { ok: false; kind: "unauthorized"; message: string }
+> {
+  const profile = await getCurrentProfile();
+  if (!isTeacherOrAdminProfile(profile)) {
+    return {
+      ok: false,
+      kind: "unauthorized",
+      message: "teacher or admin role required",
+    };
   }
-
-  return { ok: false, kind: "not_found", message: "no gold standard for case" };
+  return { ok: true, items: buildGoldStandardListItems() };
 }
 
 /** カタログのみ（模範思考本文を含まない）。 */

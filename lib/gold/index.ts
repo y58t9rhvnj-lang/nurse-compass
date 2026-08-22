@@ -29,3 +29,10 @@ export {
 } from "./patientA/canonicalInformationCatalog";
 
 export { PATIENT_A_CTP_EVIDENCE_MAP } from "./patientA/ctpEvidenceMap";
+
+export {
+  resolveGoldEvidenceForDocument,
+  type ResolvedGoldEvidence,
+  type ResolvedGoldCtp,
+  type ResolveGoldEvidenceResult,
+} from "./resolveEvidence";
