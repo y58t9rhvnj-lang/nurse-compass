@@ -42,89 +42,188 @@ button:disabled {
   cursor: default;
 }
 
-/* ── 精神様式2 様式表示の印刷（A4縦・原寸帳票 / 続紙対応） ──
-   画面では A4 を縮小プレビュー（transform:scale）するが、印刷では等倍(190mm)へ戻す。
-   1ページ目は原本レイアウト、超過分は続紙(2ページ目以降)として改ページする。
-   文章は切り捨てず全文を印刷する。 */
+/*
+ * Round 6 / iPad Safari:
+ * button・role=tab のシステム文字色が Tailwind の text-white を上書きし、
+ * 青背景上でラベル・アイコンが「消えた」ように見えることがある。
+ * data-compass-selected で色と fill を明示する（!important は最小限）。
+ */
+[data-compass-selected="true"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #1e88e5;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+  opacity: 1;
+}
+
+[data-compass-selected="true"] svg {
+  color: #ffffff;
+  stroke: currentColor;
+  opacity: 1;
+}
+
+[data-compass-selected="false"] {
+  -webkit-appearance: none;
+  appearance: none;
+  opacity: 1;
+}
+
+[data-compass-selected="false"] svg {
+  opacity: 1;
+}
+
+/* ── 精神様式2 / 様式3 印刷（A4縦・body 直下 portal 専用） ──
+   Form2 と同型。Form3 を :not(#form2-print-portal) だけで隠すと白紙になる。 */
+#form2-print-portal,
+#form3-print-portal {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 210mm;
+  min-width: 210mm;
+  max-width: 210mm;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+  background: #ffffff;
+  transform: none;
+  zoom: 1;
+}
+
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm;
+    margin: 0;
   }
 
-  /* アプリシェルの h-dvh / overflow:hidden を解除して様式を印刷可能にする */
   html,
   body {
+    width: auto !important;
     height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
     background: #ffffff !important;
-  }
-  * {
-    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    zoom: 1 !important;
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
   }
 
-  /* 既定で全て隠し、様式のみ表示する */
-  body * {
-    visibility: hidden;
-  }
-  .form2-print-root,
-  .form2-print-root * {
-    visibility: visible;
-  }
-  .no-print {
+  body > *:not(#form2-print-portal):not(#form3-print-portal) {
     display: none !important;
   }
 
-  /* 画面用の縮小プレビュー枠・変形を解除し、等倍でページ左上へ配置する */
-  .form2-preview {
+  #form2-print-portal,
+  #form3-print-portal {
+    display: block !important;
     position: static !important;
-    width: auto !important;
-  }
-  .form2-scale-wrap {
-    width: auto !important;
+    left: auto !important;
+    top: auto !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
     height: auto !important;
-    margin: 0 !important;
-  }
-  .form2-print-root {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-  }
-  .form2-pages {
+    margin: 0 auto !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: none !important;
+    z-index: auto !important;
+    background: #ffffff !important;
     transform: none !important;
+    zoom: 1 !important;
   }
-  .form2-sheet {
-    width: 190mm !important;
+
+  #form2-print-portal,
+  #form2-print-portal *,
+  #form3-print-portal,
+  #form3-print-portal * {
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  #form2-print-portal .no-print,
+  #form3-print-portal .no-print {
+    display: none !important;
+  }
+
+  #form2-print-portal .form2-preview,
+  #form2-print-portal .form2-scale-wrap,
+  #form2-print-portal .form2-print-root,
+  #form2-print-portal .form2-pages,
+  #form3-print-portal .form3-preview,
+  #form3-print-portal .form3-print-root,
+  #form3-print-portal .form3-pages {
+    position: static !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    zoom: 1 !important;
+    overflow: visible !important;
+  }
+
+  #form2-print-portal .form2-sheet,
+  #form3-print-portal .form3-sheet {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
     margin: 0 !important;
     box-shadow: none !important;
     --tw-ring-shadow: 0 0 #0000 !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    transform: none !important;
+    zoom: 1 !important;
   }
 
-  /* 各ページはA4縦1枚。ページ間は改ページで分ける（画面用の余白は無効化）。 */
-  .form2-page {
+  #form2-print-portal .form2-page,
+  #form3-print-portal .form3-page {
     margin: 0 !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
-  .form2-page + .form2-page {
+
+  #form2-print-portal .form2-page + .form2-page,
+  #form3-print-portal .form3-page + .form3-page {
     break-before: page;
     page-break-before: always;
   }
 
-  /* セル・行は途中で分断しない（罫線位置を保持）。 */
-  .form2-sheet table,
-  .form2-sheet tr,
-  .form2-sheet td,
-  .form2-sheet th {
+  #form2-print-portal .form2-sheet table,
+  #form2-print-portal .form2-sheet tr,
+  #form2-print-portal .form2-sheet td,
+  #form2-print-portal .form2-sheet th,
+  #form3-print-portal .form3-sheet table,
+  #form3-print-portal .form3-sheet tr,
+  #form3-print-portal .form3-sheet td,
+  #form3-print-portal .form3-sheet th {
     break-inside: avoid;
     page-break-inside: avoid;
   }
-  .form2-sheet,
-  .form2-sheet * {
+
+  #form2-print-portal .form2-sheet,
+  #form2-print-portal .form2-sheet *,
+  #form3-print-portal .form3-sheet,
+  #form3-print-portal .form3-sheet * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 }
+

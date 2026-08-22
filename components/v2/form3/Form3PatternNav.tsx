@@ -53,19 +53,32 @@ function NavChip({
       aria-current={selected ? "true" : undefined}
       aria-label={`${item.index}. ${item.shortLabel}（${item.progressLabel}）`}
       onClick={() => onSelect(item.key)}
+      data-compass-selected={selected ? "true" : "false"}
       className={[
-        "inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 text-left text-[12px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A84FF]",
+        "relative z-[1] inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 text-left text-[12px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E88E5]",
+        "transition-[background-color,color,border-color] duration-150 ease-out motion-reduce:transition-none",
         selected
-          ? "border-[#1D1D1F] bg-[#1D1D1F] text-white"
+          ? "border-[#1E88E5] bg-[#1E88E5] font-semibold text-[#FFFFFF] [color:#FFFFFF] [-webkit-text-fill-color:#FFFFFF]"
           : form3ProgressToneClass(item.progress),
       ].join(" ")}
     >
-      <span className="tabular-nums opacity-80">{item.index}</span>
-      <span className="font-medium">{item.shortLabel}</span>
       <span
         className={[
-          "rounded-full px-1.5 py-0.5 text-[10px]",
-          selected ? "bg-white/15 text-white" : "bg-black/5",
+          "relative z-[1] tabular-nums",
+          selected
+            ? "text-[#FFFFFF] [-webkit-text-fill-color:#FFFFFF] opacity-90"
+            : "text-[#667085]",
+        ].join(" ")}
+      >
+        {item.index}
+      </span>
+      <span className="relative z-[1] font-medium">{item.shortLabel}</span>
+      <span
+        className={[
+          "relative z-[1] rounded-full px-1.5 py-0.5 text-[10px]",
+          selected
+            ? "bg-white/15 text-[#FFFFFF] [-webkit-text-fill-color:#FFFFFF]"
+            : "bg-black/5",
         ].join(" ")}
       >
         {item.progressLabel}
@@ -88,22 +101,26 @@ function NavRow({
       aria-current={selected ? "true" : undefined}
       aria-label={`${item.index}. ${item.fullLabel}（${item.progressLabel}）`}
       onClick={() => onSelect(item.key)}
+      data-compass-selected={selected ? "true" : "false"}
       className={[
-        "mb-1 flex w-full min-h-[44px] items-start gap-2 rounded-xl border px-2.5 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A84FF]",
+        "relative z-[1] mb-1 flex w-full min-h-[44px] items-start gap-2 rounded-xl border px-2.5 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E88E5]",
+        "transition-[background-color,color,border-color] duration-150 ease-out motion-reduce:transition-none",
         selected
-          ? "border-[#1D1D1F] bg-[#1D1D1F] text-white"
-          : "border-transparent bg-transparent text-[#1D1D1F] hover:bg-[#F2F2F7]",
+          ? "border-[#1E88E5] bg-[#1E88E5] font-semibold text-[#FFFFFF] [color:#FFFFFF] [-webkit-text-fill-color:#FFFFFF]"
+          : "border-transparent bg-transparent text-[#344054] [color:#344054] [-webkit-text-fill-color:#344054] hover:bg-[#F4F6F8]",
       ].join(" ")}
     >
       <span
         className={[
-          "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums",
-          selected ? "bg-white/15" : "bg-[#EFEFF4] text-[#6E6E73]",
+          "relative z-[1] mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums",
+          selected
+            ? "bg-white/15 text-[#FFFFFF] [-webkit-text-fill-color:#FFFFFF]"
+            : "bg-[#F4F6F8] text-[#667085]",
         ].join(" ")}
       >
         {item.index}
       </span>
-      <span className="min-w-0 flex-1">
+      <span className="relative z-[1] min-w-0 flex-1">
         <span className="block text-[13px] font-medium leading-snug">
           {item.shortLabel}
         </span>
@@ -111,7 +128,7 @@ function NavRow({
           className={[
             "mt-1 inline-flex rounded-full border px-1.5 py-0.5 text-[10px]",
             selected
-              ? "border-white/25 bg-white/10 text-white"
+              ? "border-white/25 bg-white/10 text-[#FFFFFF] [-webkit-text-fill-color:#FFFFFF]"
               : form3ProgressToneClass(item.progress),
           ].join(" ")}
         >

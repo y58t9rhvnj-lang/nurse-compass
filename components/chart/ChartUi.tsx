@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 export function ChartPanel({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#F7F7F9] p-2.5">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[#F7F7F9] p-2.5">
       {children}
     </div>
   );
@@ -18,7 +18,7 @@ export function ChartTable({
   rows: (string | ReactNode)[][];
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#E5E5EA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+    <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-[#E5E5EA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
       <table className="w-full min-w-[600px] border-collapse text-left text-[12px]">
         <thead>
           <tr className="border-b border-[#E5E5EA] bg-[#F7F7F9]">
@@ -148,9 +148,10 @@ export function FilterChips({
                 ? "min-h-[32px] px-2.5 text-[11px]"
                 : "min-h-[44px] px-3.5 text-[12px]",
               isActive
-                ? "bg-[#0A84FF] text-white shadow-[0_1px_3px_rgba(10,132,255,0.25)]"
-                : "bg-white text-[#3A3A3C] ring-1 ring-[#E5E5EA] hover:bg-[#F2F2F7]",
+                ? "bg-[#1E88E5] font-semibold text-[#FFFFFF] [color:#FFFFFF] [-webkit-text-fill-color:#FFFFFF]"
+                : "bg-[#F4F6F8] font-medium text-[#344054] [color:#344054] [-webkit-text-fill-color:#344054] hover:bg-[#E8ECF0]",
             ].join(" ")}
+            data-compass-selected={isActive ? "true" : "false"}
           >
             {opt}
           </button>

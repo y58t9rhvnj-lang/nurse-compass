@@ -43,8 +43,8 @@ export default function Form3Header({
       : saveView.tone === "warn"
         ? "text-[#8A6D3B]"
         : saveView.tone === "busy"
-          ? "text-[#0A6CD6]"
-          : "text-[#6E6E73]";
+          ? "text-[#6E6E73]"
+          : "text-[#3A3A3C]";
 
   return (
     <header className="shrink-0 border-b border-[#E5E5EA] bg-white">
@@ -83,15 +83,33 @@ export default function Form3Header({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <div className="flex flex-col items-end gap-0.5 transition-opacity duration-150 motion-reduce:transition-none">
             {saveView.label ? (
               <span
                 aria-live="polite"
-                className={`text-[11px] sm:text-[12px] ${toneClass}`}
+                className={`flex items-center gap-1 text-[12px] font-semibold ${toneClass}`}
                 suppressHydrationWarning
               >
+                {saveView.tone === "neutral" && saveView.label === "保存済み" ? (
+                  <span
+                    className="text-[12px] font-normal text-[#AEAEB2]"
+                    aria-hidden
+                  >
+                    ✓
+                  </span>
+                ) : null}
                 {saveView.label}
               </span>
             ) : null}
+            {saveView.detail ? (
+              <span
+                className="text-[11px] font-normal tabular-nums text-[#6E6E73]"
+                suppressHydrationWarning
+              >
+                {saveView.detail}
+              </span>
+            ) : null}
+          </div>
             {saveView.showLoadLatest && onLoadLatest ? (
               <button
                 type="button"

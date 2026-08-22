@@ -43,21 +43,23 @@ export default function CompassChart({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-white">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
       {!embedded && <ChartPatientBar patient={patient} />}
       <ChartTabs
         activeTab={activeTab}
         onTabChange={setActiveTab}
         compact={embedded}
       />
-      <ChartMain
-        key={patient.id}
-        activeTab={activeTab}
-        patientId={patient.id}
-        nav={nav}
-        onNavigate={navigate}
-        compact={embedded}
-      />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <ChartMain
+          key={patient.id}
+          activeTab={activeTab}
+          patientId={patient.id}
+          nav={nav}
+          onNavigate={navigate}
+          compact={embedded}
+        />
+      </div>
     </div>
   );
 }

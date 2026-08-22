@@ -23,6 +23,10 @@ export default function LearningLayer({
   inspectorOverlay,
   isTargetPatient,
   onBackToTarget,
+  onBackToPatientTop,
+  onToggleLearningSupport,
+  learningSupportOpen,
+  hideInspectorHeaderBar = false,
   userId,
   patient,
   initialForm2,
@@ -42,6 +46,13 @@ export default function LearningLayer({
   inspectorOverlay: ReactNode;
   isTargetPatient: boolean;
   onBackToTarget: () => void;
+  /** C3: FormWorkspaceShell の戻る先（患者トップ） */
+  onBackToPatientTop?: () => void;
+  /** 様式2ヘッダーから学習支援 Inspector を開閉（患者理解を深めるとは別） */
+  onToggleLearningSupport?: () => void;
+  learningSupportOpen?: boolean;
+  /** clinical-workspace では Shell ヘッダーへ統合するため外部バーを出さない */
+  hideInspectorHeaderBar?: boolean;
   userId?: string;
   patient: Patient;
   initialForm2: Form2Snapshot | null;
@@ -54,7 +65,7 @@ export default function LearningLayer({
   onChangeFacingState: (next: FacingConvoState) => void;
 }) {
   const isForm3 = view === "form3";
-  const lockedTitle = isForm3 ? "様式3 アセスメント" : "思考ワークスペース";
+  const lockedTitle = isForm3 ? "様式3 アセスメント" : "様式2";
   const lockedBody = isForm3 ? (
     <>
       受け持ち患者について、ゴードンの健康パターンで
@@ -108,7 +119,7 @@ export default function LearningLayer({
             <Notice text={notice} onClose={onCloseNotice} />
           </div>
         )}
-        {inspectorHeader}
+        {hideInspectorHeaderBar ? null : inspectorHeader}
         {!isTargetPatient ? (
           lockedView
         ) : userId ? (
@@ -124,6 +135,9 @@ export default function LearningLayer({
             onOpenEvidenceReview={onOpenEvidenceReview}
             facingState={facingState}
             onChangeFacingState={onChangeFacingState}
+            onBackToPatientTop={onBackToPatientTop}
+            onToggleLearningSupport={onToggleLearningSupport}
+            learningSupportOpen={learningSupportOpen}
           />
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[13px] text-[#6E6E73]">

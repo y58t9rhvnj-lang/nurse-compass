@@ -1,8 +1,12 @@
 "use client";
 
 import { CHART_TABS, type ChartTabId } from "@/lib/chartTabs";
+import {
+  BRAND_SELECTED_SEGMENT,
+  BRAND_UNSELECTED_PILL,
+} from "@/components/v2/workspace/darkSelectedSegment";
 
-// 電子カルテタブ（横スクロール・セグメントコントロール）
+// 電子カルテタブ（横スクロール・ピル選択）。青は選択中のみ。
 export default function ChartTabs({
   activeTab,
   onTabChange,
@@ -20,9 +24,11 @@ export default function ChartTabs({
       className="shrink-0 border-b border-[#E5E5EA] bg-white"
     >
       <div
+        role="tablist"
+        aria-label="カルテ表示の切替"
         className={[
-          "flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-          compact ? "px-2 py-1.5" : "px-4 py-2",
+          "flex gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          compact ? "px-2.5 py-2" : "px-3 py-2.5 sm:px-4",
         ].join(" ")}
       >
         {CHART_TABS.map((id) => {
@@ -33,16 +39,18 @@ export default function ChartTabs({
               type="button"
               role="tab"
               aria-selected={active}
+              tabIndex={active ? 0 : -1}
               onClick={() => onTabChange(id)}
               className={[
-                "shrink-0 rounded-xl font-medium transition-colors",
+                "relative z-[1] shrink-0 whitespace-nowrap rounded-[10px] border border-transparent",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E88E5]",
+                "active:scale-[0.98] motion-reduce:active:scale-100",
                 compact
-                  ? "px-3 py-1.5 text-[12px] min-h-[34px]"
-                  : "px-4 py-2.5 text-[13px] min-h-[44px]",
-                active
-                  ? "bg-[#0A84FF] text-white shadow-[0_2px_6px_rgba(10,132,255,0.25)]"
-                  : "bg-[#F2F2F7] text-[#3A3A3C] hover:bg-[#E8E8ED]",
+                  ? "min-h-[44px] px-3 text-[12px]"
+                  : "min-h-[46px] px-3.5 text-[13px] sm:px-4",
+                active ? BRAND_SELECTED_SEGMENT : BRAND_UNSELECTED_PILL,
               ].join(" ")}
+              data-compass-selected={active ? "true" : "false"}
             >
               {id}
             </button>

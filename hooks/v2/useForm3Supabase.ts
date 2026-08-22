@@ -163,6 +163,8 @@ export function useForm3Supabase({
   );
   const inFlightRef = useRef(false);
   const dirtyDuringSaveRef = useRef(false);
+  /** Phase B: 保存中に編集されたら追随保存（Form2 dirtyDuringSave と同型） */
+  const dirtyDuringSaveV2Ref = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveRef = useRef<() => Promise<void>>(async () => {});
   const onPersistedRef = useRef(onPersisted);
@@ -406,13 +408,29 @@ export function useForm3Supabase({
     void saveRef.current();
   }, [phaseB]);
 
-  /** Phase B: ユーザー編集を記録 → Autosave notifyDirty（C2） */
+  /**
+   * Phase B: ユーザー編集を記録 → Autosave notifyDirty（C2）。
+   * next はオブジェクト、または dataV2Ref 基準の updater（連打時の stale closure 防止）。
+   */
   const markUserEditedV2 = useCallback(
-    (next?: Form3DataV2, reason?: Form3V2AutosaveReason) => {
+    (
+      next?: Form3DataV2 | ((current: Form3DataV2) => Form3DataV2),
+      reason?: Form3V2AutosaveReason,
+    ) => {
       if (!phaseB) return;
       const current = dataV2Ref.current;
-      if (!current && !next) return;
-      const marked = markForm3V2UserEdited(writeFlagsRef.current, next);
+      let resolved: Form3DataV2 | undefined;
+      if (typeof next === "function") {
+        if (!current) return;
+        resolved = next(current);
+      } else {
+        resolved = next;
+      }
+      if (!current && !resolved) return;
+      if (writeFlagsRef.current.saveStatus === "saving") {
+        dirtyDuringSaveV2Ref.current = true;
+      }
+      const marked = markForm3V2UserEdited(writeFlagsRef.current, resolved);
       if (marked.dataV2) {
         setDataV2AndRef(marked.dataV2);
       }
@@ -450,8 +468,8 @@ export function useForm3Supabase({
         return { ok: false, kind: "gate_rejected", gate };
       }
 
-      const current = dataV2Ref.current;
-      if (!current) {
+      const payloadToSave = dataV2Ref.current;
+      if (!payloadToSave) {
         return {
           ok: false,
           kind: "error",
@@ -459,27 +477,58 @@ export function useForm3Supabase({
         };
       }
 
+      dirtyDuringSaveV2Ref.current = false;
+      const expectedVersion = versionRef.current;
       setWriteFlagsAndRef({ ...flags, saveStatus: "saving" });
 
       const res = await callAction(() =>
         saveForm3V2Action({
           patientId,
-          payload: current,
-          expectedVersion: versionRef.current,
+          payload: payloadToSave,
+          expectedVersion,
         }),
       );
 
       if (res.ok && res.kind === "saved") {
         const snap = res.data as Form3SnapshotV2;
-        setDataV2AndRef(snap.payload);
         versionRef.current = snap.version;
         setLastSavedAt(snap.updatedAt);
         setConflictSnapshotV2(null);
-        setWriteFlagsAndRef(applyForm3V2SaveSuccess(writeFlagsRef.current));
-        if (shouldClearForm3V2DraftOnSaveSuccess()) {
-          clearForm3V2Draft(userId, caseId);
+
+        const editedDuringSave =
+          dirtyDuringSaveV2Ref.current ||
+          dataV2Ref.current !== payloadToSave;
+
+        if (editedDuringSave) {
+          // 保存中の追記をサーバ応答で潰さない。version だけ進め、dirty を維持して追随保存。
+          setWriteFlagsAndRef({
+            ...writeFlagsRef.current,
+            dirty: true,
+            hasUserEdited: true,
+            hasPersistedV2: true,
+            saveStatus: "dirty",
+          });
+          autosaveControllerRef.current?.notifyDirty({
+            dirty: true,
+            hasUserEdited: true,
+          });
+        } else {
+          setDataV2AndRef(snap.payload);
+          setWriteFlagsAndRef(applyForm3V2SaveSuccess(writeFlagsRef.current));
+          if (shouldClearForm3V2DraftOnSaveSuccess()) {
+            clearForm3V2Draft(userId, caseId);
+          }
         }
-        onPersistedV2Ref.current?.(snap);
+
+        onPersistedV2Ref.current?.(
+          editedDuringSave
+            ? {
+                ...snap,
+                // 親セッションは最新ローカルを正とする（再マウント巻き戻り防止）
+                payload: dataV2Ref.current ?? snap.payload,
+              }
+            : snap,
+        );
         return { ok: true, kind: "saved", snapshot: snap };
       }
 
@@ -558,7 +607,27 @@ export function useForm3Supabase({
     });
     autosaveControllerRef.current = controller;
 
+    // Remount / HMR / Strict Mode 後も dirty が残っていれば再 schedule する
+    // （cancel で timer だけ消えて Draft のまま止まるのを防ぐ）
+    const flags = writeFlagsRef.current;
+    if (flags.dirty && flags.hasUserEdited && flags.saveStatus !== "conflict") {
+      controller.notifyDirty({
+        dirty: true,
+        hasUserEdited: true,
+      });
+    }
+
     return () => {
+      // Form2 と同様: debounce 待ちを捨てず、未保存があれば即時 flush する
+      const latest = writeFlagsRef.current;
+      if (
+        latest.dirty &&
+        latest.hasUserEdited &&
+        latest.saveStatus !== "conflict" &&
+        latest.saveStatus !== "saving"
+      ) {
+        void saveNowV2Ref.current();
+      }
       controller.cancel();
       if (autosaveControllerRef.current === controller) {
         autosaveControllerRef.current = null;
@@ -660,7 +729,7 @@ export function useForm3Supabase({
     dirtyV2: writeFlags.dirty,
     writeFlags,
     hydrated,
-    saveStatus,
+    saveStatus: phaseB ? writeFlags.saveStatus : saveStatus,
     lastSavedAt,
     warnings,
     conflictSnapshot,

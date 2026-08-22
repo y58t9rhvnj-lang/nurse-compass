@@ -15,7 +15,14 @@ export const BRAND = {
   // ブランドカラーパレット。
   colors: {
     navy: "#0D1B2A",
+    /** Compass Primary Blue（選択状態・Primary CTA の基準） */
     blue: "#1E88E5",
+    /** Primary の少し淡い（hover） */
+    blueHover: "#42A5F5",
+    /** Primary の少し濃い（pressed） */
+    bluePressed: "#1976D2",
+    /** 選択・CTA 上の薄い面（soft fill） */
+    blueSoft: "#E3F2FD",
     gray: "#9AA3AD",
     light: "#F2F4F7",
   },

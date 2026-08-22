@@ -130,13 +130,13 @@ async function main() {
       ).flags,
     );
     check(
-      "Conflict → Draft",
+      "Conflict → Conflict",
       getForm3PhaseBPersistLabel({
         dirty: flags.dirty,
         saveStatus: flags.saveStatus,
         hydrated: true,
         hasPersistedV2: true,
-      }).label === "Draft",
+      }).label === "Conflict",
     );
   }
 
@@ -155,12 +155,23 @@ async function main() {
       "utf8",
     );
     check(
-      "Workspace に Final 導線",
-      ws.includes('"final"') &&
-        ws.includes("Form3FinalFormEditor") &&
-        (ws.includes("様式表示") || ws.includes("Final Form")),
+      "Workspace に学校指定プレビュー／印刷",
+      ws.includes("Form3SheetView") &&
+        ws.includes("Form3PrintPortal") &&
+        (ws.includes("プレビュー") || ws.includes("mode")),
     );
-    check("Workspace が final_updated を渡す", ws.includes('"final_updated"'));
+    check(
+      "Final Editor ファイル残存（互換）",
+      editor.includes("informationSO") &&
+        editor.includes("interpretationAnalysisCareNeed"),
+    );
+    // final_updated は旧様式欄 UI 撤去後も ops 契約としてファイル側に残す
+    check(
+      "Final ops 契約ファイル残存",
+      readFileSync(join(root, "lib/form3/v2/form3V2FinalOps.ts"), "utf8").includes(
+        "updateForm3FinalPattern",
+      ),
+    );
     check("Workspace が saveNowV2 を呼ばない", !/\bsaveNowV2\s*\(/.test(ws));
     check("2欄のみ informationSO", editor.includes("informationSO"));
     check(

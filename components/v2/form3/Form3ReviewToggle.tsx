@@ -51,7 +51,7 @@ export default function Form3ReviewToggle({
         onClick={() => {
           onMarkReviewed();
         }}
-        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-[#1D1D1F] bg-[#1D1D1F] px-4 text-[14px] font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A84FF] sm:w-auto"
+        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-[#D0D5DD] bg-white px-4 text-[14px] font-semibold text-[#344054] hover:bg-[#F4F6F8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E88E5] sm:w-auto"
       >
         このパターンの整理を完了する
       </button>

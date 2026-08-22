@@ -9,6 +9,7 @@ import type {
 import type { Form3ReviewIssue } from "@/lib/form3/form3Validation";
 import type { Form3SaveStatus } from "@/lib/v2/notebook/form3HookLogic";
 import type { Form3PatternField } from "@/lib/v2/notebook/form3HookLogic";
+import { formatSavedAtJa } from "@/lib/datetime/formatSavedAtJa";
 
 /** ナビ用の短いパターン名（正式ラベルは form3PatternDefinitions） */
 export const FORM3_PATTERN_SHORT_LABELS: Record<Form3PatternKey, string> = {
@@ -105,7 +106,10 @@ export const FORM3_REVIEW_ISSUE_LABELS: Record<Form3ReviewIssue, string> = {
 };
 
 export type Form3SaveStatusView = {
+  /** 主表示（日本語） */
   label: string;
+  /** Saved 時の時刻など Secondary */
+  detail?: string;
   tone: "neutral" | "busy" | "warn" | "error" | "conflict";
   showLoadLatest: boolean;
 };
@@ -130,7 +134,7 @@ export function getForm3SaveStatusView(
       return { label: "保存中…", tone: "busy", showLoadLatest: false };
     case "dirty":
       return {
-        label: "未保存の変更があります",
+        label: "未保存の変更あり",
         tone: "warn",
         showLoadLatest: false,
       };
@@ -142,20 +146,22 @@ export function getForm3SaveStatusView(
       };
     case "conflict":
       return {
-        label: "別の画面で更新されています（自動保存を停止しています）",
+        label: "別の変更と競合しました",
         tone: "conflict",
         showLoadLatest: true,
       };
     case "saved":
       return {
-        label: time ? `保存済み ・ ${time}` : "保存済み",
+        label: "保存済み",
+        detail: time || undefined,
         tone: "neutral",
         showLoadLatest: false,
       };
     case "idle":
     default:
       return {
-        label: time ? `保存済み ・ ${time}` : "保存済み",
+        label: "保存済み",
+        detail: time || undefined,
         tone: "neutral",
         showLoadLatest: false,
       };
@@ -163,10 +169,7 @@ export function getForm3SaveStatusView(
 }
 
 export function formatForm3SavedTime(iso: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+  return formatSavedAtJa(iso);
 }
 
 export function formatForm3OverallProgressLabel(

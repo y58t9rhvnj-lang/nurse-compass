@@ -4,6 +4,7 @@ import { FORM3_PATTERN_SHORT_LABELS } from "@/components/v2/form3/form3UiLabels"
 import type { Form3PatternKey } from "@/lib/form3/form3Types";
 import type { Form3InformationSourceType } from "@/lib/form3/v2/form3V2Types";
 import type { Form3SaveStatus } from "@/lib/v2/notebook/form3HookLogic";
+import { formatSavedAtJa } from "@/lib/datetime/formatSavedAtJa";
 
 export const FORM3_SOURCE_TYPE_LABELS: Record<
   Form3InformationSourceType,
@@ -36,35 +37,47 @@ export type Form3PhaseBPersistLabel =
   | "Draft"
   | "Saving"
   | "Saved"
-  | "Save failed";
+  | "Save failed"
+  | "Conflict";
 
 /**
- * Phase B（Autosave 未接続）の保存状態表示。
+ * Phase B 保存状態表示。
  *
- * Saved は hasPersistedV2=true かつ dirty=false のときだけ。
- * v1→v2 のメモリ hydrate のみ（未永続化）は Saved にしない。
+ * Saved は「実際に saveStatus=saved」または「DB に v2 が既にあり未編集」のときだけ。
+ * action 未実行・local 更新のみでは Saved にしない。
  */
 export function getForm3PhaseBPersistLabel(args: {
   dirty: boolean;
   saveStatus: Form3SaveStatus;
   hydrated: boolean;
   hasPersistedV2: boolean;
+  /** 保存成功時の updatedAt。Saved 表示の時刻正本 */
+  lastSavedAt?: string;
 }): { label: Form3PhaseBPersistLabel; detailJa: string } {
   if (!args.hydrated) {
     return { label: "Ready", detailJa: "" };
   }
   if (args.saveStatus === "saving") {
-    return { label: "Saving", detailJa: "保存中" };
+    return { label: "Saving", detailJa: "保存中…" };
   }
   if (args.saveStatus === "error") {
-    return { label: "Save failed", detailJa: "保存に失敗しました" };
+    return { label: "Save failed", detailJa: "保存できませんでした" };
+  }
+  if (args.saveStatus === "conflict") {
+    return { label: "Conflict", detailJa: "別の変更と競合しました" };
   }
   if (args.dirty || args.saveStatus === "dirty") {
-    return { label: "Draft", detailJa: "下書き（未保存）" };
+    return { label: "Draft", detailJa: "未保存の変更あり" };
+  }
+  const savedTime = formatSavedAtJa(args.lastSavedAt ?? "");
+  const savedDetail = savedTime || "";
+  if (args.saveStatus === "saved") {
+    return { label: "Saved", detailJa: savedDetail };
   }
   if (args.hasPersistedV2) {
-    return { label: "Saved", detailJa: "保存済み" };
+    // 読込直後（idle）で DB に v2 がある場合のみ Saved（本セッション未編集）
+    return { label: "Saved", detailJa: savedDetail };
   }
   // 未永続化・未編集（例: v1 からメモリ hydrate のみ）
-  return { label: "Ready", detailJa: "まだ保存されていません" };
+  return { label: "Ready", detailJa: "" };
 }

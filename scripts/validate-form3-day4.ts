@@ -147,7 +147,7 @@ function check(name: string, ok: boolean, detail?: string) {
 {
   check(
     "保存状態ラベル（saved）",
-    getForm3SaveStatusView("saved", "", true).label === "保存済み",
+    getForm3SaveStatusView("saved", "", true).label.includes("保存済み"),
   );
   check(
     "保存状態ラベル（saving）",
@@ -156,7 +156,7 @@ function check(name: string, ok: boolean, detail?: string) {
   check(
     "保存状態ラベル（dirty）",
     getForm3SaveStatusView("dirty", "", true).label ===
-      "未保存の変更があります",
+      "未保存の変更あり",
   );
   check(
     "保存状態ラベル（error）",
@@ -166,7 +166,7 @@ function check(name: string, ok: boolean, detail?: string) {
   const conflict = getForm3SaveStatusView("conflict", "", true);
   check(
     "保存状態ラベル（conflict）",
-    conflict.label.includes("別の画面で更新") && conflict.showLoadLatest,
+    conflict.label.includes("競合") && conflict.showLoadLatest,
   );
 }
 

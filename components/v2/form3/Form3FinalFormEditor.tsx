@@ -33,8 +33,8 @@ export default function Form3FinalFormEditor({
           学校指定様式の Artifact です。Workspace を参照しながら、自分の言葉で書いてください。
         </p>
         <p className="mt-2 text-[13px] leading-relaxed text-[#8E8E93]">
-          自動転記・AI生成・ドラッグコピーはありません。Information / Assessment
-          の本文は入りません。
+          自動転記・AI生成・ドラッグコピーはありません。印刷・プレビューの正本は
+          Information / Assessment カードです。この欄は互換用で、新規の印刷正本には使いません。
         </p>
       </div>
 

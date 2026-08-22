@@ -131,8 +131,20 @@ function check(name: string, ok: boolean) {
     join(root, "components/v2/workspace/FormWorkspaceShell.tsx"),
     "utf8",
   );
+  const layout = readFileSync(
+    join(root, "components/v2/workspace/formWorkspaceLayout.ts"),
+    "utf8",
+  );
   const editor = readFileSync(
+    join(root, "components/v2/form3/Form3InformationDialog.tsx"),
+    "utf8",
+  );
+  const editorBridge = readFileSync(
     join(root, "components/v2/form3/Form3InformationCardEditor.tsx"),
+    "utf8",
+  );
+  const infoOps = readFileSync(
+    join(root, "lib/form3/v2/form3V2InformationOps.ts"),
     "utf8",
   );
   const host = readFileSync(
@@ -141,7 +153,7 @@ function check(name: string, ok: boolean) {
   );
 
   // R1: 主要左参照は思考 WS 相当の患者参照ペイン。旧 Patient Source はモデル/コンポーネントを残す。
-  // C2: 2ペイン / Sheet 切替は FormWorkspaceShell が担当。
+  // C2/C4: 2ペイン / Sheet 切替は FormWorkspaceShell + formWorkspaceLayout。
   check(
     "Workspace に患者参照ペイン",
     ws.includes("WorkspacePatientReferencePane"),
@@ -161,9 +173,9 @@ function check(name: string, ok: boolean) {
   );
   check(
     "幅ベースで 2ペイン / Sheet 切替",
-    shell.includes("min-width: 1024px") &&
-      shell.includes("isWideLayout") &&
-      shell.includes("useFormWorkspaceWideLayout"),
+    layout.includes("min-width: 1024px") &&
+      (shell.includes("isWideLayout") || layout.includes("useFormWorkspaceWideLayout")) &&
+      layout.includes("useFormWorkspaceWideLayout"),
   );
   check("患者参照 Sheet は lg:hidden", refSheet.includes("lg:hidden"));
   check(
@@ -189,13 +201,13 @@ function check(name: string, ok: boolean) {
   );
   check("折りたたみ toggle（旧 Panel）", panel.includes("toggleSection") || panel.includes("aria-expanded"));
   check("スクロール保持（旧 Panel）", panel.includes("sessionStorage") && panel.includes("scrollTop"));
-  check("自動入力禁止コメント", editor.includes("自動入力しません"));
-  check("sourceLabel 入力あり", editor.includes("sourceLabel"));
+  check("自動入力禁止コメント", editor.includes("自動入力しません") || editorBridge.includes("自動入力しません"));
+  check("sourceLabel 入力あり", infoOps.includes("sourceLabel") || editorBridge.includes("sourceLabel"));
   check(
     "構造化参照を label 編集で上書きしない",
-    editor.includes("isStructured") &&
-      editor.includes('ref.kind === "fixture"') &&
-      editor.includes("sourceLabel: trimmed === \"\" ? null : value"),
+    editorBridge.includes("isStructured") &&
+      editorBridge.includes('ref.kind === "fixture"') &&
+      editorBridge.includes("sourceLabel: trimmed === \"\" ? null : value"),
   );
   check("DnD なし", !refPane.includes("onDrag") && !ws.includes("onDrop"));
   check("Coach UI なし", !ws.includes("Coach"));

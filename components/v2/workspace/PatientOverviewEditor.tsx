@@ -52,14 +52,14 @@ export default function PatientOverviewEditor({
   return (
     <section
       aria-label="私が捉えた患者さん"
-      className="mt-4 rounded-2xl border border-[#E5E5EA] bg-white p-4"
+      className="mt-4 rounded-2xl border border-[#E5E5EA] bg-white p-4 sm:p-5"
     >
       <header className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[14px] font-bold text-[#1D1D1F]">
+          <h2 className="text-[14px] font-semibold text-[#1D1D1F]">
             私が捉えた患者さん
           </h2>
-          <p className="mt-0.5 text-[11.5px] leading-relaxed text-[#8E8E93]">
+          <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#8E8E93]">
             様式2で整理した情報や気づきから、今のあなたが捉えている患者さんを自分の言葉で表現してください。
           </p>
         </div>

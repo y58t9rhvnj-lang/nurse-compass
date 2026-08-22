@@ -166,7 +166,7 @@ async function main() {
     hydrated: true,
     hasPersistedV2: true,
   });
-  check("conflict → Draft", label.label === "Draft" && flags.dirty === true);
+  check("conflict → Conflict", label.label === "Conflict" && flags.dirty === true);
 }
 
 {
@@ -176,7 +176,7 @@ async function main() {
     "utf8",
   );
   const editor = readFileSync(
-    join(root, "components/v2/form3/Form3AssessmentCardEditor.tsx"),
+    join(root, "components/v2/form3/Form3AssessmentDialog.tsx"),
     "utf8",
   );
   check("Workspace に Assessment 一覧", ws.includes("Form3AssessmentCardList"));

@@ -5,6 +5,7 @@ import { ArrowLeft, FileText, Pencil, Printer } from "lucide-react";
 import Form2EditForm from "./Form2EditForm";
 import Form2SheetView from "./Form2SheetView";
 import { useForm2 } from "@/hooks/useForm2";
+import { formatSavedAtJa } from "@/lib/datetime/formatSavedAtJa";
 import type { ChartTabId } from "@/lib/chartTabs";
 import type { Patient } from "@/lib/wardData";
 
@@ -23,13 +24,7 @@ const INFO_NAV: { label: string; tab?: ChartTabId; conversation?: boolean }[] = 
 ];
 
 function formatTime(iso: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("ja-JP", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatSavedAtJa(iso);
 }
 
 export default function Form2Workspace({
@@ -111,11 +106,16 @@ export default function Form2Workspace({
                 className={[
                   "flex min-h-[36px] items-center gap-1 px-3 text-[13px]",
                   mode === "edit"
-                    ? "bg-[#1D1D1F] font-semibold text-white"
-                    : "bg-white text-[#3A3A3C] hover:bg-[#F2F2F5]",
+                    ? "bg-[#1E88E5] font-semibold text-white"
+                    : "bg-[#F4F6F8] font-medium text-[#344054] hover:bg-[#E8ECF0]",
                 ].join(" ")}
               >
-                <Pencil className="h-3.5 w-3.5" />
+                <Pencil
+                className={[
+                  "h-3.5 w-3.5",
+                  mode === "edit" ? "text-white" : "text-[#667085]",
+                ].join(" ")}
+              />
                 編集
               </button>
               <button
@@ -125,11 +125,16 @@ export default function Form2Workspace({
                 className={[
                   "flex min-h-[36px] items-center gap-1 border-l border-[#D1D1D6] px-3 text-[13px]",
                   mode === "view"
-                    ? "bg-[#1D1D1F] font-semibold text-white"
-                    : "bg-white text-[#3A3A3C] hover:bg-[#F2F2F5]",
+                    ? "bg-[#1E88E5] font-semibold text-white"
+                    : "bg-[#F4F6F8] font-medium text-[#344054] hover:bg-[#E8ECF0]",
                 ].join(" ")}
               >
-                <FileText className="h-3.5 w-3.5" />
+                <FileText
+                className={[
+                  "h-3.5 w-3.5",
+                  mode === "view" ? "text-white" : "text-[#667085]",
+                ].join(" ")}
+              />
                 様式表示
               </button>
             </div>

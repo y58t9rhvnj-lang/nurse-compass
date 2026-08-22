@@ -8,6 +8,10 @@ import {
   FORM3_PATTERN_ORDER,
   type Form3PatternKey,
 } from "@/lib/form3/form3Types";
+import {
+  BRAND_SELECTED_SEGMENT,
+  BRAND_UNSELECTED_PILL,
+} from "@/components/v2/workspace/darkSelectedSegment";
 
 export type Form3PhaseBPatternTabBarProps = {
   selectedPatternKey: Form3PatternKey;
@@ -28,7 +32,7 @@ export default function Form3PhaseBPatternTabBar({
   panelId = "form3-phase-b-pattern-panel",
 }: Form3PhaseBPatternTabBarProps) {
   return (
-    <div className="flex min-w-0 items-stretch gap-2 border-b border-[#E5E5EA] bg-white px-2 py-2 sm:px-3">
+    <div className="flex min-w-0 items-stretch gap-2 bg-white px-2 py-2 sm:px-3">
       <div
         role="tablist"
         aria-label="ゴードンの11の機能的健康パターン"
@@ -48,14 +52,23 @@ export default function Form3PhaseBPatternTabBar({
               tabIndex={selected ? 0 : -1}
               onClick={() => onSelect(key)}
               className={[
-                "inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl px-3 text-left text-[13px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A84FF]",
-                selected
-                  ? "bg-[#1D1D1F] text-white"
-                  : "bg-[#F2F2F7] text-[#1D1D1F] hover:bg-[#E8E8ED]",
+                "relative z-[1] inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl px-3 text-left text-[13px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E88E5]",
+                "transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100",
+                selected ? BRAND_SELECTED_SEGMENT : BRAND_UNSELECTED_PILL,
               ].join(" ")}
+              data-compass-selected={selected ? "true" : "false"}
             >
-              <span className="tabular-nums opacity-70">{index + 1}</span>
-              <span className="whitespace-nowrap">{label}</span>
+              <span
+                className={[
+                  "relative z-[1] tabular-nums",
+                  selected
+                    ? "text-[#FFFFFF] [-webkit-text-fill-color:#FFFFFF] opacity-90"
+                    : "text-[#667085] [-webkit-text-fill-color:#667085]",
+                ].join(" ")}
+              >
+                {index + 1}
+              </span>
+              <span className="relative z-[1] whitespace-nowrap">{label}</span>
             </button>
           );
         })}

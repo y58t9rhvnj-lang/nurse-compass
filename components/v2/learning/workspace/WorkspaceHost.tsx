@@ -37,6 +37,9 @@ export default function WorkspaceHost({
   onOpenEvidenceReview,
   facingState,
   onChangeFacingState,
+  onBackToPatientTop,
+  onToggleLearningSupport,
+  learningSupportOpen,
 }: {
   view: LearningWorkspaceView;
   patient: Patient;
@@ -50,6 +53,9 @@ export default function WorkspaceHost({
   onOpenEvidenceReview?: () => void;
   facingState: FacingConvoState;
   onChangeFacingState: (next: FacingConvoState) => void;
+  onBackToPatientTop?: () => void;
+  onToggleLearningSupport?: () => void;
+  learningSupportOpen?: boolean;
 }) {
   switch (view) {
     case "clinical-workspace":
@@ -62,6 +68,9 @@ export default function WorkspaceHost({
           onOpenEvidenceReview={onOpenEvidenceReview}
           facingState={facingState}
           onChangeFacingState={onChangeFacingState}
+          onBack={onBackToPatientTop}
+          onToggleLearningSupport={onToggleLearningSupport}
+          learningSupportOpen={learningSupportOpen}
         />
       );
     case "form3": {
@@ -75,6 +84,12 @@ export default function WorkspaceHost({
             onChangeFacingState={onChangeFacingState}
             userId={userId}
             initial={initialForm3}
+            onPersisted={onForm3Persisted}
+            onBack={onBackToPatientTop}
+            onToggleLearningSupport={onToggleLearningSupport}
+            learningSupportOpen={learningSupportOpen}
+            studentNumber={initialForm2?.payload?.student.studentNumber}
+            studentName={initialForm2?.payload?.student.studentName}
           />
         );
       }

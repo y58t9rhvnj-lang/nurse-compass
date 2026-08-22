@@ -82,16 +82,14 @@ const navItems: NavItem[] = [
 
 // Version2 学生導線（`/v2/student`）のナビ。V1 の見た目・構成を基盤にする（Lecture Readiness）。
 // 学生の学習導線: 病棟ホーム → 患者トップ → 電子カルテ・患者との会話 → Compassメモ（会話画面内）
-//   → 思考ワークスペース（Learning Layer）→ Evidence 整理 → 様式2。
-// V2 で加えるのは「思考ワークスペース」と「様式2（Supabase 保存）」のみ。
-// V1 と同じ補助項目（情報BOX・申し送り 等）も踏襲する（view 未指定は非活性表示）。
+//   → 様式2（Learning Layer）→ Evidence 整理 → 様式3。
+// V2 で加えるのは「様式2（作成）」と「様式3」のみ。旧「様式2確認」ナビは C8 で外す。
 // 「患者との会話」はメニューには出さない（会話画面自体は残し、患者トップから入る導線に一本化）。
 export const STUDENT_NAV_ITEMS: NavItem[] = [
   { label: "病棟ホーム", icon: Home, view: "ward" },
   { label: "患者トップ", icon: Users, view: "patient-top" },
   { label: "電子カルテ", icon: FileText, view: "chart" },
-  { label: "思考ワークスペース", icon: NotebookPen, view: "clinical-workspace" },
-  { label: "様式2", icon: ClipboardList, view: "form2" },
+  { label: "様式2", icon: ClipboardList, view: "clinical-workspace" },
   { label: "様式3", icon: LayoutList, view: "form3" },
   { label: "情報BOX", icon: MessageCircle, badge: 2 },
   { label: "申し送り", icon: MessageCircle },

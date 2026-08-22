@@ -44,14 +44,18 @@ export function createForm3AssessmentCard(
     now?: string;
     order?: number;
     patternKey?: Form3PatternKey | null;
+    interpretation?: string;
+    evidenceInformationIds?: string[];
   } = {},
 ): Form3AssessmentCardV2 {
   const t = nowIso(options.now);
   return {
     id: createForm3CardId(),
-    interpretation: "",
+    interpretation: options.interpretation ?? "",
     classification: null,
-    evidenceInformationIds: [],
+    evidenceInformationIds: options.evidenceInformationIds
+      ? [...new Set(options.evidenceInformationIds)]
+      : [],
     needMoreInformation: "",
     patternKey: options.patternKey === undefined ? null : options.patternKey,
     order: options.order ?? 0,
@@ -63,13 +67,30 @@ export function createForm3AssessmentCard(
 
 export function addForm3AssessmentCard(
   data: Form3DataV2,
-  options: { now?: string; patternKey?: Form3PatternKey | null } = {},
+  options: {
+    now?: string;
+    patternKey?: Form3PatternKey | null;
+    interpretation?: string;
+    evidenceInformationIds?: string[];
+  } = {},
 ): Form3DataV2 {
   const sorted = sortByOrder(data.assessmentCards);
+  const knownInfoIds = new Set(data.informationCards.map((c) => c.id));
+  const evidenceIds: string[] = [];
+  if (options.evidenceInformationIds) {
+    const seen = new Set<string>();
+    for (const id of options.evidenceInformationIds) {
+      if (!knownInfoIds.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      evidenceIds.push(id);
+    }
+  }
   const card = createForm3AssessmentCard({
     now: options.now,
     order: sorted.length,
     patternKey: options.patternKey,
+    interpretation: options.interpretation,
+    evidenceInformationIds: evidenceIds,
   });
   return {
     ...data,

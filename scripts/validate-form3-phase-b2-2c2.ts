@@ -184,7 +184,7 @@ async function main() {
       hydrated: true,
       hasPersistedV2: flags.hasPersistedV2,
     });
-    check("conflict → Draft 表示", label.label === "Draft");
+    check("conflict → Conflict 表示", label.label === "Conflict");
 
     let saveCalls = 0;
     const controller = createForm3V2AutosaveController({

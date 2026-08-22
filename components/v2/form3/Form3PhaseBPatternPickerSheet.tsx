@@ -88,11 +88,18 @@ export default function Form3PhaseBPatternPickerSheet({
                   className={[
                     "mb-1 flex w-full min-h-[44px] items-center gap-3 rounded-xl px-3 text-left text-[15px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A84FF]",
                     selected
-                      ? "bg-[#1D1D1F] text-white"
-                      : "bg-transparent text-[#1D1D1F] hover:bg-[#F2F2F7]",
+                      ? "bg-[#1E88E5] font-semibold text-white"
+                      : "bg-transparent font-medium text-[#344054] hover:bg-[#F4F6F8]",
                   ].join(" ")}
                 >
-                  <span className="tabular-nums opacity-70">{index + 1}</span>
+                  <span
+                    className={[
+                      "tabular-nums",
+                      selected ? "text-white/80" : "text-[#667085]",
+                    ].join(" ")}
+                  >
+                    {index + 1}
+                  </span>
                   <span>{form3PhaseBPatternTabLabel(key)}</span>
                 </button>
               </li>

@@ -17,41 +17,9 @@ import { useState } from "react";
 import { CheckCircle2, Printer, Send } from "lucide-react";
 import Form2SheetView from "@/components/form2/Form2SheetView";
 import { useForm2Supabase } from "@/hooks/v2/useForm2Supabase";
-import {
-  FORM2_HISTORY_KEYS,
-  mergeTreatmentText,
-  type Form2Data,
-} from "@/lib/form2/form2Types";
+import { collectForm2Missing } from "@/lib/form2/collectForm2Missing";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
 import type { Patient } from "@/lib/wardData";
-
-// 未入力チェックの対象（原本の主要記入欄に対応）。history は 13 項目をまとめて 1 項目として扱う。
-function collectMissing(data: Form2Data): string[] {
-  const b = data.basicInformation;
-  const missing: string[] = [];
-  const req: [string, string][] = [
-    ["学籍番号", data.student.studentNumber],
-    ["学生氏名", data.student.studentName],
-    ["受け持ち期間（開始）", data.period.start],
-    ["受け持ち期間（終了）", data.period.end],
-    ["患者氏名", b.patientName],
-    ["年齢", b.age],
-    ["性別", b.sex],
-    ["診断名", b.diagnosis],
-    ["既往歴", b.pastHistory],
-    ["入院形態", b.admissionType],
-    ["主訴", b.chiefComplaint],
-    ["医師の治療方針・治療内容", mergeTreatmentText(data.treatment)],
-  ];
-  for (const [label, value] of req) {
-    if (!value || value.trim() === "") missing.push(label);
-  }
-  const historyEmpty = FORM2_HISTORY_KEYS.every(
-    (k) => (data.history[k] ?? "").trim() === "",
-  );
-  if (historyEmpty) missing.push("受け持つまでの経過（生育歴・現病歴）");
-  return missing;
-}
 
 export default function Form2ReviewScreen({
   patient,
@@ -66,7 +34,7 @@ export default function Form2ReviewScreen({
   initial: Form2Snapshot | null;
   onPersisted?: (snapshot: Form2Snapshot) => void;
 }) {
-  // 表示のみ（編集はしない）。読み込みは思考ワークスペースと同一の受け持ち様式2。
+  // 表示のみ（編集はしない）。読み込みは様式2 ワークスペースと同一の受け持ち様式2。
   const { data, hydrated } = useForm2Supabase({
     patientId,
     userId,
@@ -76,7 +44,7 @@ export default function Form2ReviewScreen({
   // 提出導線（この端末内の確認状態。新規 DB 処理は行わない）。
   const [submitted, setSubmitted] = useState(false);
 
-  const missing = collectMissing(data);
+  const missing = collectForm2Missing(data);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
