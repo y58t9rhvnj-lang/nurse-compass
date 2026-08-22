@@ -25,7 +25,11 @@ function sortAssess(
   );
 }
 
-/** 印刷・プレビュー左列: `S：…` / `O：…` を改行結合 */
+/**
+ * 印刷・プレビュー左列: 1 Information カード＝1 行。
+ * `S：…` / `O：…` / `—：…` を改行のみで結合（読点・空白での連結はしない）。
+ * 関連情報・Evidence 本文は含めない。
+ */
 export function composeForm3InformationPrintText(
   cards: Form3InformationCardV2[],
   patternKey: Form3PatternKey,
@@ -34,7 +38,8 @@ export function composeForm3InformationPrintText(
   for (const card of sortInfo(cards)) {
     if (card.status !== "active") continue;
     if (!card.patternKeys.includes(patternKey)) continue;
-    const body = card.content.trim();
+    // カード内改行は空白に正規化し、カード境界の \n と混同しない
+    const body = card.content.trim().replace(/\s*\n+\s*/g, " ").trim();
     if (!body) continue;
     const prefix =
       card.soType === "O" ? "O" : card.soType === "S" ? "S" : "—";

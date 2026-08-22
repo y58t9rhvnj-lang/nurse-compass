@@ -66,12 +66,21 @@ const FORM3_PATTERN_HEADING_CSS = `
   font-weight: 600;
   color: #000;
 }
+.form3-info-line {
+  display: block;
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 `;
 
-function CellText({ chunk }: { chunk: Form3FieldChunk }) {
+/** Assessment 本文（pre-wrap で改行を保持） */
+function AnalysisCellText({ chunk }: { chunk: Form3FieldChunk }) {
   return (
     <div
-      className="whitespace-pre-wrap break-words text-black"
+      className="form3-analysis-text whitespace-pre-wrap break-words text-black"
       style={{
         fontSize: `${chunk.fontPt}pt`,
         lineHeight: chunk.lineHeight,
@@ -79,6 +88,48 @@ function CellText({ chunk }: { chunk: Form3FieldChunk }) {
       }}
     >
       {chunk.text}
+    </div>
+  );
+}
+
+/**
+ * Information 本文: 1 カード＝1 ブロック。
+ * `\n` 区切りを段落として描画し、読点連結や連続文に見えないようにする。
+ */
+function InformationCellText({ chunk }: { chunk: Form3FieldChunk }) {
+  const lines = chunk.text.length === 0 ? [] : chunk.text.split("\n");
+  return (
+    <div
+      className="form3-info-text break-words text-black"
+      style={{
+        fontSize: `${chunk.fontPt}pt`,
+        lineHeight: chunk.lineHeight,
+        overflowWrap: "anywhere",
+      }}
+    >
+      {lines.map((line, i) => (
+        <p
+          key={`info-line-${i}`}
+          className="form3-info-line m-0 whitespace-pre-wrap"
+        >
+          {line.length > 0 ? line : "\u00a0"}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/** 表セルは min-height が効きにくいため、内側スペーサで基準高を確保する */
+function CellFill({
+  heightClass,
+  children,
+}: {
+  heightClass: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`form3-cell-fill box-border w-full ${heightClass}`}>
+      {children}
     </div>
   );
 }
@@ -94,7 +145,7 @@ function VerticalPatternLabel({
   return (
     <div
       className={[
-        "form3-vtext flex h-full w-full items-center justify-center overflow-hidden px-[1px] text-[10.5pt] font-medium leading-none tracking-[0.12em] text-black",
+        "form3-vtext flex h-full max-h-full w-full items-center justify-center overflow-hidden px-[1px] text-[10.5pt] font-medium leading-none tracking-[0.12em] text-black",
         className,
       ].join(" ")}
       style={{
@@ -144,7 +195,7 @@ function SheetChrome({
         <span>氏名　{meta?.studentName?.trim() || "　　　　　　"}</span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col justify-start">{children}</div>
 
       <div className="mt-2 flex items-end justify-between text-[8.5pt] text-black">
         {showGlobalPageNumbers ? (
@@ -204,13 +255,16 @@ function PrimaryPage({
   totalPages: number;
   showGlobalPageNumbers: boolean;
 }) {
-  const rowMinH =
+  // 学校指定の基準行高（文章量で縮めない）。計測側 ROW_H_* と同寸法。
+  // 固定 height + overflow:hidden で縦書き Pattern 列の伸びと flex 伸びを防ぐ。
+  // 収まらない本文は layout 側で⑦へ送る。
+  const rowFillH =
     page.rows.length <= 1
       ? forPrint
-        ? "min-h-[205mm]"
+        ? "h-[205mm] min-h-[205mm] max-h-[205mm] overflow-hidden"
         : "min-h-[190mm]"
       : forPrint
-        ? "min-h-[100mm]"
+        ? "h-[100mm] min-h-[100mm] max-h-[100mm] overflow-hidden"
         : "min-h-[92mm]";
 
   return (
@@ -223,7 +277,7 @@ function PrimaryPage({
       totalPages={totalPages}
       showGlobalPageNumbers={showGlobalPageNumbers}
     >
-      <table className="w-full table-fixed border-collapse border border-black">
+      <table className="w-full shrink-0 table-fixed border-collapse border border-black">
         <colgroup>
           <col style={{ width: "5%" }} />
           <col style={{ width: "36%" }} />
@@ -235,14 +289,20 @@ function PrimaryPage({
         <tbody>
           {page.rows.map((row) => (
             <tr key={row.patternKey}>
-              <td className={`border border-black p-0 align-middle ${rowMinH}`}>
-                <VerticalPatternLabel label={row.patternLabelJa} />
+              <td className="border border-black p-0 align-middle">
+                <CellFill heightClass={rowFillH}>
+                  <VerticalPatternLabel label={row.patternLabelJa} />
+                </CellFill>
               </td>
-              <td className={`border border-black p-1.5 align-top ${rowMinH}`}>
-                <CellText chunk={row.information} />
+              <td className="border border-black p-1.5 align-top">
+                <CellFill heightClass={rowFillH}>
+                  <InformationCellText chunk={row.information} />
+                </CellFill>
               </td>
-              <td className={`border border-black p-1.5 align-top ${rowMinH}`}>
-                <CellText chunk={row.analysis} />
+              <td className="border border-black p-1.5 align-top">
+                <CellFill heightClass={rowFillH}>
+                  <AnalysisCellText chunk={row.analysis} />
+                </CellFill>
               </td>
             </tr>
           ))}
@@ -267,7 +327,10 @@ function ContinuationPage({
   totalPages: number;
   showGlobalPageNumbers: boolean;
 }) {
-  const bodyMinH = forPrint ? "min-h-[215mm]" : "min-h-[200mm]";
+  // ⑦ 本文可用高（計測側 CONT_BODY_H と同寸法）。短文でも縮めない。
+  const bodyFillH = forPrint
+    ? "h-[215mm] min-h-[215mm] max-h-[215mm] overflow-hidden"
+    : "min-h-[200mm]";
   return (
     <SheetChrome
       formLabel={page.formLabel}
@@ -280,7 +343,7 @@ function ContinuationPage({
       totalPages={totalPages}
       showGlobalPageNumbers={showGlobalPageNumbers}
     >
-      <table className="w-full table-fixed border-collapse border border-black">
+      <table className="w-full shrink-0 table-fixed border-collapse border border-black">
         <colgroup>
           <col style={{ width: "5%" }} />
           <col style={{ width: "36%" }} />
@@ -291,14 +354,20 @@ function ContinuationPage({
         </thead>
         <tbody>
           <tr>
-            <td className={`border border-black p-0 align-middle ${bodyMinH}`}>
-              <VerticalPatternLabel label={page.patternLabelJa} />
+            <td className="border border-black p-0 align-middle">
+              <CellFill heightClass={bodyFillH}>
+                <VerticalPatternLabel label={page.patternLabelJa} />
+              </CellFill>
             </td>
-            <td className={`border border-black p-1.5 align-top ${bodyMinH}`}>
-              <CellText chunk={page.information} />
+            <td className="border border-black p-1.5 align-top">
+              <CellFill heightClass={bodyFillH}>
+                <InformationCellText chunk={page.information} />
+              </CellFill>
             </td>
-            <td className={`border border-black p-1.5 align-top ${bodyMinH}`}>
-              <CellText chunk={page.analysis} />
+            <td className="border border-black p-1.5 align-top">
+              <CellFill heightClass={bodyFillH}>
+                <AnalysisCellText chunk={page.analysis} />
+              </CellFill>
             </td>
           </tr>
         </tbody>

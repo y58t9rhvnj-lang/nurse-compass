@@ -162,6 +162,42 @@ const PRINT_PORTAL_CSS = `
     text-orientation: mixed !important;
     -webkit-text-orientation: mixed !important;
   }
+  /* Information: 1カード=1ブロック。連続文に見えないよう段落余白を確保 */
+  #${FORM3_PRINT_PORTAL_ID} .form3-info-line {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+  #${FORM3_PRINT_PORTAL_ID} .form3-analysis-text {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+  #${FORM3_PRINT_PORTAL_ID} .form3-sheet table {
+    height: auto !important;
+    flex-shrink: 0 !important;
+  }
+  #${FORM3_PRINT_PORTAL_ID} .form3-cell-fill.h-\\[205mm\\] {
+    height: 205mm !important;
+    min-height: 205mm !important;
+    max-height: 205mm !important;
+    overflow: hidden !important;
+  }
+  #${FORM3_PRINT_PORTAL_ID} .form3-cell-fill.h-\\[100mm\\] {
+    height: 100mm !important;
+    min-height: 100mm !important;
+    max-height: 100mm !important;
+    overflow: hidden !important;
+  }
+  #${FORM3_PRINT_PORTAL_ID} .form3-cell-fill.h-\\[215mm\\] {
+    height: 215mm !important;
+    min-height: 215mm !important;
+    max-height: 215mm !important;
+    overflow: hidden !important;
+  }
 }
 `;
 

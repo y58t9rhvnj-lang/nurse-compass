@@ -183,12 +183,18 @@ function surrogateSafe(text: string, idx: number): number {
   return idx;
 }
 
+/**
+ * 改ページ境界を調整する。
+ * Information は 1 カード＝1 行（\n 区切り）のため、可能な限り改行位置で切る。
+ * 改行が取れない場合のみ句読点・空白へフォールバックする。
+ */
 function adjustToBoundary(text: string, idx: number): number {
   const WINDOW = 60;
   const start = Math.max(1, idx - WINDOW);
   const seg = text.slice(0, idx);
+  // Information カード境界（\n）を最優先。空チャンクにならない範囲で直前の改行へ。
   const nl = seg.lastIndexOf("\n");
-  if (nl >= start) return nl + 1;
+  if (nl >= 0 && nl + 1 < idx) return nl + 1;
   for (const ch of ["。", "、"]) {
     const p = seg.lastIndexOf(ch);
     if (p >= start) return p + 1;
