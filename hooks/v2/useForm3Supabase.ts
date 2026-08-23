@@ -63,6 +63,7 @@ import type {
   Form3SaveWarning,
   Form3Snapshot,
 } from "@/lib/v2/notebook/types";
+import { useLectureLocalOnly } from "@/components/v2/lecture/LectureLocalOnlyContext";
 
 // 様式3 を Supabase（Server Action 経由）へ保存する V2 専用フック。
 //
@@ -83,6 +84,8 @@ export interface UseForm3SupabaseArgs {
   onPersisted?: (snapshot: Form3Snapshot) => void;
   /** Phase B 明示保存成功時（UI 未接続でも可） */
   onPersistedV2?: (snapshot: Form3SnapshotV2) => void;
+  /** Version 2.2 講義デモ: Server Action / draft を使わずメモリ内のみ。 */
+  localOnly?: boolean;
 }
 
 export type SaveNowV2Result =
@@ -97,7 +100,10 @@ export function useForm3Supabase({
   initial,
   onPersisted,
   onPersistedV2,
+  localOnly: localOnlyProp = false,
 }: UseForm3SupabaseArgs) {
+  const lectureLocalOnly = useLectureLocalOnly();
+  const localOnly = localOnlyProp || lectureLocalOnly;
   const caseId = caseIdForPatient(patientId) ?? patientId;
   const phaseB = PHASE_B_ENABLED;
 
@@ -246,6 +252,27 @@ export function useForm3Supabase({
     setSaveStatus("saving");
 
     try {
+      if (localOnly) {
+        const nextVersion = (versionRef.current ?? 0) + 1;
+        const updatedAt = new Date().toISOString();
+        versionRef.current = nextVersion;
+        setLastSavedAt(updatedAt);
+        setConflictSnapshot(null);
+        onPersistedRef.current?.({
+          payload: dataRef.current,
+          version: nextVersion,
+          updatedAt,
+          persistedSchemaVersion: 1,
+          rawPayload: dataRef.current,
+        });
+        if (dirtyDuringSaveRef.current) {
+          scheduleAutosave();
+        } else {
+          setSaveStatus("saved");
+        }
+        return;
+      }
+
       const res = await callAction(() =>
         saveForm3Action({
           patientId,
@@ -311,6 +338,7 @@ export function useForm3Supabase({
     clearDebounce,
     scheduleAutosave,
     setDataAndRef,
+    localOnly,
   ]);
 
   useEffect(() => {
@@ -473,6 +501,26 @@ export function useForm3Supabase({
       const expectedVersion = versionRef.current;
       setWriteFlagsAndRef({ ...flags, saveStatus: "saving" });
 
+      if (localOnly) {
+        const nextVersion = (expectedVersion ?? 0) + 1;
+        const updatedAt = new Date().toISOString();
+        versionRef.current = nextVersion;
+        setLastSavedAt(updatedAt);
+        setConflictSnapshotV2(null);
+        const snap: Form3SnapshotV2 = {
+          payload: payloadToSave,
+          version: nextVersion,
+          updatedAt,
+          persistedSchemaVersion: 2,
+          migratedFromV1: false,
+          warnings: [],
+        };
+        setDataV2AndRef(payloadToSave);
+        setWriteFlagsAndRef(applyForm3V2SaveSuccess(writeFlagsRef.current));
+        onPersistedV2Ref.current?.(snap);
+        return { ok: true, kind: "saved", snapshot: snap };
+      }
+
       const res = await callAction(() =>
         saveForm3V2Action({
           patientId,
@@ -548,7 +596,7 @@ export function useForm3Supabase({
         !res.ok && "message" in res ? String(res.message) : "save failed";
       return { ok: false, kind: "error", message };
     },
-    [patientId, userId, caseId, setDataV2AndRef, setWriteFlagsAndRef],
+    [patientId, userId, caseId, setDataV2AndRef, setWriteFlagsAndRef, localOnly],
   );
 
   useEffect(() => {

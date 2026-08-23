@@ -38,6 +38,7 @@ import {
 } from "@/app/v2/actions/informationCards";
 import { callAction, type ClientCallErrorKind } from "@/lib/v2/callAction";
 import type { ActionErrorKind } from "@/lib/v2/notebook/types";
+import { useLectureLocalOnly } from "@/components/v2/lecture/LectureLocalOnlyContext";
 
 // 通信失敗（reject 含む）時に学生へ出す一般メッセージ（技術用語・DB情報を含めない）。
 const NETWORK_HINT = "通信状況を確認して、もう一度お試しください。";
@@ -105,10 +106,15 @@ function sortCards(cards: InformationCard[]): InformationCard[] {
 export function useEvidenceSupabase({
   patientId,
   initial,
+  localOnly: localOnlyProp = false,
 }: {
   patientId: string;
   initial: InformationCard[];
+  /** Version 2.2 講義デモ: Server Action を呼ばずメモリ内のみ。 */
+  localOnly?: boolean;
 }): UseEvidenceSupabaseResult {
+  const lectureLocalOnly = useLectureLocalOnly();
+  const localOnly = localOnlyProp || lectureLocalOnly;
   const [cards, setCards] = useState<InformationCard[]>(() => sortCards(initial));
   const [status, setStatus] = useState<EvidenceStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
@@ -125,11 +131,12 @@ export function useEvidenceSupabase({
   const clearMessage = useCallback(() => setMessage(null), []);
 
   const reload = useCallback(async () => {
+    if (localOnly) return;
     const res = await callAction(() => listCardsAction(patientId));
     if (res.ok) {
       setCards(sortCards(res.data));
     }
-  }, [patientId]);
+  }, [patientId, localOnly]);
 
   const collectUtterance = useCallback(
     async ({
@@ -144,6 +151,24 @@ export function useEvidenceSupabase({
       setStatus("working");
       setMessage(null);
       try {
+        if (localOnly) {
+          const now = Date.now();
+          const card: InformationCard = {
+            id: `lecture-${now}`,
+            patientId,
+            content,
+            sourceType: "patient_conversation",
+            sourceLabel: "患者との会話",
+            sourceReference: { kind: "patient_conversation" },
+            originalText,
+            createdBy: "student",
+            createdAt: new Date(now).toISOString(),
+            updatedAt: new Date(now).toISOString(),
+          };
+          setCards((prev) => sortCards([...prev, card]));
+          setStatus("idle");
+          return true;
+        }
         const res = await callAction(() =>
           createCardAction({
             patientId,
@@ -174,7 +199,7 @@ export function useEvidenceSupabase({
         busyRef.current = false;
       }
     },
-    [patientId, reload],
+    [patientId, reload, localOnly],
   );
 
   const collectMemo = useCallback(
@@ -193,6 +218,24 @@ export function useEvidenceSupabase({
       setStatus("working");
       setMessage(null);
       try {
+        if (localOnly) {
+          const now = Date.now();
+          const card: InformationCard = {
+            id: `lecture-memo-${now}`,
+            patientId,
+            content,
+            sourceType: "student_note",
+            sourceLabel: options?.sourceLabel ?? "一時メモ",
+            sourceReference: options?.sourceReference,
+            originalText: options?.originalText ?? content,
+            createdBy: "student",
+            createdAt: new Date(now).toISOString(),
+            updatedAt: new Date(now).toISOString(),
+          };
+          setCards((prev) => sortCards([...prev, card]));
+          setStatus("idle");
+          return true;
+        }
         // Compassメモ由来は sourceReference {kind:"student_note", id: note.id} を付ける。
         // これにより uq_information_cards_source（source_reference.id 前提）で重複を防ぐ。
         // 出所参照なし（従来の一時メモ）の場合は重複防止インデックスの対象外。
@@ -225,7 +268,7 @@ export function useEvidenceSupabase({
         busyRef.current = false;
       }
     },
-    [patientId, reload],
+    [patientId, reload, localOnly],
   );
 
   const collectSource = useCallback(
@@ -237,6 +280,26 @@ export function useEvidenceSupabase({
       setStatus("working");
       setMessage(null);
       try {
+        if (localOnly) {
+          const now = Date.now();
+          const card: InformationCard = {
+            id: `lecture-src-${now}`,
+            patientId,
+            content,
+            sourceType: args.sourceType,
+            sourceLabel: args.sourceLabel,
+            sourceReference: args.sourceReference,
+            originalText: args.originalText,
+            note: args.note,
+            category: args.category,
+            createdBy: "student",
+            createdAt: new Date(now).toISOString(),
+            updatedAt: new Date(now).toISOString(),
+          };
+          setCards((prev) => sortCards([...prev, card]));
+          setStatus("idle");
+          return { ok: true };
+        }
         const res = await callAction(() =>
           createCardAction({
             patientId,
@@ -268,7 +331,7 @@ export function useEvidenceSupabase({
         busyRef.current = false;
       }
     },
-    [patientId, reload],
+    [patientId, reload, localOnly],
   );
 
   const updateContent = useCallback(
@@ -286,6 +349,18 @@ export function useEvidenceSupabase({
       setStatus("working");
       setMessage(null);
       try {
+        if (localOnly) {
+          const updatedAt = new Date().toISOString();
+          setCards((prev) =>
+            sortCards(
+              prev.map((c) =>
+                c.id === id ? { ...c, content, updatedAt } : c,
+              ),
+            ),
+          );
+          setStatus("idle");
+          return true;
+        }
         const res = await callAction(() =>
           updateCardAction({
             patientId,
@@ -319,7 +394,7 @@ export function useEvidenceSupabase({
         busyRef.current = false;
       }
     },
-    [patientId, reload],
+    [patientId, reload, localOnly],
   );
 
   const release = useCallback(
@@ -337,6 +412,11 @@ export function useEvidenceSupabase({
       setStatus("working");
       setMessage(null);
       try {
+        if (localOnly) {
+          setCards((prev) => prev.filter((c) => c.id !== id));
+          setStatus("idle");
+          return true;
+        }
         const res = await callAction(() =>
           releaseCardAction({ patientId, id, expectedUpdatedAt }),
         );
@@ -363,7 +443,7 @@ export function useEvidenceSupabase({
         busyRef.current = false;
       }
     },
-    [patientId, reload],
+    [patientId, reload, localOnly],
   );
 
   const isCollectedBySource = useCallback(

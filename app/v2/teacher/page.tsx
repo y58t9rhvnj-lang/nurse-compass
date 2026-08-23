@@ -35,6 +35,22 @@ export default async function TeacherHomePage() {
 
       <section className="mb-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-base font-semibold text-slate-900">
+          講義用学生画面
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          プロジェクター投影用に、学生と同じ Compass
+          画面を開けます。通常操作とホワイトボードで説明でき、内容は端末内のみで学生データには保存されません。
+        </p>
+        <Link
+          href="/v2/teacher/lecture"
+          className="mt-4 inline-flex items-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+        >
+          講義用学生画面を開く
+        </Link>
+      </section>
+
+      <section className="mb-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-base font-semibold text-slate-900">
           Gold Standard（読み取り専用）
         </h2>
         <p className="mt-2 text-sm text-slate-600">
@@ -51,8 +67,8 @@ export default async function TeacherHomePage() {
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-slate-700">ログインに成功しました。</p>
         <p className="mt-3 text-sm text-slate-500">
-          学生一覧・学生ごとのログ確認・Teaching Guide β は、次のフェーズ
-          （Phase 4 以降）で追加されます。
+          学生一覧・提出レビュー・フィードバックは Version 2.2
+          の後続 Sprint で追加します。
         </p>
       </section>
     </main>

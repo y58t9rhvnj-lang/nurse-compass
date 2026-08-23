@@ -20,6 +20,7 @@ import {
   savePatientUnderstandingAction,
 } from "@/app/v2/actions/patientUnderstanding";
 import { callAction } from "@/lib/v2/callAction";
+import { useLectureLocalOnly } from "@/components/v2/lecture/LectureLocalOnlyContext";
 
 const DEBOUNCE_MS = 800;
 
@@ -37,6 +38,7 @@ export function usePatientUnderstanding({
 }: {
   patientId: string;
 }): UsePatientUnderstandingResult {
+  const localOnly = useLectureLocalOnly();
   const [text, setText] = useState("");
   const [status, setStatus] = useState<OverviewSaveStatus>("idle");
   const [loaded, setLoaded] = useState(false);
@@ -48,6 +50,10 @@ export function usePatientUnderstanding({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doSave = useCallback(async () => {
+    if (localOnly) {
+      setStatus("saved");
+      return;
+    }
     if (busyRef.current) {
       pendingRef.current = true;
       return;
@@ -69,13 +75,17 @@ export function usePatientUnderstanding({
         void doSave();
       }
     }
-  }, [patientId]);
+  }, [patientId, localOnly]);
 
   // マウント時（患者切替時）に現行 overview を取得する。
   // 患者切替は本ビューの受け持ちガードで unmount/remount されるため、state 初期値（"" / idle / false）が
   // そのまま「リセット」になる。ここでは ref のみ同期的に触り、setState は async 内でのみ行う
   // （effect 本体での同期 setState による cascading renders を避ける）。学生が取得前に入力していれば上書きしない。
   useEffect(() => {
+    if (localOnly) {
+      setLoaded(true);
+      return;
+    }
     let alive = true;
     dirtyRef.current = false;
     void (async () => {
@@ -94,7 +104,7 @@ export function usePatientUnderstanding({
     return () => {
       alive = false;
     };
-  }, [patientId]);
+  }, [patientId, localOnly]);
 
   const onChangeText = useCallback(
     (next: string) => {

@@ -26,6 +26,7 @@ import {
 import { callAction } from "@/lib/v2/callAction";
 import type { Form2EvidenceLink } from "@/lib/v2/notebook/form2EvidenceLinkMapper";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
+import { useLectureLocalOnly } from "@/components/v2/lecture/LectureLocalOnlyContext";
 
 const NETWORK_HINT = "通信状況を確認して、もう一度お試しください。";
 
@@ -52,6 +53,7 @@ export function useForm2EvidenceLinks({
   // リンクのために様式2 の空レコードを新規作成したとき、確定 snapshot を親へ通知する。
   onForm2Ensured?: (snapshot: Form2Snapshot) => void;
 }): UseForm2EvidenceLinksResult {
+  const localOnly = useLectureLocalOnly();
   const [links, setLinks] = useState<Form2EvidenceLink[]>([]);
   const [status, setStatus] = useState<LinksStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
@@ -65,12 +67,14 @@ export function useForm2EvidenceLinks({
   const clearMessage = useCallback(() => setMessage(null), []);
 
   const reload = useCallback(async () => {
+    if (localOnly) return;
     const res = await callAction(() => listForm2EvidenceLinksAction(patientId));
     if (res.ok) setLinks(res.data);
-  }, [patientId]);
+  }, [patientId, localOnly]);
 
   // マウント時（患者切替時）にサーバから取得する（再読み込み後も状態を保持）。
   useEffect(() => {
+    if (localOnly) return;
     let alive = true;
     void (async () => {
       const res = await callAction(() => listForm2EvidenceLinksAction(patientId));
@@ -79,7 +83,7 @@ export function useForm2EvidenceLinks({
     return () => {
       alive = false;
     };
-  }, [patientId]);
+  }, [patientId, localOnly]);
 
   const linksForField = useCallback(
     (fieldKey: string) => links.filter((l) => l.formFieldKey === fieldKey),
@@ -97,6 +101,24 @@ export function useForm2EvidenceLinks({
       setStatus("working");
       setMessage(null);
       try {
+        if (localOnly) {
+          const created: Form2EvidenceLink = {
+            id: `lecture-link-${Date.now()}`,
+            evidenceId,
+            formFieldKey: fieldKey,
+            createdAt: new Date().toISOString(),
+          };
+          setLinks((prev) =>
+            prev.some(
+              (l) =>
+                l.evidenceId === evidenceId && l.formFieldKey === fieldKey,
+            )
+              ? prev
+              : [...prev, created],
+          );
+          setStatus("idle");
+          return true;
+        }
         const res = await callAction(() =>
           createForm2EvidenceLinkAction({ patientId, evidenceId, fieldKey }),
         );
@@ -121,7 +143,7 @@ export function useForm2EvidenceLinks({
         busyRef.current = false;
       }
     },
-    [patientId, reload],
+    [patientId, reload, localOnly],
   );
 
   const removeLink = useCallback(
@@ -131,6 +153,11 @@ export function useForm2EvidenceLinks({
       setStatus("working");
       setMessage(null);
       try {
+        if (localOnly) {
+          setLinks((prev) => prev.filter((l) => l.id !== linkId));
+          setStatus("idle");
+          return true;
+        }
         const res = await callAction(() =>
           deleteForm2EvidenceLinkAction({ patientId, id: linkId }),
         );
@@ -146,7 +173,7 @@ export function useForm2EvidenceLinks({
         busyRef.current = false;
       }
     },
-    [patientId],
+    [patientId, localOnly],
   );
 
   // Evidence 解除（論理削除）時に、その Evidence のリンクをまとめて外す。
@@ -154,11 +181,12 @@ export function useForm2EvidenceLinks({
     async (evidenceId: string): Promise<void> => {
       // 楽観的にローカルからも除く（表示の整合）。
       setLinks((prev) => prev.filter((l) => l.evidenceId !== evidenceId));
+      if (localOnly) return;
       await callAction(() =>
         deleteForm2EvidenceLinksByEvidenceAction({ patientId, evidenceId }),
       );
     },
-    [patientId],
+    [patientId, localOnly],
   );
 
   return {

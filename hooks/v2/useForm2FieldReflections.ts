@@ -20,6 +20,7 @@ import {
   saveForm2FieldReflectionAction,
 } from "@/app/v2/actions/form2FieldReflections";
 import { callAction } from "@/lib/v2/callAction";
+import { useLectureLocalOnly } from "@/components/v2/lecture/LectureLocalOnlyContext";
 
 const DEBOUNCE_MS = 800;
 
@@ -42,6 +43,7 @@ export function useForm2FieldReflections({
 }: {
   patientId: string;
 }): UseForm2FieldReflectionsResult {
+  const localOnly = useLectureLocalOnly();
   const [texts, setTexts] = useState<Record<string, string>>({});
   const [statuses, setStatuses] = useState<Record<string, ReflectionSaveStatus>>(
     {},
@@ -63,6 +65,10 @@ export function useForm2FieldReflections({
 
   const doSave = useCallback(
     async (key: string) => {
+      if (localOnly) {
+        setStatus(key, "saved");
+        return;
+      }
       if (busyRef.current[key]) {
         pendingRef.current[key] = true;
         return;
@@ -86,7 +92,7 @@ export function useForm2FieldReflections({
         }
       }
     },
-    [patientId, setStatus],
+    [patientId, setStatus, localOnly],
   );
 
   // マウント時（患者切替時）に現行の考察一覧を取得する。
@@ -94,6 +100,10 @@ export function useForm2FieldReflections({
   // ここでは ref のみ同期的に触り、setState は async 内でのみ行う（cascading renders を避ける）。
   // 学生が取得前に入力していれば上書きしない（dirtyRef）。
   useEffect(() => {
+    if (localOnly) {
+      setLoaded(true);
+      return;
+    }
     let alive = true;
     dirtyRef.current = false;
     void (async () => {
@@ -119,7 +129,7 @@ export function useForm2FieldReflections({
     return () => {
       alive = false;
     };
-  }, [patientId]);
+  }, [patientId, localOnly]);
 
   const onChangeReflection = useCallback(
     (key: string, next: string) => {

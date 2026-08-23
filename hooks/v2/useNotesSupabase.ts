@@ -30,6 +30,7 @@ import {
   updateNoteAction,
 } from "@/app/v2/actions/studentNotes";
 import { callAction } from "@/lib/v2/callAction";
+import { useLectureLocalOnly } from "@/components/v2/lecture/LectureLocalOnlyContext";
 
 // 通信失敗（reject 含む）時に学生へ出す一般メッセージ（技術用語・DB情報を含めない）。
 const NETWORK_HINT = "通信状況を確認して、もう一度お試しください。";
@@ -72,10 +73,15 @@ function sortRecords(records: StudentNoteRecord[]): StudentNoteRecord[] {
 export function useNotesSupabase({
   patientId,
   initial,
+  localOnly: localOnlyProp = false,
 }: {
   patientId: string;
   initial: StudentNoteRecord[];
+  /** Version 2.2 講義デモ: Server Action を呼ばずメモリ内のみ。 */
+  localOnly?: boolean;
 }): UseNotesSupabaseResult {
+  const lectureLocalOnly = useLectureLocalOnly();
+  const localOnly = localOnlyProp || lectureLocalOnly;
   const [records, setRecords] = useState<StudentNoteRecord[]>(() =>
     sortRecords(initial),
   );
@@ -94,11 +100,12 @@ export function useNotesSupabase({
   const clearMessage = useCallback(() => setMessage(null), []);
 
   const reload = useCallback(async () => {
+    if (localOnly) return;
     const res = await callAction(() => listNotesAction(patientId));
     if (res.ok) {
       setRecords(sortRecords(res.data));
     }
-  }, [patientId]);
+  }, [patientId, localOnly]);
 
   const addNote = useCallback(
     async (rawText: string): Promise<boolean> => {
@@ -119,6 +126,10 @@ export function useNotesSupabase({
       setRecords((prev) => sortRecords([optimistic, ...prev]));
 
       try {
+        if (localOnly) {
+          setStatus("idle");
+          return true;
+        }
         const res = await callAction(() =>
           createNoteAction({ patientId, id, text }),
         );
@@ -145,7 +156,7 @@ export function useNotesSupabase({
         busyRef.current = false;
       }
     },
-    [patientId, reload],
+    [patientId, reload, localOnly],
   );
 
   const updateNote = useCallback(
@@ -182,6 +193,10 @@ export function useNotesSupabase({
       );
 
       try {
+        if (localOnly) {
+          setStatus("idle");
+          return true;
+        }
         const res = await callAction(() =>
           updateNoteAction({ patientId, id, expectedUpdatedAt, text }),
         );
@@ -214,7 +229,7 @@ export function useNotesSupabase({
         busyRef.current = false;
       }
     },
-    [patientId, reload],
+    [patientId, reload, localOnly],
   );
 
   const deleteNote = useCallback(
@@ -237,6 +252,10 @@ export function useNotesSupabase({
       setRecords((prev) => prev.filter((r) => r.note.id !== id));
 
       try {
+        if (localOnly) {
+          setStatus("idle");
+          return true;
+        }
         const res = await callAction(() =>
           softDeleteNoteAction({ patientId, id, expectedUpdatedAt }),
         );
@@ -262,7 +281,7 @@ export function useNotesSupabase({
         busyRef.current = false;
       }
     },
-    [patientId, reload],
+    [patientId, reload, localOnly],
   );
 
   const notes = useMemo(() => records.map((r) => r.note), [records]);

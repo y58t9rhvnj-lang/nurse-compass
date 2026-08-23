@@ -27,6 +27,7 @@ import {
   writeForm2Draft,
 } from "@/lib/v2/notebook/form2Draft";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
+import { useLectureLocalOnly } from "@/components/v2/lecture/LectureLocalOnlyContext";
 
 // 精神様式2 を Supabase（Server Action 経由）へ保存する V2 専用フック。
 // V1 の useForm2 / form2Store（localStorage）には一切依存しない。
@@ -74,6 +75,8 @@ export interface UseForm2SupabaseArgs {
   // AppShell はこれを患者単位のセッション snapshot として保持し、再マウント時の initial に再利用する
   //（ビュー往復での「表示巻き戻り」防止。DB 再取得や強制 reload は行わない）。
   onPersisted?: (snapshot: Form2Snapshot) => void;
+  /** Version 2.2 講義デモ: Server Action / draft を使わずメモリ内のみ。 */
+  localOnly?: boolean;
 }
 
 export function useForm2Supabase({
@@ -81,7 +84,10 @@ export function useForm2Supabase({
   userId,
   initial,
   onPersisted,
+  localOnly: localOnlyProp = false,
 }: UseForm2SupabaseArgs) {
+  const lectureLocalOnly = useLectureLocalOnly();
+  const localOnly = localOnlyProp || lectureLocalOnly;
   const caseId = caseIdForPatient(patientId) ?? patientId;
 
   const hydrated = useSyncExternalStore(
@@ -156,6 +162,26 @@ export function useForm2Supabase({
     setSaveStatus("saving");
 
     try {
+      // 講義デモ: Server Action / draft に触れずメモリ内で確定扱い。
+      if (localOnly) {
+        const nextVersion = (versionRef.current ?? 0) + 1;
+        const updatedAt = new Date().toISOString();
+        versionRef.current = nextVersion;
+        setLastSavedAt(updatedAt);
+        setConflictLatest(null);
+        onPersistedRef.current?.({
+          payload: dataRef.current,
+          version: nextVersion,
+          updatedAt,
+        });
+        if (dirtyDuringSaveRef.current) {
+          scheduleSave();
+        } else {
+          setSaveStatus("saved");
+        }
+        return;
+      }
+
       // callAction は決して reject しない（reject は network / unexpected の Result に正規化）。
       const res = await callAction(() =>
         saveForm2Action({
@@ -208,7 +234,7 @@ export function useForm2Supabase({
       // reject でも必ず解除し、saving のまま固定させない。
       inFlightRef.current = false;
     }
-  }, [patientId, userId, caseId, clearTimers, scheduleSave]);
+  }, [patientId, userId, caseId, clearTimers, scheduleSave, localOnly]);
 
   // saveRef を最新の doSave に同期（scheduleSave/タイマーから参照するため）。
   useEffect(() => {

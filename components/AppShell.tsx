@@ -17,6 +17,7 @@ import {
 } from "@/components/v2/capture/EvidenceCaptureContext";
 import { NotesProvider } from "@/components/v2/notebook/NotesContext";
 import { EvidenceProvider } from "@/components/v2/notebook/EvidenceContext";
+import { LectureLocalOnlyProvider } from "@/components/v2/lecture/LectureLocalOnlyContext";
 import { useEvidenceSupabase } from "@/hooks/v2/useEvidenceSupabase";
 import { useNotesSupabase } from "@/hooks/v2/useNotesSupabase";
 import type { StudentNoteRecord } from "@/lib/v2/notebook/studentNoteMapper";
@@ -122,6 +123,11 @@ export interface AppShellProps {
   // V2 Compassメモ の初期データ（server page が受け持ち患者の active notes を取得して注入）。
   // StudentNoteRecord[]（note: UI向け / updatedAt: 楽観ロック用の生 ISO）。V1 既定は undefined。
   initialNotes?: StudentNoteRecord[];
+  /**
+   * Version 2.2 講義デモ。true のとき Form2/Form3/Evidence/Notes は Server Action を呼ばず
+   * メモリ内のみ（実在学生の records に書き込まない）。
+   */
+  lectureMode?: boolean;
   // ── Learning Layer 接続点（Architecture Sprint 1-1 で追加した「入口」） ──
   // 恒久設計上の唯一の結合点。今回は型として受け入れるのみで、内部では未使用
   // （destructure しない）。Sprint 1-2 以降で mode 依存を段階的に置き換えていく。
@@ -191,6 +197,7 @@ export default function AppShell({
   initialPatientOverviewText,
   initialEvidence,
   initialNotes,
+  lectureMode = false,
 }: AppShellProps = {}) {
   // Core 標準初期値を Core の規則で決定してから useState へ渡す（Priority A）。
   // useState 内には mode / fixedPatientId を直接書かない（初期状態決定を隔離）。
@@ -322,6 +329,7 @@ export default function AppShell({
   const evidence = useEvidenceSupabase({
     patientId: selectedId,
     initial: initialEvidence ?? [],
+    localOnly: lectureMode,
   });
   // 各 Core 収集ボタンへ配る最小 API。cards 変化で isCollectedBySource が変わり、
   // 「保存済み」表示が自動更新される。V1（Provider 無し）では配られない。
@@ -349,6 +357,7 @@ export default function AppShell({
   const notes = useNotesSupabase({
     patientId: initialPatientId,
     initial: initialNotes ?? [],
+    localOnly: lectureMode,
   });
 
   // ── Version2 様式2 セッション snapshot（Lecture Readiness Sprint 1 / 表示巻き戻り修正）──
@@ -486,11 +495,13 @@ export default function AppShell({
       </aside>
     );
     return (
+      <LectureLocalOnlyProvider value={lectureMode}>
       <EvidenceCaptureProvider value={CORE_CAPTURE_ENABLED ? captureApi : null}>
         <NotesProvider value={notes}>
         <EvidenceProvider value={evidence}>
         <div
           data-shell-mode="v2"
+          data-lecture-mode={lectureMode ? "1" : undefined}
           data-focus-mode={focusMode ? "1" : undefined}
           data-inspector-enabled={inspectorEnabled ? "1" : undefined}
           className="flex h-dvh w-full flex-col overflow-hidden bg-[#EDEDF0] text-[#1D1D1F]"
@@ -607,6 +618,7 @@ export default function AppShell({
         </EvidenceProvider>
         </NotesProvider>
       </EvidenceCaptureProvider>
+      </LectureLocalOnlyProvider>
     );
   }
   // ────────────────────────────────────────────────────────────────
