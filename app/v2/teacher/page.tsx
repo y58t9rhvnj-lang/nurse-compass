@@ -51,6 +51,21 @@ export default async function TeacherHomePage() {
 
       <section className="mb-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-base font-semibold text-slate-900">
+          提出課題・期限設定
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          講義の進行に合わせて、複数の提出課題と期限を設定します。
+        </p>
+        <Link
+          href="/v2/teacher/assessments"
+          className="mt-4 inline-flex items-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+        >
+          提出課題・期限設定を開く
+        </Link>
+      </section>
+
+      <section className="mb-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-base font-semibold text-slate-900">
           Gold Standard（読み取り専用）
         </h2>
         <p className="mt-2 text-sm text-slate-600">

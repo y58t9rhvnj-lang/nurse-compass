@@ -37,6 +37,7 @@ export default function LearningLayer({
   onOpenEvidenceReview,
   facingState,
   onChangeFacingState,
+  onGoToSubmissions,
 }: {
   view: LearningWorkspaceView;
   sideNav: ReactNode;
@@ -63,6 +64,8 @@ export default function LearningLayer({
   onOpenEvidenceReview?: () => void;
   facingState: FacingConvoState;
   onChangeFacingState: (next: FacingConvoState) => void;
+  /** focusMode 中に提出画面へ戻る */
+  onGoToSubmissions?: () => void;
 }) {
   const isForm3 = view === "form3";
   const lockedTitle = isForm3 ? "様式3 アセスメント" : "様式2";
@@ -138,6 +141,7 @@ export default function LearningLayer({
             onBackToPatientTop={onBackToPatientTop}
             onToggleLearningSupport={onToggleLearningSupport}
             learningSupportOpen={learningSupportOpen}
+            onGoToSubmissions={onGoToSubmissions}
           />
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[13px] text-[#6E6E73]">

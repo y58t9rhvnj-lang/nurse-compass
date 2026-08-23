@@ -4,12 +4,31 @@ import {
   formatAssessmentDateTimeJa,
   formatAssessmentTimeJa,
 } from "@/lib/v2/assessment/formatAssessmentDate";
+import {
+  evaluationTypeLabel,
+  formatPatternIdsJa,
+  milestoneTypeLabel,
+} from "@/lib/v2/assessment/submissionScope";
 import type { AssessmentSubmitPreview } from "@/lib/v2/assessment/types";
+import type { Form3PatternKey } from "@/lib/form3/form3Types";
 
-/**
- * 課題提出の確認 Dialog（期限内／期限後）。
- * 「最終提出」という表現は使わない。
- */
+function scopeLabel(preview: AssessmentSubmitPreview): string | null {
+  const scope = preview.submissionScope.form3Scope;
+  if (scope?.mode === "selected_patterns") {
+    return `対象範囲：${formatPatternIdsJa(scope.patternIds as Form3PatternKey[])}`;
+  }
+  if (preview.submissionScope.includeForm3 && scope?.mode === "all_patterns") {
+    return "対象範囲：様式3 全パターン";
+  }
+  if (
+    preview.submissionScope.includeForm2 &&
+    !preview.submissionScope.includeForm3
+  ) {
+    return "対象範囲：様式2";
+  }
+  return null;
+}
+
 export default function AssessmentSubmitDialog({
   open,
   preview,
@@ -28,6 +47,7 @@ export default function AssessmentSubmitDialog({
   const late = preview.wouldBeLate;
   const deadlineLabel = formatAssessmentDateTimeJa(preview.deadlineAt);
   const deadlineTime = formatAssessmentTimeJa(preview.deadlineAt);
+  const scope = scopeLabel(preview);
 
   return (
     <div
@@ -44,16 +64,31 @@ export default function AssessmentSubmitDialog({
           {late ? "期限後提出の確認" : "課題を提出"}
         </h2>
 
-        <p className="mt-2 text-[13px] text-[#6E6E73]">
+        <p className="mt-2 text-[13px] font-medium text-[#3A3A3C]">
+          {preview.cycleTitle}
+        </p>
+        <p className="mt-0.5 text-[14px] font-semibold text-[#1D1D1F]">
+          {preview.milestoneTitle}
+        </p>
+        <p className="mt-1 text-[12px] text-[#8E8E93]">
+          {milestoneTypeLabel(preview.milestoneType)} ・{" "}
+          {evaluationTypeLabel(preview.evaluationType)}
+        </p>
+        {scope ? (
+          <p className="mt-1 text-[12px] text-[#6E6E73]">{scope}</p>
+        ) : null}
+
+        <p className="mt-3 text-[13px] text-[#6E6E73]">
           提出期限：{deadlineLabel}
         </p>
         <p className="mt-1 text-[12px] text-[#8E8E93]">
-          {deadlineTime}
-          以降の提出は期限後として記録されます
+          {late
+            ? "現在は期限後です（期限後提出として記録されます）"
+            : `${deadlineTime}以降の提出は期限後として記録されます`}
         </p>
 
         {late ? (
-          <div className="mt-4 rounded-xl border border-[#F5C6C2] bg-[#FFF1F0] px-3 py-3 text-[13px] leading-relaxed text-[#9B2C2C]">
+          <div className="mt-4 rounded-xl border border-[#F0D9A8] bg-[#FFF8EC] px-3 py-3 text-[13px] leading-relaxed text-[#8A5A12]">
             <p>提出期限を過ぎています。</p>
             <p className="mt-2">
               この提出は「期限後提出」として記録されます。教員が承認した場合に評価対象となります。
@@ -61,7 +96,7 @@ export default function AssessmentSubmitDialog({
           </div>
         ) : (
           <div className="mt-4 rounded-xl border border-[#E5E5EA] bg-[#FAFAFC] px-3 py-3 text-[13px] leading-relaxed text-[#3A3A3C]">
-            <p>現在の内容を提出します。</p>
+            <p>現在の内容を提出します（全体スナップショット）。</p>
             <p className="mt-2">
               提出後も期限までは修正して、再度提出できます。
             </p>
@@ -81,7 +116,9 @@ export default function AssessmentSubmitDialog({
             type="button"
             className={[
               "flex h-11 min-w-[120px] items-center justify-center rounded-xl px-4 text-[13px] font-semibold text-white disabled:opacity-50",
-              late ? "bg-[#C0392B] hover:opacity-90" : "bg-[#0A84FF] hover:opacity-90",
+              late
+                ? "bg-[#C0392B] hover:opacity-90"
+                : "bg-[#0A84FF] hover:opacity-90",
             ].join(" ")}
             onClick={onConfirm}
             disabled={submitting}

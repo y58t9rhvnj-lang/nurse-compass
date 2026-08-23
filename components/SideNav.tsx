@@ -17,6 +17,7 @@ import {
   StickyNote,
   User,
   Users,
+  Send,
 } from "lucide-react";
 import NurseCompassLogo from "@/components/v2/brand/NurseCompassLogo";
 import { BRAND } from "@/lib/brand";
@@ -31,6 +32,7 @@ export type AppView =
   | "workspace"
   | "form2"
   | "form3"
+  | "submissions"
   | "patient-top"
   | "conversation"
   | "clinical-workspace"
@@ -91,6 +93,7 @@ export const STUDENT_NAV_ITEMS: NavItem[] = [
   { label: "電子カルテ", icon: FileText, view: "chart" },
   { label: "様式2", icon: ClipboardList, view: "clinical-workspace" },
   { label: "様式3", icon: LayoutList, view: "form3" },
+  { label: "提出", icon: Send, view: "submissions" },
   { label: "情報BOX", icon: MessageCircle, badge: 2 },
   { label: "申し送り", icon: MessageCircle },
   { label: "スケジュール", icon: Calendar },
@@ -183,7 +186,7 @@ export default function SideNav({
                 strokeWidth={active ? 2.25 : 1.75}
               />
               <span className="flex-1 truncate">{label}</span>
-              {badge !== undefined && (
+              {badge !== undefined && badge > 0 && (
                 <span
                   className={[
                     "flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold",

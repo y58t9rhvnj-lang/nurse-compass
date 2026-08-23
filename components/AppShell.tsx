@@ -1,16 +1,19 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import OutsideWardArea from "@/components/OutsideWardArea";
 import SideNav, {
   STUDENT_NAV_ITEMS,
   type AppView,
+  type NavItem,
   type SideNavIdentity,
 } from "@/components/SideNav";
 import Notice from "@/components/Notice";
 import CoreLayer from "@/components/v2/core/CoreLayer";
 import LearningLayer from "@/components/v2/learning/LearningLayer";
 import { isLearningWorkspaceView } from "@/components/v2/learning/workspace/WorkspaceHost";
+import StudentSubmissionsWorkspace from "@/components/v2/assessment/StudentSubmissionsWorkspace";
+import { getSubmissionPendingBadgeCountAction } from "@/app/v2/actions/assessmentSubmission";
 import {
   EvidenceCaptureProvider,
   type EvidenceCaptureApi,
@@ -278,6 +281,11 @@ export default function AppShell({
     setPendingQuestion(null);
     setActiveView("form3");
   };
+  const goSubmissions = useCallback(() => {
+    setNotice(null);
+    setPendingQuestion(null);
+    setActiveView("submissions");
+  }, []);
   // 電子カルテを開く。tab 指定時はそのタブから、focus 指定時は該当記録へ移動・強調。
   const goChart = (tab?: ChartTabId, focus?: ChartFocus) => {
     setNotice(null);
@@ -305,6 +313,7 @@ export default function AppShell({
     // 様式2 は V1 では flag 依存、V2 では常に到達可能（flag は変更しない）。
     else if (view === "form2" && (FORM2_ENABLED || mode === "v2")) goForm2();
     else if (view === "form3" && mode === "v2") goForm3();
+    else if (view === "submissions" && mode === "v2") goSubmissions();
   };
 
   // ── Version2 学習支援 Inspector（P4） ───────────────────────────
@@ -442,6 +451,34 @@ export default function AppShell({
   const inspectorTargetView = activeView === "clinical-workspace";
   const showInspector = mode === "v2" && inspectorEnabled && inspectorTargetView;
 
+  const [submissionBadgeCount, setSubmissionBadgeCount] = useState(0);
+  const refreshSubmissionBadge = useCallback(async () => {
+    if (mode !== "v2" || lectureMode || !fixedPatientId) {
+      setSubmissionBadgeCount(0);
+      return;
+    }
+    const res = await getSubmissionPendingBadgeCountAction(fixedPatientId);
+    if (res.ok) setSubmissionBadgeCount(res.count);
+  }, [mode, lectureMode, fixedPatientId]);
+
+  useEffect(() => {
+    void refreshSubmissionBadge();
+  }, [refreshSubmissionBadge]);
+
+  const studentNavItems = useMemo<NavItem[]>(
+    () =>
+      STUDENT_NAV_ITEMS.map((item) =>
+        item.view === "submissions"
+          ? {
+              ...item,
+              badge:
+                submissionBadgeCount > 0 ? submissionBadgeCount : undefined,
+            }
+          : item,
+      ),
+    [submissionBadgeCount],
+  );
+
   // ── Version2 学生シェル = V1 Core シェル + Learning 重畳 ─────────────────
   // Lecture Readiness: V2 は V1 とは別アプリではない。V1 の Core 画面・レイアウト
   //（病棟ホーム 3 カラム / 電子カルテ ChartSideNav+ChartAside / 患者との会話+Compassメモ /
@@ -487,7 +524,7 @@ export default function AppShell({
         <SideNav
           activeView={activeView}
           onNavigate={handleSideNav}
-          items={STUDENT_NAV_ITEMS}
+          items={studentNavItems}
           identity={identity}
           onLogout={handleLogout}
           selectedPatientName={selectedPatient?.name}
@@ -537,7 +574,22 @@ export default function AppShell({
                 onOpenEvidenceReview={goEvidenceReview}
                 facingState={facingState}
                 onChangeFacingState={setFacingState}
+                onGoToSubmissions={goSubmissions}
               />
+            ) : activeView === "submissions" ? (
+              <>
+                {studentSideNav}
+                <StudentSubmissionsWorkspace
+                  patientId={selectedId}
+                  onNavigateWorkspace={(view) => {
+                    if (view === "clinical-workspace") goClinicalWorkspace();
+                    else if (view === "form3") goForm3();
+                    else handleSideNav(view);
+                  }}
+                  onPendingCountChange={setSubmissionBadgeCount}
+                  onNotify={(message) => setNotice(message)}
+                />
+              </>
             ) : activeView === "evidence-review" ? (
               // 第2段階「Evidence を整理して患者の全体像を捉える」専用ビュー（Sprint D-2B 画面構成修正）。
               // 電子カルテ・会話は出さず、左＝様式2 / 右＝Evidence 整理 の 2 カラム。受け持ち患者のみ対象。
@@ -573,7 +625,7 @@ export default function AppShell({
                 {studentSideNav}
                 <main className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden bg-[#F2F2F7] px-6">
                   <p className="max-w-md text-center text-[14px] text-[#6E6E73]">
-                    様式2 の確認・印刷・提出は、様式2 ワークスペースのヘッダーから行えます。
+                    様式2 の確認・印刷は、様式2 ワークスペースのヘッダーから行えます。提出は左メニューの「提出」から行います。
                   </p>
                   <button
                     type="button"

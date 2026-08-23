@@ -38,6 +38,7 @@ export default function WorkspaceHost({
   onBackToPatientTop,
   onToggleLearningSupport,
   learningSupportOpen,
+  onGoToSubmissions,
 }: {
   view: LearningWorkspaceView;
   patient: Patient;
@@ -54,6 +55,7 @@ export default function WorkspaceHost({
   onBackToPatientTop?: () => void;
   onToggleLearningSupport?: () => void;
   learningSupportOpen?: boolean;
+  onGoToSubmissions?: () => void;
 }) {
   switch (view) {
     case "clinical-workspace":
@@ -69,6 +71,7 @@ export default function WorkspaceHost({
           onBack={onBackToPatientTop}
           onToggleLearningSupport={onToggleLearningSupport}
           learningSupportOpen={learningSupportOpen}
+          onGoToSubmissions={onGoToSubmissions}
         />
       );
     case "form3":
@@ -86,6 +89,7 @@ export default function WorkspaceHost({
           onBack={onBackToPatientTop}
           onToggleLearningSupport={onToggleLearningSupport}
           learningSupportOpen={learningSupportOpen}
+          onGoToSubmissions={onGoToSubmissions}
           studentNumber={initialForm2?.payload?.student.studentNumber}
           studentName={initialForm2?.payload?.student.studentName}
         />

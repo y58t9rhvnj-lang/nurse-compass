@@ -13,9 +13,6 @@ import {
   Printer,
   Send,
 } from "lucide-react";
-import AssessmentSubmissionHistory from "@/components/v2/assessment/AssessmentSubmissionHistory";
-import AssessmentSubmitDialog from "@/components/v2/assessment/AssessmentSubmitDialog";
-import AssessmentSubmitResultBanner from "@/components/v2/assessment/AssessmentSubmitResultBanner";
 import Form3AssessmentCardList from "@/components/v2/form3/Form3AssessmentCardList";
 import Form3InformationCardList from "@/components/v2/form3/Form3InformationCardList";
 import Form3PhaseBPatternPickerSheet from "@/components/v2/form3/Form3PhaseBPatternPickerSheet";
@@ -26,7 +23,6 @@ import Form3PrintPortal, {
   measureForm3PrintPortal,
 } from "@/components/v2/form3/Form3PrintPortal";
 import Form3SheetView from "@/components/v2/form3/Form3SheetView";
-import Form3SubmitConfirmDialog from "@/components/v2/form3/Form3SubmitConfirmDialog";
 import { getForm3PhaseBPersistLabel } from "@/components/v2/form3/form3PhaseBLabels";
 import {
   buildForm3PrintLayout,
@@ -42,7 +38,6 @@ import {
   BRAND_UNSELECTED_PILL,
 } from "@/components/v2/workspace/darkSelectedSegment";
 import { requestWorkspaceBack } from "@/components/v2/workspace/requestWorkspaceBack";
-import { useAssessmentSubmit } from "@/hooks/v2/useAssessmentSubmit";
 import { useForm3Supabase } from "@/hooks/v2/useForm3Supabase";
 import {
   FORM3_PATTERN_ORDER,
@@ -63,7 +58,6 @@ import {
   listForm3InformationCards,
   updateForm3InformationCard,
 } from "@/lib/form3/v2/form3V2InformationOps";
-import { collectForm3Missing } from "@/lib/form3/v2/collectForm3Missing";
 import type { Form3DataV2, Form3SoType } from "@/lib/form3/v2/form3V2Types";
 /**
  * Autosave reason literals kept for Phase B validators / ops contract:
@@ -100,7 +94,9 @@ export type Form3PhaseBWorkspaceProps = {
    */
   onToggleLearningSupport?: () => void;
   learningSupportOpen?: boolean;
-  /** 提出チェック用（様式2スナップショットから） */
+  /** focusMode 中に提出画面へ戻る */
+  onGoToSubmissions?: () => void;
+  /** 提出チェック用（様式2スナップショットから）— 提出画面側で利用 */
   studentNumber?: string | null;
   studentName?: string | null;
 };
@@ -155,8 +151,9 @@ export default function Form3PhaseBWorkspace({
   onPersisted,
   onToggleLearningSupport,
   learningSupportOpen,
-  studentNumber = null,
-  studentName = null,
+  onGoToSubmissions,
+  studentNumber: _studentNumber = null,
+  studentName: _studentName = null,
 }: Form3PhaseBWorkspaceProps) {
   const onPersistedV2 = useCallback(
     (snap: Form3SnapshotV2) => {
@@ -191,17 +188,14 @@ export default function Form3PhaseBWorkspace({
   const [formDialogOpenAssess, setFormDialogOpenAssess] = useState(false);
   const formDialogOpen = formDialogOpenInfo || formDialogOpenAssess;
   const [panelEpoch, setPanelEpoch] = useState(0);
-  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const rightScrollRef = useRef<HTMLDivElement>(null);
   const resolvedFacing = facingState ?? initialFacingState();
   const handleFacingChange = onChangeFacingState ?? (() => undefined);
-  const assessmentSubmit = useAssessmentSubmit(patientId);
 
   if (patternStatePatientId !== patientId) {
     setPatternStatePatientId(patientId);
     setSelectedPatternKey(readStoredPattern(patientId));
     setMode("edit");
-    setSubmitDialogOpen(false);
   }
 
   const selectPattern = useCallback(
@@ -250,19 +244,10 @@ export default function Form3PhaseBWorkspace({
 
   const printMeta = useMemo(
     () => ({
-      studentName: (studentName ?? "").trim(),
-      studentNumber: (studentNumber ?? "").trim(),
+      studentName: (_studentName ?? "").trim(),
+      studentNumber: (_studentNumber ?? "").trim(),
     }),
-    [studentName, studentNumber],
-  );
-
-  const missing = useMemo(
-    () =>
-      collectForm3Missing(data, {
-        studentNumber,
-        studentName,
-      }),
-    [data, studentNumber, studentName],
+    [_studentName, _studentNumber],
   );
 
   /** 印刷は Portal（最新カード）へ直接。プレビューを開く必要なし。 */
@@ -280,41 +265,10 @@ export default function Form3PhaseBWorkspace({
     });
   }, []);
 
-  const completeSubmit = useCallback(() => {
-    setSubmitDialogOpen(false);
-    void assessmentSubmit.beginSubmit();
-  }, [assessmentSubmit.beginSubmit]);
-
-  const handleSubmit = useCallback(() => {
-    const status = writeFlags.saveStatus;
-    if (dirtyV2 || status === "dirty" || status === "saving") {
-      window.alert("保存が完了してから提出してください。");
-      return;
-    }
-    if (status === "error" || status === "conflict") {
-      window.alert("保存状態を確認してから提出してください。");
-      return;
-    }
-    // Pattern 未入力は warning。確認 Dialog で了承後に課題提出へ進む。
-    if (missing.length > 0) {
-      setSubmitDialogOpen(true);
-      return;
-    }
-    completeSubmit();
-  }, [missing, writeFlags.saveStatus, dirtyV2, completeSubmit]);
-
   const handleToggleLearningSupport = useCallback(() => {
     if (mode === "view") setMode("edit");
     onToggleLearningSupport?.();
   }, [mode, onToggleLearningSupport]);
-
-  const jumpToMissing = useCallback(
-    (patternKey: Form3PatternKey) => {
-      setSubmitDialogOpen(false);
-      selectPattern(patternKey);
-    },
-    [selectPattern],
-  );
 
   const infoCards = useMemo(
     () => listForm3InformationCards(data, { includeArchived: true }),
@@ -362,19 +316,6 @@ export default function Form3PhaseBWorkspace({
     hasPersistedV2,
     lastSavedAt,
   });
-
-  const submitSaveLabel =
-    persistLabel.label === "Saved"
-      ? "保存済み"
-      : persistLabel.label === "Draft"
-        ? "未保存の変更あり"
-        : persistLabel.label === "Saving"
-          ? "保存中…"
-          : persistLabel.label === "Save failed"
-            ? "保存失敗"
-            : persistLabel.label === "Conflict"
-              ? "競合"
-              : "—";
 
   const patternLabel = form3PhaseBPatternTabLabel(selectedPatternKey);
 
@@ -609,15 +550,16 @@ export default function Form3PhaseBWorkspace({
           <Printer className="h-4 w-4 text-[#667085]" strokeWidth={1.9} />
           印刷
         </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={assessmentSubmit.submitting}
-          className="ml-4 flex h-12 min-h-[48px] items-center gap-2 rounded-2xl bg-[#1E88E5] px-3.5 text-[13px] font-semibold text-white transition-opacity duration-150 hover:opacity-90 disabled:opacity-50 motion-reduce:transition-none"
-        >
-          <Send className="h-4 w-4 text-white" strokeWidth={2} />
-          課題を提出
-        </button>
+        {onGoToSubmissions ? (
+          <button
+            type="button"
+            onClick={onGoToSubmissions}
+            className="ml-4 flex h-12 min-h-[48px] items-center gap-2 rounded-2xl bg-[#1E88E5] px-3.5 text-[13px] font-semibold text-white transition-opacity duration-150 hover:opacity-90 motion-reduce:transition-none"
+          >
+            <Send className="h-4 w-4 text-white" strokeWidth={2} />
+            提出へ戻る
+          </button>
+        ) : null}
       </div>
       {learningSupportButton ? (
         <div className="ml-6 flex items-center gap-3">
@@ -702,16 +644,6 @@ export default function Form3PhaseBWorkspace({
                 aria-labelledby={`form3-phase-b-pattern-tab-${selectedPatternKey}`}
               >
                 <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 pb-10 pt-4 sm:px-6">
-                  {assessmentSubmit.lastResult ? (
-                    <AssessmentSubmitResultBanner
-                      result={assessmentSubmit.lastResult}
-                    />
-                  ) : null}
-                  <AssessmentSubmissionHistory
-                    patientId={patientId}
-                    refreshKey={assessmentSubmit.historyKey}
-                  />
-
                   {unclassifiedAssessCount > 0 ? (
                     <p className="text-[13px] text-[#8E8E93]">
                       パターン未設定のアセスメントが {unclassifiedAssessCount}{" "}
@@ -741,19 +673,6 @@ export default function Form3PhaseBWorkspace({
               </div>
             ) : (
               <div className="bg-[#E8E8ED] px-3 py-6 sm:px-6">
-                {assessmentSubmit.lastResult ? (
-                  <div className="no-print mx-auto mb-4 max-w-3xl">
-                    <AssessmentSubmitResultBanner
-                      result={assessmentSubmit.lastResult}
-                    />
-                  </div>
-                ) : null}
-                <div className="no-print mx-auto mb-3 max-w-3xl">
-                  <AssessmentSubmissionHistory
-                    patientId={patientId}
-                    refreshKey={assessmentSubmit.historyKey}
-                  />
-                </div>
                 <Form3SheetView
                   layout={printLayout}
                   meta={printMeta}
@@ -770,25 +689,6 @@ export default function Form3PhaseBWorkspace({
         onClose={() => setPatternPickerOpen(false)}
         selectedPatternKey={selectedPatternKey}
         onSelect={selectPattern}
-      />
-
-      <Form3SubmitConfirmDialog
-        open={submitDialogOpen}
-        missing={missing}
-        saveLabel={submitSaveLabel}
-        onClose={() => setSubmitDialogOpen(false)}
-        onSubmitAnyway={completeSubmit}
-        onJumpToPattern={jumpToMissing}
-      />
-
-      <AssessmentSubmitDialog
-        open={assessmentSubmit.dialogOpen}
-        preview={assessmentSubmit.preview}
-        submitting={assessmentSubmit.submitting}
-        onCancel={assessmentSubmit.closeDialog}
-        onConfirm={() => {
-          void assessmentSubmit.confirmSubmit();
-        }}
       />
 
       <Form3PrintPortal data={data} meta={printMeta} />
