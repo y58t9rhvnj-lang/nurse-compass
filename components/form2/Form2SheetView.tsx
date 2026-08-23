@@ -60,9 +60,31 @@ export default function Form2SheetView({
   //   渡し、利用可能なメイン幅までプレビューを拡大して余白の偏りを解消する（印刷は @media print で
   //   transform をリセットするため影響しない）。V1 やその他の呼び出しは既定 1 のままで挙動不変。
   maxScreenScale = 1,
+  /**
+   * 画面プレビュー専用の絶対倍率（例: 1.25 = 125%）。
+   * 指定時は fit せずこの倍率を使う。横にはみ出す場合は親でスクロール。
+   * 印刷 portal（forPrint）には影響しない。
+   */
+  screenScale,
+  /**
+   * true のときコンテナ幅にフィット（screenScale より優先）。
+   * maxScreenScale を上限として使う（既定の小さい上限を避けたい場合は大きめを渡す）。
+   */
+  fitToContainer = false,
+  /**
+   * true のとき画面側の transform scale を行わない（親が PreviewCanvas 等で倍率を担う）。
+   * 印刷 portal（forPrint）や提出データには影響しない。
+   */
+  lockNaturalSize = false,
+  /** body 直下の印刷 portal 用。画面では非表示、印刷時のみ見える。 */
+  forPrint = false,
 }: {
   data: Form2Data;
   maxScreenScale?: number;
+  screenScale?: number;
+  fitToContainer?: boolean;
+  lockNaturalSize?: boolean;
+  forPrint?: boolean;
 }) {
   const b = data.basicInformation;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -106,8 +128,21 @@ export default function Form2SheetView({
   const totalPages = 1 + continuations.length;
 
   // A4を原寸(mm)で描画し、画面では横幅に合わせて縮小プレビューする
-  // （縦横比固定・構造は変形しない）。印刷では CSS 側で等倍に戻す。
+  // （縦横比固定・構造は変形しない）。印刷 portal / lockNaturalSize では等倍のまま。
   useEffect(() => {
+    if (forPrint || lockNaturalSize) {
+      const wrap = wrapRef.current;
+      const pages = pagesRef.current;
+      if (pages) {
+        pages.style.transform = "";
+        pages.style.transformOrigin = "";
+      }
+      if (wrap) {
+        wrap.style.width = "";
+        wrap.style.height = "";
+      }
+      return;
+    }
     const container = containerRef.current;
     const wrap = wrapRef.current;
     const pages = pagesRef.current;
@@ -117,9 +152,15 @@ export default function Form2SheetView({
       const naturalW = pages.offsetWidth;
       const naturalH = pages.offsetHeight;
       if (naturalW === 0) return;
-      // コンテナ幅に合わせて拡縮。最大は maxScreenScale（既定 1＝原寸で頭打ち）で、
-      // 大きすぎる拡大を防ぎつつ、画面の横幅を有効活用する。
-      const scale = Math.min(maxScreenScale, container.clientWidth / naturalW);
+      let scale: number;
+      if (fitToContainer || screenScale == null) {
+        // コンテナ幅フィット。上限は maxScreenScale（既定 1＝原寸頭打ち）。
+        scale = Math.min(maxScreenScale, container.clientWidth / naturalW);
+      } else {
+        // 手動倍率（親ペイン内スクロールで閲覧）
+        scale = screenScale;
+      }
+      if (!Number.isFinite(scale) || scale <= 0) scale = 1;
       pages.style.transformOrigin = "top left";
       pages.style.transform = `scale(${scale})`;
       wrap.style.width = `${naturalW * scale}px`;
@@ -131,20 +172,193 @@ export default function Form2SheetView({
     ro.observe(container);
     ro.observe(pages);
     return () => ro.disconnect();
-  }, [maxScreenScale]);
+  }, [maxScreenScale, forPrint, fitToContainer, screenScale, lockNaturalSize]);
 
   const period = `${data.period.start || "　月　日"}　～　${
     data.period.end || "　月　日"
   }`;
   const cell = "border border-black p-1 align-top";
+  const sheetPageClass = forPrint
+    ? "form2-sheet form2-page relative box-border flex h-[297mm] min-h-[297mm] w-[210mm] flex-col bg-white px-[10mm] py-[10mm] text-black"
+    : "form2-sheet form2-page relative flex min-h-[277mm] w-[190mm] flex-col bg-white px-[6mm] py-[6mm] text-black";
+  const continuationPageClass = forPrint
+    ? "form2-sheet form2-page relative box-border flex h-[297mm] min-h-[297mm] w-[210mm] flex-col bg-white px-[10mm] py-[10mm] text-black"
+    : "form2-sheet form2-page relative mt-8 flex min-h-[277mm] w-[190mm] flex-col bg-white px-[6mm] py-[6mm] text-black";
 
   return (
-    <div ref={containerRef} className="form2-preview w-full">
+    <div
+      ref={containerRef}
+      className={
+        forPrint
+          ? "form2-preview form2-preview--print-portal w-[210mm]"
+          : lockNaturalSize
+            ? "form2-preview w-fit max-w-none"
+            : "form2-preview w-full"
+      }
+      data-form2-sheet-mode={
+        forPrint ? "print" : lockNaturalSize ? "locked" : "screen"
+      }
+    >
       {/* ページ数表示（印刷しない） */}
-      <div className="no-print mb-2 text-center text-xs text-slate-500">
-        全 {totalPages} ページ
-      </div>
+      {forPrint ? null : (
+        <div className="no-print mb-2 text-center text-xs text-slate-500">
+          全 {totalPages} ページ
+        </div>
+      )}
 
+      {forPrint ? (
+        /* 印刷専用: scale-wrap / transform を持たない平坦な A4 DOM */
+        <div
+          ref={pagesRef}
+          className="form2-pages form2-print-root"
+          style={{ fontFamily: FORM2_FONT_STACK }}
+        >
+          <section className={sheetPageClass}>
+            <div className="text-right text-[8.5pt] font-medium text-black">
+              {FORM_NO}
+            </div>
+            <div className="mt-1 text-center text-[14pt] font-bold tracking-[0.25em] text-black">
+              {SHEET_TITLE}
+            </div>
+
+            <div className="mb-1 mt-2 flex gap-12 pl-[46%] text-[9pt] text-black">
+              <span>学籍番号　{data.student.studentNumber}</span>
+              <span>氏名　{data.student.studentName}</span>
+            </div>
+
+            <table className="w-full table-fixed border-collapse text-black">
+              <colgroup>
+                <col style={{ width: "42%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "19%" }} />
+                <col style={{ width: "14%" }} />
+              </colgroup>
+              <tbody>
+                <tr>
+                  <td className={cell}>
+                    <CellLabel>受け持ち期間</CellLabel>
+                    <div className="mt-1 text-center text-[9pt] text-black">
+                      {period}
+                    </div>
+                  </td>
+                  <td colSpan={2} className={cell}>
+                    <CellLabel>氏名</CellLabel>
+                    <div className="mt-1 flex min-h-[6mm] items-end justify-end text-[9pt] text-black">
+                      <span>{b.patientName}</span>
+                      <span className="ml-2">氏</span>
+                    </div>
+                  </td>
+                  <td className={cell}>
+                    <CellLabel>年齢</CellLabel>
+                    <div className="mt-1 text-right text-[9pt] text-black">
+                      {b.age || "　"}
+                      <span className="ml-1">歳代</span>
+                    </div>
+                  </td>
+                  <td className={cell}>
+                    <CellLabel>性　別</CellLabel>
+                    <div className="mt-1 text-center text-[9pt] text-black">
+                      {b.sex}
+                    </div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td colSpan={2} className={cell}>
+                    <div className="flex h-[15mm] flex-col">
+                      <CellLabel>診断名</CellLabel>
+                      <CellText chunk={page1.diagnosis} />
+                    </div>
+                  </td>
+                  <td colSpan={3} rowSpan={3} className={cell}>
+                    <div className="flex h-[47mm] flex-col">
+                      <CellLabel>既往歴</CellLabel>
+                      <CellText chunk={page1.pastHistory} />
+                    </div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td colSpan={2} className={cell}>
+                    <div className="flex h-[15mm] flex-col">
+                      <CellLabel>入院形態</CellLabel>
+                      <CellText chunk={page1.admissionType} />
+                    </div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td colSpan={2} className={cell}>
+                    <div className="flex h-[15mm] flex-col">
+                      <CellLabel>主訴</CellLabel>
+                      <CellText chunk={page1.chiefComplaint} />
+                    </div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td colSpan={5} className={cell}>
+                    <div className="flex h-[112mm] flex-col">
+                      <CellLabel>
+                        受け持つまでの経過（生育歴・現病歴）
+                      </CellLabel>
+                      <CellText chunk={page1.history} />
+                    </div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td colSpan={5} className={cell}>
+                    <div className="flex h-[54mm] flex-col">
+                      <CellLabel>医師の治療方針・治療内容</CellLabel>
+                      <CellText chunk={page1.treatment} />
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div className="mt-auto pt-2 text-right text-[9pt] text-black">
+              {SCHOOL_LINE}
+            </div>
+          </section>
+
+          {continuations.map((page, i) => (
+            <section key={`cont-print-${i}`} className={continuationPageClass}>
+              <div className="text-right text-[8.5pt] font-medium text-black">
+                {FORM_NO_CONT}
+              </div>
+              <div className="mt-1 text-center text-[14pt] font-bold tracking-[0.25em] text-black">
+                {SHEET_TITLE}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-10 gap-y-1 text-[9pt] text-black">
+                <span>学籍番号　{data.student.studentNumber}</span>
+                <span>氏名　{data.student.studentName}</span>
+                <span>患者氏名　{b.patientName}</span>
+              </div>
+
+              <div className="mt-3 flex flex-1 flex-col gap-4">
+                {page.sections.map((sec, j) => (
+                  <div
+                    key={`sec-print-${i}-${j}`}
+                    className="border border-black p-2"
+                  >
+                    <div className="text-[9pt] font-bold text-black">
+                      {sec.title}
+                    </div>
+                    <CellText chunk={sec} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-auto pt-2 text-right text-[9pt] text-black">
+                {SCHOOL_LINE}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
       <div ref={wrapRef} className="form2-scale-wrap mx-auto">
         <div className="form2-print-root">
           <div
@@ -153,7 +367,7 @@ export default function Form2SheetView({
             style={{ fontFamily: FORM2_FONT_STACK }}
           >
             {/* ── 1ページ目：原本レイアウト ── */}
-            <section className="form2-sheet form2-page relative flex min-h-[277mm] w-[190mm] flex-col bg-white px-[6mm] py-[6mm] text-black">
+            <section className={sheetPageClass}>
               <span className="no-print absolute right-1 top-1 text-[10px] text-slate-400">
                 1 / {totalPages}
               </span>
@@ -279,7 +493,7 @@ export default function Form2SheetView({
             {continuations.map((page, i) => (
               <section
                 key={`cont-${i}`}
-                className="form2-sheet form2-page relative mt-8 flex min-h-[277mm] w-[190mm] flex-col bg-white px-[6mm] py-[6mm] text-black"
+                className={continuationPageClass}
               >
                 <span className="no-print absolute right-1 top-1 text-[10px] text-slate-400">
                   {i + 2} / {totalPages}
@@ -319,6 +533,7 @@ export default function Form2SheetView({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -1,185 +1,504 @@
 "use client";
 
-// Compass Version2 — 様式2 Workspace（Form2 Workspace / Learning Workspace の中核）。
-//
-// 設計（docs/version2/13_ui_architecture.md §4.1 / 16_workspace_mockups.md §3 / Sprint D-1）:
-//   3 カラム構成の「様式2 フェーズ専用の思考空間」。主役は様式2で、常に中央に表示し続ける。
-//     左  = 参照領域。患者情報 / 電子カルテ / 会話 を「左ペイン内だけ」で切り替える
-//           （画面遷移はしない）。3 つとも常時 mount し、CSS の可視切替のみで行う
-//           ＝ 電子カルテのタブ位置・会話の状態・スクロールを失わない。
-//     中央 = 様式2 のみ（Workspace First。どの操作でも閉じない／隠さない）。
-//     右  = Learning Inspector（Coach / Compass Note）。器は上位（LearningLayer）が
-//           sibling として重畳するため、本コンポーネントは左＋中央のみを描画する。
-//
-// 幅（Sprint D-1 ⑦）:
-//   左ペインは維持し、Inspector 開閉で縮小するのは中央（様式2）のみ。
-//   そのため左ペインは固定幅（lg 以上）とし、中央を flex-1（残り幅を吸収）にする。
-//   Inspector（sibling・固定幅）が開くと main が縮み、flex-1 の中央だけが縮む。
-//
-// 電子カルテ（Sprint D-1 ⑥）:
-//   CompassChart は initialTab 未指定で常に「診療録」から開始する。key={patient.id} で
-//   患者切替時は再マウントし、必ず診療録から開始する（タブ未選択状態は発生しない）。
-//
-// Evidence について（Sprint D-2B 画面構成修正）:
-//   学習過程を 2 段階に分ける。第1段階（本コンポーネント＝思考ワークスペース）は、電子カルテと
-//   患者との会話を参照しながら「様式2 を作成する」ことに専念する。Evidence の整理（根拠リンク）は
-//   様式2 の表示領域を圧迫しないよう、第2段階の専用ビュー（EvidenceReviewWorkspace）へ分離した。
-//   ここでは様式2 ヘッダー右に「患者理解を深める」への控えめな導線だけを置き、様式2 を主役に保つ。
-//   なお学生向け UI では Evidence／根拠 という語を出さず、気づき・情報・患者理解・全体像へ統一する
-//   （内部実装・コメントは従来の開発用語を維持）。
+// Compass Version2 — 様式2 Workspace（Learning Layer 中央）。
+// Phase C6–C8: FormWorkspaceShell 接続・プレビュー/印刷/提出ヘッダー化。
 
-import { useState } from "react";
-import { FileText, MessagesSquare, Sparkles } from "lucide-react";
-import type { Patient } from "@/lib/wardData";
-import type { Form2Snapshot } from "@/lib/v2/notebook/types";
+import { useCallback, useState } from "react";
+import {
+  CheckCircle2,
+  FileText,
+  Pencil,
+  Printer,
+  Send,
+  Sparkles,
+} from "lucide-react";
+import Form2EditForm from "@/components/form2/Form2EditForm";
+import Form2PrintPortal from "@/components/form2/Form2PrintPortal";
+import FormWorkspaceShell from "@/components/v2/workspace/FormWorkspaceShell";
+import { EvidenceReviewBody } from "@/components/v2/workspace/EvidenceReviewWorkspace";
+import Form2ReadonlyPreviewPane from "@/components/v2/workspace/Form2ReadonlyPreviewPane";
+import Form2ReadonlyPreviewSheet from "@/components/v2/workspace/Form2ReadonlyPreviewSheet";
+import Form2WorkspacePreview from "@/components/v2/workspace/Form2WorkspacePreview";
+import WorkspacePatientReferencePane from "@/components/v2/workspace/WorkspacePatientReferencePane";
+import WorkspacePatientReferenceSheet from "@/components/v2/workspace/WorkspacePatientReferenceSheet";
+import {
+  BRAND_ICON_SELECTED,
+  BRAND_ICON_UNSELECTED,
+  BRAND_SELECTED_SEGMENT,
+  BRAND_UNSELECTED_PILL,
+} from "@/components/v2/workspace/darkSelectedSegment";
+import { requestWorkspaceBack } from "@/components/v2/workspace/requestWorkspaceBack";
+import { useForm2Supabase } from "@/hooks/v2/useForm2Supabase";
+import { collectForm2Missing } from "@/lib/form2/collectForm2Missing";
+import { formatSavedAtJa } from "@/lib/datetime/formatSavedAtJa";
 import type { FacingConvoState } from "@/lib/patientFacingData";
-import CompassChart from "@/components/chart/CompassChart";
-import WorkspaceConversation from "./WorkspaceConversation";
-import WorkspaceForm2Section from "./WorkspaceForm2Section";
+import type { Form2Snapshot } from "@/lib/v2/notebook/types";
+import type { Patient } from "@/lib/wardData";
 
-// 左ペインの参照タブ（画面遷移ではなくペイン内切替）。患者基本情報は患者トップで確認する役割とし、
-// ワークスペース左では重複表示しない（Sprint D-1 追加修正2 ③）。
-type RefTab = "chart" | "conversation";
+type Mode = "edit" | "view";
+/** 様式2編集 vs 患者理解（同一 Shell / focusMode 内） */
+type WorkspacePanel = "form2" | "understanding";
+
+function formatTime(iso: string): string {
+  return formatSavedAtJa(iso);
+}
 
 export default function Form2Workspace({
   patient,
   userId,
   initialForm2,
   onForm2Persisted,
-  onOpenEvidenceReview,
   facingState,
   onChangeFacingState,
+  onBack,
+  onToggleLearningSupport,
+  learningSupportOpen,
 }: {
   patient: Patient;
   userId: string;
-  // 様式2 の初期表示（AppShell のセッション snapshot 優先・無ければサーバ値）。保存の正は Supabase。
   initialForm2: Form2Snapshot | null;
   onForm2Persisted?: (snapshot: Form2Snapshot) => void;
-  // 第2段階「Evidence 整理」ビューへの導線（様式2 ヘッダー右の控えめなボタン）。
+  /**
+   * @deprecated Round 2 B2: 患者理解は同一 Shell 内パネルへ。外部 view 遷移は使わない。
+   */
   onOpenEvidenceReview?: () => void;
-  // 会話（患者との会話）の状態。Core の会話画面と同一 state を共有する（AppShell が患者別に保持）。
   facingState: FacingConvoState;
   onChangeFacingState: (next: FacingConvoState) => void;
+  /** C3: 患者トップへ。未指定時は no-op。 */
+  onBack?: () => void;
+  /**
+   * 学習支援 Inspector（Coach / Compass Note）を開閉する。
+   * 「患者理解を深める」（Evidence 整理）とは別機能。
+   */
+  onToggleLearningSupport?: () => void;
+  learningSupportOpen?: boolean;
 }) {
-  // 左ペインの参照タブ。既定は電子カルテ（診療録本文の閲覧が起点）。
-  const [refTab, setRefTab] = useState<RefTab>("chart");
+  const {
+    data,
+    hydrated,
+    saveStatus,
+    lastSavedAt,
+    hasConflict,
+    pendingDraft,
+    updateBasic,
+    updateHistory,
+    updateTreatment,
+    updateStudent,
+    updatePeriod,
+    saveNow,
+    retry,
+    loadLatest,
+    restoreDraft,
+    discardDraft,
+  } = useForm2Supabase({
+    patientId: patient.id,
+    userId,
+    initial: initialForm2,
+    onPersisted: onForm2Persisted,
+  });
 
-  return (
-    <div className="flex min-h-0 flex-1 overflow-hidden bg-[#F2F2F7]">
-      {/* 左: 参照領域（電子カルテ / 会話をペイン内で切替）。読みやすさ優先で幅を広く確保
-          （Desktop 約32% / iPad 約320px）。Inspector 開閉で縮小するのは中央のみ。 */}
-      <section
-        aria-label="参照"
-        className="flex min-h-0 w-[300px] shrink-0 flex-col border-r border-[#E5E5EA] bg-white lg:w-[320px] xl:w-[380px]"
-      >
-        {/* ペイン内タブ（電子カルテ / 会話） */}
-        <div className="no-print flex shrink-0 gap-1 border-b border-[#E5E5EA] bg-white px-2 py-2">
-          <RefTabButton
-            active={refTab === "chart"}
-            onClick={() => setRefTab("chart")}
-            icon={<FileText className="h-4 w-4" strokeWidth={2} />}
-            label="電子カルテ"
-          />
-          <RefTabButton
-            active={refTab === "conversation"}
-            onClick={() => setRefTab("conversation")}
-            icon={<MessagesSquare className="h-4 w-4" strokeWidth={2} />}
-            label="会話"
-          />
-        </div>
+  const [mode, setMode] = useState<Mode>("edit");
+  const [workspacePanel, setWorkspacePanel] =
+    useState<WorkspacePanel>("form2");
+  const [submitted, setSubmitted] = useState(false);
+  /** 狭幅 Sheet（様式2通常=患者参照 / 患者理解=様式2プレビュー） */
+  const [referenceSheetOpen, setReferenceSheetOpen] = useState(false);
+  const [showMissing, setShowMissing] = useState(false);
 
-        {/* 電子カルテ（Workspace 内は embedded 簡略表示: 水色バー無し・タブ compact・本文優先）。
-            常に診療録から開始。患者切替時は key で再マウントし診療録へ戻す。 */}
-        <div
-          className={
-            refTab === "chart"
-              ? "flex min-h-0 flex-1 flex-col"
-              : "hidden"
-          }
+  const openUnderstanding = useCallback(() => {
+    setReferenceSheetOpen(false);
+    setWorkspacePanel("understanding");
+  }, []);
+
+  const backToForm2Panel = useCallback(() => {
+    setReferenceSheetOpen(false);
+    setWorkspacePanel("form2");
+  }, []);
+
+  const missing = collectForm2Missing(data);
+  const savedTime = formatTime(lastSavedAt);
+
+  const persistLabel = !hydrated
+    ? ""
+    : saveStatus === "saving"
+      ? "保存中…"
+      : saveStatus === "error"
+        ? "保存できませんでした"
+        : saveStatus === "conflict"
+          ? "別の変更と競合しました"
+          : saveStatus === "dirty"
+            ? "未保存の変更あり"
+            : savedTime
+              ? "保存済み"
+              : "";
+
+  const persistDetail =
+    persistLabel === "保存済み" && savedTime ? savedTime : "";
+
+  const handleBack = useCallback(() => {
+    // 患者理解パネル中は Shell 内で様式2へ戻す（focusMode を解除しない）
+    if (workspacePanel === "understanding") {
+      backToForm2Panel();
+      return;
+    }
+    const proceed = () => onBack?.();
+    if (!onBack) return;
+    if (saveStatus === "saving") {
+      requestWorkspaceBack({ kind: "saving", onProceed: proceed });
+      return;
+    }
+    if (saveStatus === "error") {
+      requestWorkspaceBack({ kind: "error", onProceed: proceed });
+      return;
+    }
+    if (saveStatus === "conflict" || hasConflict) {
+      requestWorkspaceBack({ kind: "conflict", onProceed: proceed });
+      return;
+    }
+    if (saveStatus === "dirty") {
+      requestWorkspaceBack({ kind: "draft", onProceed: proceed });
+      return;
+    }
+    requestWorkspaceBack({ kind: "saved", onProceed: proceed });
+  }, [onBack, saveStatus, hasConflict, workspacePanel, backToForm2Panel]);
+
+  const handleSubmit = () => {
+    setShowMissing(true);
+    if (missing.length > 0) {
+      window.alert(
+        `未入力の項目が ${missing.length} 件あります。内容を確認してから提出してください。`,
+      );
+      return;
+    }
+    if (saveStatus === "dirty" || saveStatus === "saving") {
+      window.alert("保存が完了してから提出してください。");
+      return;
+    }
+    if (saveStatus === "error" || saveStatus === "conflict") {
+      window.alert("保存状態を確認してから提出してください。");
+      return;
+    }
+    setSubmitted(true);
+  };
+
+  const handlePrint = () => {
+    // 印刷は Form2PrintPortal（body 直下・等倍 A4）のみ。画面プレビューの scale は渡さない。
+    if (mode !== "view") setMode("view");
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => window.print());
+    });
+  };
+
+  const saveStatusNode = (
+    <div className="max-w-[8rem] transition-opacity duration-150 motion-reduce:transition-none sm:max-w-none">
+      {persistLabel ? (
+        <p
+          className={[
+            "flex items-center justify-end gap-1 truncate text-[12px] leading-tight",
+            persistLabel === "保存できませんでした" ||
+            persistLabel === "別の変更と競合しました"
+              ? "font-semibold text-[#C0392B]"
+              : persistLabel === "未保存の変更あり"
+                ? "font-semibold text-[#8A6D3B]"
+                : persistLabel === "保存中…"
+                  ? "font-medium text-[#6E6E73]"
+                  : "font-semibold text-[#3A3A3C]",
+          ].join(" ")}
         >
-          <CompassChart key={patient.id} patient={patient} embedded />
-        </div>
-
-        {/* 患者との会話（Core と同一 state を共有）。会話履歴を主役にした簡略ビュー。 */}
-        <div
-          className={
-            refTab === "conversation"
-              ? "flex min-h-0 flex-1 flex-col"
-              : "hidden"
-          }
-        >
-          <WorkspaceConversation
-            patient={patient}
-            state={facingState}
-            onChange={onChangeFacingState}
-          />
-        </div>
-      </section>
-
-      {/* 中央: 様式2（主役・常に表示）。Inspector 開閉で縮小するのはこの列のみ。 */}
-      <section
-        aria-label="様式2"
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-[#F2F2F7]"
-      >
-        <div className="mx-auto w-full max-w-[900px] px-4 py-5">
-          <header className="no-print mb-3 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="text-[15px] font-bold text-[#1D1D1F]">
-                精神様式2 受け持ち対象記録
-              </h2>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-[#8E8E93]">
-                左の電子カルテ・患者との会話を参照しながら、受け持ち対象記録へ整理します。自動保存されます。
-              </p>
-            </div>
-            {/* 第2段階「Evidence 整理」への控えめな導線（様式2 本文を押し下げない）。 */}
-            {onOpenEvidenceReview && (
-              <button
-                type="button"
-                onClick={onOpenEvidenceReview}
-                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#D6E6FA] bg-[#F2F7FF] px-3 py-1.5 text-[12px] font-medium text-[#0A6CD6] transition hover:bg-[#E4EFFF]"
+          {persistLabel === "保存済み" ? (
+            <>
+              <span
+                className="text-[12px] font-normal text-[#AEAEB2]"
+                aria-hidden
               >
-                <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
-                患者理解を深める
-              </button>
-            )}
-          </header>
-          <WorkspaceForm2Section
-            patientId={patient.id}
-            userId={userId}
-            initial={initialForm2}
-            onPersisted={onForm2Persisted}
-          />
-        </div>
-      </section>
+                ✓
+              </span>
+              <span>保存済み</span>
+            </>
+          ) : (
+            persistLabel
+          )}
+        </p>
+      ) : null}
+      {persistDetail ? (
+        <p className="hidden truncate text-right text-[11px] font-normal tabular-nums text-[#6E6E73] sm:block">
+          {persistDetail}
+        </p>
+      ) : null}
     </div>
   );
-}
 
-function RefTabButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
+  const learningSupportButton = onToggleLearningSupport ? (
     <button
       type="button"
-      onClick={onClick}
-      aria-pressed={active}
+      onClick={onToggleLearningSupport}
+      aria-expanded={learningSupportOpen === true}
       className={[
-        "flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-xl px-2 text-[12px] transition",
-        active
-          ? "bg-[#1D1D1F] font-semibold text-white"
-          : "bg-white text-[#3A3A3C] hover:bg-[#F2F2F5]",
+        "inline-flex h-12 min-h-[48px] shrink-0 items-center gap-2 rounded-2xl border px-3.5 text-[13px] font-medium transition-[background-color,border-color,color] duration-150 ease-out motion-reduce:transition-none",
+        learningSupportOpen
+          ? "border-[#D0D5DD] bg-[#F4F6F8] font-semibold text-[#344054]"
+          : "border-[#D0D5DD] bg-white text-[#344054] hover:bg-[#F4F6F8]",
       ].join(" ")}
     >
-      {icon}
-      <span className="truncate">{label}</span>
+      学習支援
     </button>
+  ) : null;
+
+  const understandingHeaderActions = (
+    <>
+      <button
+        type="button"
+        onClick={backToForm2Panel}
+        className="inline-flex h-12 min-h-[48px] shrink-0 items-center gap-2 rounded-2xl border border-[#D1D1D6] bg-white px-3.5 text-[13px] font-semibold text-[#3C3C43] transition-colors duration-150 hover:bg-[#F2F2F7] motion-reduce:transition-none"
+      >
+        様式2へ戻る
+      </button>
+      {learningSupportButton}
+    </>
+  );
+
+  const headerActions = (
+    <>
+      {(saveStatus === "error" || saveStatus === "dirty") && (
+        <button
+          type="button"
+          onClick={saveStatus === "error" ? retry : saveNow}
+          className="h-12 min-h-[48px] rounded-2xl border border-[#D1D1D6] bg-white px-3.5 text-[13px] font-semibold text-[#3C3C43] transition-colors duration-150 hover:bg-[#F2F2F7] motion-reduce:transition-none"
+        >
+          {saveStatus === "error" ? "再試行" : "今すぐ保存"}
+        </button>
+      )}
+      {/* 編集/プレビュー → 印刷（18px）→ 提出（16px）→ 患者理解/学習（24px） */}
+      <div className="flex flex-wrap items-center gap-y-2">
+        <div className="flex items-center">
+          <div className="flex overflow-hidden rounded-2xl border border-[#D0D5DD]">
+            <button
+              type="button"
+              onClick={() => setMode("edit")}
+              aria-pressed={mode === "edit"}
+              data-compass-selected={mode === "edit" ? "true" : "false"}
+              className={[
+                "relative z-[1] flex h-12 min-h-[48px] items-center gap-2 px-3.5 text-[13px] transition-[background-color,color] duration-150 ease-out motion-reduce:transition-none",
+                mode === "edit" ? BRAND_SELECTED_SEGMENT : BRAND_UNSELECTED_PILL,
+              ].join(" ")}
+            >
+              <Pencil
+                className={[
+                  "relative z-[1] h-4 w-4",
+                  mode === "edit" ? BRAND_ICON_SELECTED : BRAND_ICON_UNSELECTED,
+                ].join(" ")}
+                strokeWidth={1.9}
+              />
+              <span className="relative z-[1]">編集</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("view")}
+              aria-pressed={mode === "view"}
+              data-compass-selected={mode === "view" ? "true" : "false"}
+              className={[
+                "relative z-[1] flex h-12 min-h-[48px] items-center gap-2 border-l border-[#D0D5DD] px-3.5 text-[13px] transition-[background-color,color] duration-150 ease-out motion-reduce:transition-none",
+                mode === "view" ? BRAND_SELECTED_SEGMENT : BRAND_UNSELECTED_PILL,
+              ].join(" ")}
+            >
+              <FileText
+                className={[
+                  "relative z-[1] h-4 w-4",
+                  mode === "view" ? BRAND_ICON_SELECTED : BRAND_ICON_UNSELECTED,
+                ].join(" ")}
+                strokeWidth={1.9}
+              />
+              <span className="relative z-[1]">プレビュー</span>
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="ml-[18px] flex h-12 min-h-[48px] items-center gap-2 rounded-2xl border border-[#D0D5DD] bg-white px-3.5 text-[13px] font-semibold text-[#344054] transition-colors duration-150 hover:bg-[#F4F6F8] motion-reduce:transition-none"
+          >
+            <Printer className="h-4 w-4 text-[#667085]" strokeWidth={1.9} />
+            印刷
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="ml-4 flex h-12 min-h-[48px] items-center gap-2 rounded-2xl bg-[#1E88E5] px-3.5 text-[13px] font-semibold text-white transition-opacity duration-150 hover:opacity-90 motion-reduce:transition-none"
+          >
+            <Send className="h-4 w-4 text-white" strokeWidth={2} />
+            提出
+          </button>
+        </div>
+        <div className="ml-6 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={openUnderstanding}
+            className="inline-flex h-12 min-h-[48px] shrink-0 items-center gap-2 rounded-2xl border border-[#D0D5DD] bg-white px-3.5 text-[13px] font-medium text-[#344054] transition-colors duration-150 hover:bg-[#F4F6F8] motion-reduce:transition-none"
+          >
+            <Sparkles className="h-4 w-4 text-[#667085]" strokeWidth={1.75} />
+            患者理解を深める
+          </button>
+          {learningSupportButton}
+        </div>
+      </div>
+    </>
+  );
+
+  const inUnderstanding = workspacePanel === "understanding";
+
+  return (
+    <>
+    {/* 印刷 portal は様式2印刷時専用。患者理解左ペインでは使わない */}
+    <Form2PrintPortal data={data} />
+    <FormWorkspaceShell
+      workspaceKind="form2"
+      formTitle={inUnderstanding ? "患者理解を深める" : "様式2"}
+      patientName={patient.name}
+      onBack={handleBack}
+      saveStatus={saveStatusNode}
+      headerActions={
+        inUnderstanding ? understandingHeaderActions : headerActions
+      }
+      patientReferenceLabel={
+        inUnderstanding ? "様式2プレビュー" : "患者参照"
+      }
+      patientReferenceTrigger={
+        <button
+          type="button"
+          className="min-h-[44px] rounded-2xl bg-[#F2F2F7] px-3 text-[14px] font-semibold text-[#1D1D1F]"
+          onClick={() => setReferenceSheetOpen(true)}
+          aria-label={
+            inUnderstanding ? "様式2を参照" : "患者参照を開く"
+          }
+        >
+          {inUnderstanding ? "様式2を参照" : "患者参照"}
+        </button>
+      }
+      patientReference={
+        inUnderstanding ? (
+          <Form2ReadonlyPreviewPane
+            key={`form2-preview-${patient.id}`}
+            data={data}
+            hydrated={hydrated}
+            className="h-full min-h-0 min-w-0"
+          />
+        ) : (
+          <WorkspacePatientReferencePane
+            key={patient.id}
+            patient={patient}
+            facingState={facingState}
+            onChangeFacingState={onChangeFacingState}
+            className="h-full min-h-0 min-w-0"
+          />
+        )
+      }
+      patientReferenceSheet={
+        inUnderstanding ? (
+          <Form2ReadonlyPreviewSheet
+            open={referenceSheetOpen}
+            onClose={() => setReferenceSheetOpen(false)}
+            data={data}
+            hydrated={hydrated}
+          />
+        ) : (
+          <WorkspacePatientReferenceSheet
+            open={referenceSheetOpen}
+            onClose={() => setReferenceSheetOpen(false)}
+            patient={patient}
+            facingState={facingState}
+            onChangeFacingState={onChangeFacingState}
+          />
+        )
+      }
+      workspaceLabel={inUnderstanding ? "患者理解" : "様式2 作業"}
+    >
+      {inUnderstanding ? (
+        <EvidenceReviewBody
+          patientId={patient.id}
+          data={data}
+          hydrated={hydrated}
+          layout="formOnly"
+        />
+      ) : (
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto w-full max-w-[900px] space-y-3 px-4 py-4">
+          {submitted ? (
+            <p className="no-print flex items-center gap-1.5 text-[13px] font-medium text-[#3F7E52]">
+              <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+              提出内容を確認しました（保存済みの内容が対象です）。
+            </p>
+          ) : null}
+
+          {showMissing && missing.length > 0 ? (
+            <section className="no-print rounded-2xl border border-[#F3D6D2] bg-[#FBEAE8] p-3">
+              <p className="text-[12.5px] text-[#C0392B]">
+                未入力の項目が {missing.length} 件あります。
+              </p>
+              <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                {missing.map((label) => (
+                  <li
+                    key={label}
+                    className="rounded-full border border-[#F3D6D2] bg-white px-2.5 py-0.5 text-[11.5px] text-[#C0392B]"
+                  >
+                    {label}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {hasConflict ? (
+            <div className="no-print flex flex-wrap items-center gap-3 rounded-xl border border-[#F3D6D2] bg-[#FBEAE8] px-3.5 py-2">
+              <span className="text-[12px] text-[#C0392B]">
+                他の端末でこの様式2が更新されました。入力内容は端末内に退避しています。
+              </span>
+              <button
+                type="button"
+                onClick={loadLatest}
+                className="min-h-[32px] rounded-lg bg-[#C0392B] px-3 text-[12px] font-semibold text-white"
+              >
+                最新を読み込む
+              </button>
+            </div>
+          ) : null}
+
+          {pendingDraft && !hasConflict ? (
+            <div className="no-print flex flex-wrap items-center gap-3 rounded-xl border border-[#FCE9C6] bg-[#FFF7E6] px-3.5 py-2">
+              <span className="text-[12px] text-[#8A6D3B]">
+                前回、保存できなかった入力内容が端末内に残っています。復元しますか？
+              </span>
+              <button
+                type="button"
+                onClick={restoreDraft}
+                className="min-h-[32px] rounded-lg border border-[#E0B75B] bg-white px-3 text-[12px] font-semibold text-[#8A6D3B]"
+              >
+                下書きを復元
+              </button>
+              <button
+                type="button"
+                onClick={discardDraft}
+                className="min-h-[32px] rounded-lg border border-[#D1D1D6] px-3 text-[12px] text-[#6E6E73]"
+              >
+                破棄
+              </button>
+            </div>
+          ) : null}
+
+          {mode === "edit" ? (
+            <Form2EditForm
+              data={data}
+              updateBasic={updateBasic}
+              updateHistory={updateHistory}
+              updateTreatment={updateTreatment}
+              updateStudent={updateStudent}
+              updatePeriod={updatePeriod}
+            />
+          ) : (
+            <Form2WorkspacePreview data={data} />
+          )}
+        </div>
+      </div>
+      )}
+    </FormWorkspaceShell>
+    </>
   );
 }

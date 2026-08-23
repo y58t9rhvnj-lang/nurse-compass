@@ -28,7 +28,7 @@ export default function StudentPatientTop({
   patient: Patient;
   onOpenChart: () => void;
   onOpenConversation: () => void;
-  // 思考ワークスペース（情報を様式2 へ整理する場）を開く。患者トップの主導線。
+  // 様式2（情報を様式2 へ整理する場）を開く。患者トップの主導線。
   onOpenWorkspace: () => void;
 }) {
   return (
@@ -57,7 +57,7 @@ export default function StudentPatientTop({
           </dl>
         </header>
 
-        {/* 主要導線: 思考ワークスペース / 電子カルテ / 会話 */}
+        {/* 主要導線: 様式2 / 電子カルテ / 会話 */}
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <TopLink
             icon={
@@ -66,7 +66,7 @@ export default function StudentPatientTop({
                 strokeWidth={1.9}
               />
             }
-            title="思考ワークスペース"
+            title="様式2"
             desc="集めた情報を様式2へ整理する"
             onClick={onOpenWorkspace}
             primary

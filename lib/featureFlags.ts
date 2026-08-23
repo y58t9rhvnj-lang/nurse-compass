@@ -19,10 +19,23 @@ export const FEATURE_FLAGS = {
   // Version1 本番では false（通常導線から非表示）。true にすると学生導線に
   // 「精神様式2」が現れ、患者トップ／サイドナビから開けるようになる。
   form2Workspace: false,
+  // Form3 Phase B（Information / Assessment Cards → Final Form）。
+  // default false: 現行 Form3（schemaVersion 1）を維持。
+  // true: 新 Form3 入口（Phase B）。旧 UI は削除しない。
+  // 参照: docs/version3/11_form3_phase_b_implementation_plan.md
+  form3PhaseB: false,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
 
 export function isFeatureEnabled(key: FeatureFlagKey): boolean {
+  // Local-only override: set NEXT_PUBLIC_FORM3_PHASE_B=true in .env.local.
+  // Unset / any other value keeps the source default (false). Does not affect other flags.
+  if (
+    key === "form3PhaseB" &&
+    process.env.NEXT_PUBLIC_FORM3_PHASE_B === "true"
+  ) {
+    return true;
+  }
   return FEATURE_FLAGS[key];
 }

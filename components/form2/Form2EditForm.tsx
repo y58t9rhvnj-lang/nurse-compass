@@ -83,7 +83,7 @@ function FieldEvidenceLinks({ fieldKey }: { fieldKey: string }) {
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="mb-2 border-l-4 border-[#1D1D1F] pl-2 text-[15px] font-semibold text-[#1D1D1F]">
+    <h3 className="mb-2.5 border-l-[3px] border-[#1D1D1F] pl-2.5 text-[15px] font-semibold leading-snug text-[#1D1D1F]">
       {children}
     </h3>
   );
@@ -108,7 +108,7 @@ function TextField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-md border border-[#C9C9CE] bg-white px-3 py-2 text-[14px] text-[#1D1D1F] outline-none placeholder:text-[#B0B0B5] focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
+        className="w-full rounded-xl border border-[#D1D1D6] bg-white px-3 py-2.5 text-[14px] font-normal text-[#1D1D1F] outline-none placeholder:text-[#AEAEB2] focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
       />
     </label>
   );
@@ -132,7 +132,7 @@ function FieldWithHelper({
       <label htmlFor={id} className="text-[13px] font-medium text-[#1D1D1F]">
         {label}
       </label>
-      <p className="text-[12px] leading-snug text-[#8E8E93]">{helper}</p>
+      <p className="text-[12px] font-normal leading-snug text-[#6E6E73]">{helper}</p>
       <AutoTextarea
         id={id}
         ariaLabel={label}
@@ -175,11 +175,11 @@ export default function Form2EditForm({
   }, [focusToken, focusFieldKey]);
 
   return (
-    <div className="mx-auto w-full max-w-[820px] space-y-6">
+    <div className="mx-auto w-full max-w-[820px] space-y-6 px-1 sm:px-0">
       {/* 受け持ち情報（学生入力） */}
       <section id="form2-assignment-info" className="space-y-3">
         <SectionHeading>受け持ち情報</SectionHeading>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField
             label="受け持ち期間（開始）"
             value={data.period.start}
@@ -210,7 +210,7 @@ export default function Form2EditForm({
       {/* 患者基本情報（学生入力・自動表示しない） */}
       <section id="form2-basic-info" className="space-y-3">
         <SectionHeading>患者基本情報</SectionHeading>
-        <p className="text-[12px] text-[#8E8E93]">
+        <p className="text-[12px] font-normal leading-snug text-[#6E6E73]">
           電子カルテや患者会話を確認し、必要な情報を自分で見つけて記入してください（自動表示はされません）。
         </p>
         <div className="space-y-4">
@@ -232,7 +232,7 @@ export default function Form2EditForm({
                   >
                     {field.label}
                   </label>
-                  <p className="text-[12px] leading-snug text-[#8E8E93]">
+                  <p className="text-[12px] font-normal leading-snug text-[#6E6E73]">
                     {field.helper}
                   </p>
                   <input
@@ -242,7 +242,7 @@ export default function Form2EditForm({
                     value={data.basicInformation[field.key]}
                     onChange={(e) => updateBasic({ [field.key]: e.target.value })}
                     placeholder={field.helper}
-                    className="w-full rounded-md border border-[#C9C9CE] bg-white px-3 py-2 text-[14px] text-[#1D1D1F] outline-none placeholder:text-[#B0B0B5] focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
+                    className="w-full rounded-xl border border-[#D1D1D6] bg-white px-3 py-2.5 text-[14px] font-normal text-[#1D1D1F] outline-none placeholder:text-[#AEAEB2] focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
                   />
                 </div>
               )}
@@ -255,7 +255,7 @@ export default function Form2EditForm({
       {/* 受け持つまでの経過（生育歴・現病歴）— 学生入力・小項目 */}
       <section id="form2-history" className="space-y-3">
         <SectionHeading>受け持つまでの経過（生育歴・現病歴）</SectionHeading>
-        <p className="text-[12px] text-[#8E8E93]">
+        <p className="text-[12px] font-normal leading-snug text-[#6E6E73]">
           整理しやすいよう小項目に分けています。様式表示では「受け持つまでの経過（生育歴・現病歴）」として一つのまとまりで表示されます。
         </p>
         <div className="space-y-4">
@@ -277,7 +277,7 @@ export default function Form2EditForm({
       {/* 医師の治療方針・内容（4 項目・学生入力） */}
       <section id="form2-treatment" className="space-y-3">
         <SectionHeading>{FORM2_TREATMENT_LABEL}</SectionHeading>
-        <p className="text-[12px] leading-snug text-[#8E8E93]">
+        <p className="text-[12px] font-normal leading-snug text-[#6E6E73]">
           {FORM2_TREATMENT_HELPER}
         </p>
         <div className="space-y-4">

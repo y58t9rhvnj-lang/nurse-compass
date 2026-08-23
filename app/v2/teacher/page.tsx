@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/v2/auth/currentUser";
 import LogoutButton from "@/components/v2/LogoutButton";
 
@@ -31,6 +32,21 @@ export default async function TeacherHomePage() {
         この画面は、学生の学習過程を把握し、途中の助言に活用するためのものです。
         成績評価は最終成果物および所定の評価基準に基づいて行います。
       </div>
+
+      <section className="mb-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-base font-semibold text-slate-900">
+          Gold Standard（読み取り専用）
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          現時点で最も妥当な患者理解と、思考の更新過程を確認できます。完成答案の提示ではありません。
+        </p>
+        <Link
+          href="/v2/teacher/gold-standard"
+          className="mt-4 inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+        >
+          Gold Standard を開く
+        </Link>
+      </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-slate-700">ログインに成功しました。</p>

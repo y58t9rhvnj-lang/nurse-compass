@@ -20,7 +20,7 @@ import { EvidenceProvider } from "@/components/v2/notebook/EvidenceContext";
 import { useEvidenceSupabase } from "@/hooks/v2/useEvidenceSupabase";
 import { useNotesSupabase } from "@/hooks/v2/useNotesSupabase";
 import type { StudentNoteRecord } from "@/lib/v2/notebook/studentNoteMapper";
-import type { Form2Snapshot } from "@/lib/v2/notebook/types";
+import type { Form2Snapshot, Form3Snapshot } from "@/lib/v2/notebook/types";
 import type { InformationCard } from "@/lib/information/informationCard";
 import { useWorkspaceInspector } from "@/hooks/v2/useWorkspaceInspector";
 import { useQuestionPanel } from "@/hooks/v2/useQuestionPanel";
@@ -28,9 +28,7 @@ import { getQuestionsForCase } from "@/lib/v2/question/questionFixtures";
 import WorkspaceInspector from "@/components/v2/workspace/inspector/WorkspaceInspector";
 import WorkspaceInspectorToggle from "@/components/v2/workspace/inspector/WorkspaceInspectorToggle";
 import LearningInspectorTabs from "@/components/v2/learning/inspector/LearningInspectorTabs";
-import Form2ReviewScreen, {
-  Form2ReviewLocked,
-} from "@/components/v2/form2-review/Form2ReviewScreen";
+import { Form2ReviewLocked } from "@/components/v2/form2-review/Form2ReviewScreen";
 import WardMap from "@/components/WardMap";
 import WardRightPanel from "@/components/WardRightPanel";
 import WardHomeTopBar from "@/components/ward/WardHomeTopBar";
@@ -108,6 +106,10 @@ export interface AppShellProps {
   // V2 様式2 の初期スナップショット（server page が Repository から取得して注入）。
   // V1 既定は undefined（V1 分岐では未使用）。
   initialForm2?: Form2Snapshot | null;
+  // V2 様式3 の初期スナップショット（Day5）。V1 既定は undefined。
+  initialForm3?: Form3Snapshot | null;
+  // 「私が捉えた患者さん」参照テキスト（様式3の手がかり用・読み取り専用）。
+  initialPatientOverviewText?: string;
   // サイドバー識別情報。既定は看護師プロフィール（V1）。V2 は学生本人。
   identity?: SideNavIdentity;
   // V2 の受け持ち対象固定（例 "A"）。指定時は病棟マップ選択を出さない。
@@ -185,6 +187,8 @@ export default function AppShell({
   fixedPatientId,
   inspectorEnabled = false,
   initialForm2,
+  initialForm3,
+  initialPatientOverviewText,
   initialEvidence,
   initialNotes,
 }: AppShellProps = {}) {
@@ -231,11 +235,11 @@ export default function AppShell({
     setPendingQuestion(null);
     setActiveView("workspace");
   };
-  // Version2「精神様式2」を開く（flag 有効時のみ導線から到達）。
+  // Version2「様式2」作成画面を開く（旧確認画面 view=form2 は C8 で作成画面へ誘導）。
   const goForm2 = () => {
     setNotice(null);
     setPendingQuestion(null);
-    setActiveView("form2");
+    setActiveView("clinical-workspace");
   };
   // V2: 受け持ち対象の入口（患者トップ）。
   const goPatientOverview = () => {
@@ -260,6 +264,12 @@ export default function AppShell({
     setNotice(null);
     setPendingQuestion(null);
     setActiveView("evidence-review");
+  };
+  // V2 Day5: 様式3 Assessment Workspace（Learning Layer）。
+  const goForm3 = () => {
+    setNotice(null);
+    setPendingQuestion(null);
+    setActiveView("form3");
   };
   // 電子カルテを開く。tab 指定時はそのタブから、focus 指定時は該当記録へ移動・強調。
   const goChart = (tab?: ChartTabId, focus?: ChartFocus) => {
@@ -287,6 +297,7 @@ export default function AppShell({
     else if (view === "workspace" && NOTEBOOK_ENABLED) goWorkspace();
     // 様式2 は V1 では flag 依存、V2 では常に到達可能（flag は変更しない）。
     else if (view === "form2" && (FORM2_ENABLED || mode === "v2")) goForm2();
+    else if (view === "form3" && mode === "v2") goForm3();
   };
 
   // ── Version2 学習支援 Inspector（P4） ───────────────────────────
@@ -360,6 +371,18 @@ export default function AppShell({
   );
   // 再マウント時の initial: 同一セッションの保存済みスナップショット優先・無ければサーバ値。
   const effectiveForm2 = form2Sessions[selectedId] ?? initialForm2 ?? null;
+
+  // 様式3 も同様にセッション内スナップショットを保持（ビュー切替での巻き戻り防止）。
+  const [form3Sessions, setForm3Sessions] = useState<
+    Record<string, Form3Snapshot>
+  >({});
+  const handleForm3Persisted = useCallback(
+    (snapshot: Form3Snapshot) => {
+      setForm3Sessions((prev) => ({ ...prev, [selectedId]: snapshot }));
+    },
+    [selectedId],
+  );
+  const effectiveForm3 = form3Sessions[selectedId] ?? initialForm3 ?? null;
 
   // ── Learning Layer 対象患者ガード（受入確認で発見した不整合の修正） ──────────
   // 現段階の Version2 では、Learning Layer（思考ワークスペース・Evidence・様式2）は
@@ -446,8 +469,11 @@ export default function AppShell({
           />
         </WorkspaceInspector>
       ) : null;
-    // 学生用フル SideNav（V1 ベースの項目＋思考ワークスペース＋学生識別）。
-    const studentSideNav = (
+    // 学生用フル SideNav（V1 ベースの項目＋様式2 作成＋学生識別）。
+    // C3 focusMode: 様式2/様式3 作業中は SideNav を描画しない（CSS 隠しではない）。
+    const focusMode =
+      isLearningWorkspaceView(activeView) || activeView === "evidence-review";
+    const studentSideNav = focusMode ? null : (
       <aside className="w-[204px] shrink-0 border-r border-[#E5E5EA] bg-white">
         <SideNav
           activeView={activeView}
@@ -465,13 +491,14 @@ export default function AppShell({
         <EvidenceProvider value={evidence}>
         <div
           data-shell-mode="v2"
+          data-focus-mode={focusMode ? "1" : undefined}
           data-inspector-enabled={inspectorEnabled ? "1" : undefined}
           className="flex h-dvh w-full flex-col overflow-hidden bg-[#EDEDF0] text-[#1D1D1F]"
         >
           <div className="flex min-h-0 flex-1">
             {isLearningWorkspaceView(activeView) ? (
-              // Learning Layer（思考ワークスペース）＋ Learning Inspector 重畳。
-              // 患者情報・電子カルテ・会話を参照しながら様式2 へ整理する 3 カラムの思考空間。
+              // Learning Layer（様式2 / 様式3）＋ Learning Inspector 重畳。
+              // 患者情報・電子カルテ・会話を参照しながら様式へ整理する集中作業空間。
               <LearningLayer
                 view={activeView}
                 sideNav={studentSideNav}
@@ -481,10 +508,21 @@ export default function AppShell({
                 inspectorOverlay={inspectorOverlay}
                 isTargetPatient={isLearningTargetSelected}
                 onBackToTarget={backToLearningTarget}
+                onBackToPatientTop={goPatientOverview}
+                onToggleLearningSupport={
+                  showInspector ? () => inspector.toggle() : undefined
+                }
+                learningSupportOpen={showInspector ? inspector.open : undefined}
+                hideInspectorHeaderBar={
+                  showInspector && activeView === "clinical-workspace"
+                }
                 userId={userId}
                 patient={selectedPatient}
                 initialForm2={effectiveForm2}
                 onForm2Persisted={handleForm2Persisted}
+                initialForm3={effectiveForm3}
+                onForm3Persisted={handleForm3Persisted}
+                patientOverviewText={initialPatientOverviewText ?? ""}
                 onOpenEvidenceReview={goEvidenceReview}
                 facingState={facingState}
                 onChangeFacingState={setFacingState}
@@ -518,32 +556,21 @@ export default function AppShell({
                 </main>
               </>
             ) : activeView === "form2" ? (
-              // 左メニュー「様式2」＝ 完成した様式2 の最終確認・印刷・提出専用画面（Sprint D-1 追加修正 ⑦）。
-              // 思考支援（患者情報ペイン・電子カルテ・会話・ノート・Coach・Inspector）は一切出さない。
-              // データ構造は思考ワークスペースと共通（同一 Supabase 様式2）で、表示 UI と目的だけを分離する。
+              // C8: 旧「様式2確認」view。学生導線からは外し、作成画面（clinical-workspace）へ寄せる。
+              // ブックマーク等で到達した場合も作成ワークスペースへ誘導する。
               <>
                 {studentSideNav}
-                <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#F2F2F7]">
-                  {notice && (
-                    <div className="no-print shrink-0 px-4 pt-3">
-                      <Notice text={notice} onClose={() => setNotice(null)} />
-                    </div>
-                  )}
-                  {!isLearningTargetSelected ? (
-                    <Form2ReviewLocked onBackToTarget={backToLearningTarget} />
-                  ) : userId ? (
-                    <Form2ReviewScreen
-                      patient={selectedPatient}
-                      patientId={selectedId}
-                      userId={userId}
-                      initial={effectiveForm2}
-                      onPersisted={handleForm2Persisted}
-                    />
-                  ) : (
-                    <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[13px] text-[#6E6E73]">
-                      様式2 を表示するにはログインが必要です。
-                    </div>
-                  )}
+                <main className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden bg-[#F2F2F7] px-6">
+                  <p className="max-w-md text-center text-[14px] text-[#6E6E73]">
+                    様式2 の確認・印刷・提出は、様式2 ワークスペースのヘッダーから行えます。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={goClinicalWorkspace}
+                    className="min-h-[44px] rounded-full bg-[#0A5FCC] px-5 text-[13px] font-semibold text-white"
+                  >
+                    様式2 ワークスペースを開く
+                  </button>
                 </main>
               </>
             ) : (

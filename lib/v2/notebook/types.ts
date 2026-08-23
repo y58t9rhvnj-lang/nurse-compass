@@ -10,6 +10,10 @@
 
 import type { Form2Data } from "@/lib/form2/form2Types";
 import type {
+  Form3Data,
+  Form3PatternKey,
+} from "@/lib/form3/form3Types";
+import type {
   InformationCard,
   InformationSourceReference,
   InformationSourceType,
@@ -53,6 +57,128 @@ export type Form2SaveResult =
       kind: Exclude<ActionErrorKind, "conflict">;
       message: string;
     };
+
+// ===== 様式3 =====
+// SaveResult の kind は Day 2 仕様の語彙（saved / conflict / validation_error 等）を使う。
+// Form2 の ActionErrorKind（unauthorized / validation / db_error）とは別名だが、意味は対応する。
+
+export interface Form3Snapshot {
+  payload: Form3Data;
+  /** DB レコードバージョン（楽観ロック）。payload.schemaVersion とは別物。 */
+  version: number;
+  updatedAt: string;
+  /**
+   * DB に保存されている payload の schemaVersion（sanitize 前）。
+   * Phase B: v1 sanitize 後の payload.schemaVersion と混同しない。
+   */
+  persistedSchemaVersion?: 1 | 2;
+  /** sanitize 前の生 payload（Phase B 読込 hydrate 用）。 */
+  rawPayload?: unknown;
+}
+
+export interface Form3SaveInput {
+  patientId: string;
+  /** クライアント由来。sanitize 後にのみ保存する。 */
+  payload: unknown;
+  /** 初回保存は null、更新は現在の DB version。 */
+  expectedVersion: number | null;
+}
+
+/** Phase B2-2B — v2 明示保存入力 */
+export interface Form3SaveV2Input {
+  patientId: string;
+  /** クライアント由来 Form3DataV2。Action 内で prepareForm3V2ForPersist。 */
+  payload: unknown;
+  expectedVersion: number | null;
+}
+
+export type Form3SaveWarning = {
+  code: "invalid_reviewed_reset";
+  patternKey: Form3PatternKey;
+};
+
+export type Form3ActionErrorKind =
+  | "validation_error"
+  | "auth_error"
+  | "not_found"
+  | "database_error";
+
+export type Form3LoadResult =
+  | { ok: true; data: Form3Snapshot | null }
+  | { ok: false; kind: Form3ActionErrorKind; message: string };
+
+export type Form3SaveResult =
+  | {
+      ok: true;
+      kind: "saved";
+      data: Form3Snapshot;
+      warnings: Form3SaveWarning[];
+    }
+  | {
+      ok: false;
+      kind: "conflict";
+      message: string;
+      latest: Form3Snapshot | null;
+    }
+  | { ok: false; kind: Form3ActionErrorKind; message: string };
+
+/**
+ * Phase B2-2B v2 保存結果。
+ * data / latest は Form3SnapshotV2 形（lib/form3/v2/form3V2Mapper）。
+ * 循環 import を避けるためここでは構造互換の型を定義する。
+ */
+export type Form3SaveV2Result =
+  | {
+      ok: true;
+      kind: "saved";
+      data: {
+        payload: unknown;
+        version: number;
+        updatedAt: string;
+        persistedSchemaVersion: 2;
+        migratedFromV1: boolean;
+        warnings: unknown[];
+      };
+      warnings: unknown[];
+    }
+  | {
+      ok: false;
+      kind: "conflict";
+      message: string;
+      latest: {
+        payload: unknown;
+        version: number;
+        updatedAt: string;
+        persistedSchemaVersion: 2;
+        migratedFromV1: boolean;
+        warnings: unknown[];
+      } | null;
+    }
+  | {
+      ok: false;
+      kind: Form3ActionErrorKind;
+      message: string;
+      issues?: string[];
+    };
+
+/** classifyDbError の結果を Form3 Save/Load の kind へ写す。 */
+export function toForm3ActionErrorKind(
+  kind: Exclude<ActionErrorKind, "conflict">,
+): Form3ActionErrorKind {
+  switch (kind) {
+    case "unauthorized":
+    case "not_configured":
+      return "auth_error";
+    case "validation":
+      return "validation_error";
+    case "not_found":
+      return "not_found";
+    case "duplicate":
+    case "db_error":
+    default:
+      return "database_error";
+  }
+}
 
 // ===== 情報カード =====
 
