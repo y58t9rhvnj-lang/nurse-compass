@@ -1,10 +1,12 @@
 import { getForm3PatternDefinition } from "@/lib/form3/form3PatternDefinitions";
 import type { ResolvedGoldCtp } from "@/lib/gold/resolveEvidence";
 import type { GoldStandardDocument } from "@/lib/gold/types";
+import type { ResolvedTeacherInsight } from "@/lib/teacherInsights/resolveEvidence";
+import { TeacherInsightsPanel } from "./TeacherInsightsPanel";
 
 function BulletList({ items }: { items: readonly string[] }) {
   return (
-    <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-800">
+    <ul className="list-disc space-y-1 break-words pl-5 text-sm leading-relaxed text-slate-800">
       {items.map((item) => (
         <li key={item}>{item}</li>
       ))}
@@ -30,13 +32,17 @@ function Section({
 /**
  * 教員向け Gold Standard 詳細（Server Component）。
  * 「模範解答」「正解」という語は使わない。
+ * Teacher Insight は CTP 展開末尾に補助パネルとして表示（正解提示ではない）。
  */
 export function GoldStandardDetailView({
   document,
   resolvedPoints,
+  insightsByCtpId,
 }: {
   document: GoldStandardDocument;
   resolvedPoints: readonly ResolvedGoldCtp[];
+  /** CTP id → 解決済み Teacher Insights（データ側 relatedCtpIds 由来） */
+  insightsByCtpId?: ReadonlyMap<string, readonly ResolvedTeacherInsight[]>;
 }) {
   return (
     <div className="space-y-6">
@@ -58,14 +64,16 @@ export function GoldStandardDetailView({
       </header>
 
       <Section title="学生が抱きやすい初期仮説（初期の患者理解）">
-        <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">
+        <p className="text-sm leading-relaxed break-words text-slate-800 whitespace-pre-wrap">
           {document.initialUnderstanding}
         </p>
       </Section>
 
       <Section title="思考の更新過程（Critical Thinking Points）">
         <p className="mb-4 text-sm text-slate-600">
-          閉じたカードは仮説とレンズの概要、開くと事実・意味・不足・更新・次の問いと根拠情報を確認できます。
+          閉じたカードは仮説とレンズの概要、開くと事実・意味・不足・更新・次の問いと根拠情報を確認できます。末尾の
+          Teacher Insight
+          は教員向けの視点と問いであり、患者理解の正解ではありません。
         </p>
         <div className="space-y-3">
           {resolvedPoints.map(({ ctp, evidence }, index) => (
@@ -80,7 +88,7 @@ export function GoldStandardDetailView({
                       {ctp.id}
                       {ctp.title ? ` · ${ctp.title}` : ` · 観点 ${index + 1}`}
                     </p>
-                    <p className="text-sm text-slate-700">
+                    <p className="text-sm break-words text-slate-700">
                       <span className="font-medium text-slate-500">
                         学生が抱きやすい初期仮説：
                       </span>
@@ -94,6 +102,9 @@ export function GoldStandardDetailView({
                     </p>
                     <p className="text-xs text-slate-500">
                       根拠情報 {evidence.length} 件
+                      {insightsByCtpId?.get(ctp.id)?.length
+                        ? ` · Teacher Insight ${insightsByCtpId.get(ctp.id)!.length} 件`
+                        : ""}
                     </p>
                   </div>
                   <span className="shrink-0 text-xs font-medium text-slate-500 group-open:hidden">
@@ -132,7 +143,7 @@ export function GoldStandardDetailView({
                   <h3 className="text-sm font-semibold text-slate-900">
                     患者理解の更新（Update）
                   </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">
+                  <p className="mt-2 text-sm leading-relaxed break-words text-slate-800 whitespace-pre-wrap">
                     {ctp.update}
                   </p>
                 </div>
@@ -140,7 +151,7 @@ export function GoldStandardDetailView({
                   <h3 className="text-sm font-semibold text-slate-900">
                     次に知りたいこと（Next Question）
                   </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">
+                  <p className="mt-2 text-sm leading-relaxed break-words text-slate-800 whitespace-pre-wrap">
                     {ctp.nextQuestion}
                   </p>
                 </div>
@@ -157,7 +168,7 @@ export function GoldStandardDetailView({
                         <p className="font-medium text-slate-900">
                           {item.soType} · {item.patternLabelJa}
                         </p>
-                        <p className="mt-1 leading-relaxed text-slate-800 whitespace-pre-wrap">
+                        <p className="mt-1 leading-relaxed break-words text-slate-800 whitespace-pre-wrap">
                           {item.content}
                         </p>
                         <p className="mt-2 font-mono text-xs text-slate-500">
@@ -167,6 +178,10 @@ export function GoldStandardDetailView({
                     ))}
                   </ul>
                 </div>
+
+                <TeacherInsightsPanel
+                  insights={insightsByCtpId?.get(ctp.id) ?? []}
+                />
               </div>
             </details>
           ))}
@@ -174,7 +189,7 @@ export function GoldStandardDetailView({
       </Section>
 
       <Section title="現時点で最も妥当な患者理解（統合）">
-        <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">
+        <p className="text-sm leading-relaxed break-words text-slate-800 whitespace-pre-wrap">
           {document.integratedUnderstanding}
         </p>
       </Section>
