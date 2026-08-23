@@ -6,6 +6,9 @@
 // このフラグを true にするだけで導線が復活する。
 //
 // 参照: docs 第1回講義スコープ / Phase A-1。
+//
+// Note (Version2.1 講義版): Form3 Phase B は正式実装へ昇格済み。
+// form3PhaseB / NEXT_PUBLIC_FORM3_PHASE_B は撤去した（環境変数依存なし）。
 
 export const FEATURE_FLAGS = {
   // 情報整理ノート（InformationGroup / Cue / Form2 / Form3 は未実装）。
@@ -19,23 +22,10 @@ export const FEATURE_FLAGS = {
   // Version1 本番では false（通常導線から非表示）。true にすると学生導線に
   // 「精神様式2」が現れ、患者トップ／サイドナビから開けるようになる。
   form2Workspace: false,
-  // Form3 Phase B（Information / Assessment Cards → Final Form）。
-  // default false: 現行 Form3（schemaVersion 1）を維持。
-  // true: 新 Form3 入口（Phase B）。旧 UI は削除しない。
-  // 参照: docs/version3/11_form3_phase_b_implementation_plan.md
-  form3PhaseB: false,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
 
 export function isFeatureEnabled(key: FeatureFlagKey): boolean {
-  // Local-only override: set NEXT_PUBLIC_FORM3_PHASE_B=true in .env.local.
-  // Unset / any other value keeps the source default (false). Does not affect other flags.
-  if (
-    key === "form3PhaseB" &&
-    process.env.NEXT_PUBLIC_FORM3_PHASE_B === "true"
-  ) {
-    return true;
-  }
   return FEATURE_FLAGS[key];
 }

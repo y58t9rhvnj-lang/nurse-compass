@@ -9,7 +9,6 @@ import {
 } from "react";
 import { saveForm3Action, saveForm3V2Action } from "@/app/v2/actions/form3";
 import { callAction } from "@/lib/v2/callAction";
-import { isFeatureEnabled } from "@/lib/featureFlags";
 import { type Form3Data, type Form3PatternKey } from "@/lib/form3/form3Types";
 import type { Form3ReviewIssue } from "@/lib/form3/form3Validation";
 import {
@@ -67,12 +66,13 @@ import type {
 
 // 様式3 を Supabase（Server Action 経由）へ保存する V2 専用フック。
 //
-// Phase B2-2A: Flag ON で読込 hydrate（dirty なし・save なし）。
-// Phase B2-2B: Flag ON で明示保存 saveNowV2 / flushV2。
-// Phase B2-2C2: Flag ON で Autosave Activation（Controller + enableTimer）。
-// Flag OFF: 従来 v1 autosave 経路のみ。
+// Version2.1: Form3 Phase B（v2 読込・明示保存・Autosave）を正式経路とする。
+// 旧 v1 autosave 経路は Form3Workspace 比較用に残置（通常導線では未使用）。
 
 const AUTOSAVE_DEBOUNCE_MS = 1000;
+
+/** Phase B は Version2.1 で常時有効（feature flag 撤去済み）。 */
+const PHASE_B_ENABLED = true;
 
 export type { Form3SaveStatus, Form3PatternField };
 
@@ -99,7 +99,7 @@ export function useForm3Supabase({
   onPersistedV2,
 }: UseForm3SupabaseArgs) {
   const caseId = caseIdForPatient(patientId) ?? patientId;
-  const phaseB = isFeatureEnabled("form3PhaseB");
+  const phaseB = PHASE_B_ENABLED;
 
   const hydrated = useSyncExternalStore(
     () => () => {},
@@ -447,17 +447,9 @@ export function useForm3Supabase({
   /** Phase B: 明示保存（Autosave Controller からも呼ばれる） */
   const saveNowV2 = useCallback(
     async (opts?: { requireUserEdit?: boolean }): Promise<SaveNowV2Result> => {
-      if (!phaseB) {
-        return {
-          ok: false,
-          kind: "gate_rejected",
-          gate: { allowed: false, reason: "feature_disabled" },
-        };
-      }
-
       const flags = writeFlagsRef.current;
       const gate = evaluateForm3V2ExplicitSave({
-        featureEnabled: phaseB,
+        featureEnabled: true,
         hasUserEdited: flags.hasUserEdited,
         dirty: flags.dirty,
         saveStatus: flags.saveStatus,
@@ -556,21 +548,14 @@ export function useForm3Supabase({
         !res.ok && "message" in res ? String(res.message) : "save failed";
       return { ok: false, kind: "error", message };
     },
-    [
-      phaseB,
-      patientId,
-      userId,
-      caseId,
-      setDataV2AndRef,
-      setWriteFlagsAndRef,
-    ],
+    [patientId, userId, caseId, setDataV2AndRef, setWriteFlagsAndRef],
   );
 
   useEffect(() => {
     saveNowV2Ref.current = saveNowV2;
   }, [saveNowV2]);
 
-  // Phase B2-2C2: Autosave Controller Activation（enableTimer）
+  // Phase B Autosave Controller Activation（enableTimer）
   useEffect(() => {
     if (!phaseB) {
       autosaveControllerRef.current?.cancel();
@@ -582,7 +567,7 @@ export function useForm3Supabase({
       getGateInput: () => {
         const flags = writeFlagsRef.current;
         return {
-          featureEnabled: isFeatureEnabled("form3PhaseB"),
+          featureEnabled: true,
           hasUserEdited: flags.hasUserEdited,
           dirty: flags.dirty,
           saveStatus: flags.saveStatus,

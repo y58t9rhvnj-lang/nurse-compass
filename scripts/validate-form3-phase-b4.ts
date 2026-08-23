@@ -191,7 +191,10 @@ async function main() {
   check("コピー禁止注記", editor.includes("コピーしません"));
   check("看護問題ではない注記", editor.includes("看護問題"));
   check("Coach なし", !ws.includes("Coach"));
-  check("FEATURE_FLAGS.form3PhaseB false", FEATURE_FLAGS.form3PhaseB === false);
+  check(
+    "form3PhaseB flag removed (Phase B is default)",
+    !("form3PhaseB" in FEATURE_FLAGS),
+  );
 }
 
 const failed = checks.filter((c) => !c.ok);

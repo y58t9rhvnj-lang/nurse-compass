@@ -25,7 +25,6 @@ import {
   rowToForm3SnapshotV2,
   sanitizeForm3PayloadAsV2,
 } from "@/lib/form3/v2/form3V2Mapper";
-import { isFeatureEnabled } from "@/lib/featureFlags";
 import {
   getForm3,
   insertForm3,
@@ -181,22 +180,13 @@ export async function saveForm3Action(
 }
 
 /**
- * Phase B2-2B — Form3DataV2 明示保存。
- * Feature Flag OFF では拒否（v1 saveForm3Action を使う）。
+ * Form3DataV2 明示保存（Version2.1 正式経路）。
  * 一本道: prepareForm3V2ForPersist → insert/update → SnapshotV2。
  * Autosave からは呼ばない（Hook の Save Gate 側）。
  */
 export async function saveForm3V2Action(
   input: Form3SaveV2Input,
 ): Promise<Form3SaveV2Result> {
-  if (!isFeatureEnabled("form3PhaseB")) {
-    return {
-      ok: false,
-      kind: "validation_error",
-      message: "form3 phase b disabled",
-    };
-  }
-
   const ctx = await requireStudentContext();
   if (!ctx.ok) return { ok: false, kind: ctx.kind, message: ctx.message };
 

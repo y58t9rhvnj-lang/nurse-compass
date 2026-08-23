@@ -283,8 +283,8 @@ async function main() {
         !repoSrc.includes("form3V2Autosave"),
     );
     check(
-      "FEATURE_FLAGS.form3PhaseB false（Flag OFF=旧Form3）",
-      FEATURE_FLAGS.form3PhaseB === false,
+      "form3PhaseB flag removed（Phase B 正式化）",
+      !("form3PhaseB" in FEATURE_FLAGS),
     );
   }
 

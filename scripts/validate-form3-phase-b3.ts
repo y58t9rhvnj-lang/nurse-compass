@@ -168,7 +168,10 @@ const NOW = "2026-08-17T00:00:00.000Z";
     "Final / Coach UI を入れない（B3 範囲）",
     !ws.includes("FinalForm") && !ws.includes("Coach"),
   );
-  check("FEATURE_FLAGS.form3PhaseB false", FEATURE_FLAGS.form3PhaseB === false);
+  check(
+    "form3PhaseB flag removed (Phase B is default)",
+    !("form3PhaseB" in FEATURE_FLAGS),
+  );
 }
 
 const failed = checks.filter((c) => !c.ok);

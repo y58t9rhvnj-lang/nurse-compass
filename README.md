@@ -42,6 +42,12 @@
 `lib/featureFlags.ts` のフラグで学生画面から**非表示**にしています（コード・データは保持）。
 本リリースに Version2 機能は含まれません。
 
+### Version2.1 講義版メモ（環境変数）
+
+- Form3 Phase B（`Form3PhaseBWorkspace`）は **正式実装**です。feature flag はありません。
+- **削除済み（設定不要）:** `NEXT_PUBLIC_FORM3_PHASE_B` / `FEATURE_FLAGS.form3PhaseB`
+- Production / Preview / Local で同じ UI を表示します。Vercel に当該環境変数が残っていても無視されます（コードが参照しません）。
+
 ---
 
 ## 技術構成

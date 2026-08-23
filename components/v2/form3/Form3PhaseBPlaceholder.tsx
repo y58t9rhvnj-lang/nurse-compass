@@ -26,11 +26,8 @@ export default function Form3PhaseBPlaceholder({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
         <p className="max-w-prose text-[14px] leading-relaxed text-[#1A1A1F]">
           Information Cards / Assessment Cards / Final Form
-          の実装はこれから進めます。Feature Flag{" "}
-          <code className="rounded bg-white px-1.5 py-0.5 text-[12px] text-[#3D3D46]">
-            form3PhaseB
-          </code>{" "}
-          をオフにすると、従来の様式3に戻せます。
+          の実装はこれから進めます。Version2.1 では Form3PhaseBWorkspace
+          が正式な様式3です。
         </p>
       </div>
     </div>

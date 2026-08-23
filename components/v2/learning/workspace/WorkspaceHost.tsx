@@ -12,15 +12,13 @@
 import type { Patient } from "@/lib/wardData";
 import type { Form2Snapshot, Form3Snapshot } from "@/lib/v2/notebook/types";
 import type { FacingConvoState } from "@/lib/patientFacingData";
-import type { Form2Data } from "@/lib/form2/form2Types";
 import Form2Workspace from "@/components/v2/workspace/Form2Workspace";
 import Form3PhaseBWorkspace from "@/components/v2/form3/Form3PhaseBWorkspace";
-import Form3Workspace from "@/components/v2/form3/Form3Workspace";
 import {
   isLearningWorkspaceView,
   type LearningWorkspaceView,
 } from "@/components/v2/learning/workspace/learningWorkspaceView";
-import { isFeatureEnabled } from "@/lib/featureFlags";
+// Form3Workspace（旧 UI）は比較用に残置。通常導線では参照しない。
 
 export type { LearningWorkspaceView };
 export { isLearningWorkspaceView };
@@ -33,7 +31,7 @@ export default function WorkspaceHost({
   onForm2Persisted,
   initialForm3,
   onForm3Persisted,
-  patientOverviewText,
+  patientOverviewText: _patientOverviewText,
   onOpenEvidenceReview,
   facingState,
   onChangeFacingState,
@@ -73,39 +71,24 @@ export default function WorkspaceHost({
           learningSupportOpen={learningSupportOpen}
         />
       );
-    case "form3": {
-      if (isFeatureEnabled("form3PhaseB")) {
-        return (
-          <Form3PhaseBWorkspace
-            patientId={patient.id}
-            patientName={patient.name}
-            patient={patient}
-            facingState={facingState}
-            onChangeFacingState={onChangeFacingState}
-            userId={userId}
-            initial={initialForm3}
-            onPersisted={onForm3Persisted}
-            onBack={onBackToPatientTop}
-            onToggleLearningSupport={onToggleLearningSupport}
-            learningSupportOpen={learningSupportOpen}
-            studentNumber={initialForm2?.payload?.student.studentNumber}
-            studentName={initialForm2?.payload?.student.studentName}
-          />
-        );
-      }
-      const form2Data: Form2Data | null = initialForm2?.payload ?? null;
+    case "form3":
+      // Version2.1 講義版: Form3PhaseBWorkspace を正式実装として常時表示。
       return (
-        <Form3Workspace
+        <Form3PhaseBWorkspace
           patientId={patient.id}
           patientName={patient.name}
+          patient={patient}
+          facingState={facingState}
+          onChangeFacingState={onChangeFacingState}
           userId={userId}
           initial={initialForm3}
           onPersisted={onForm3Persisted}
-          form2Data={form2Data}
-          patientOverviewText={patientOverviewText ?? ""}
-          showClues
+          onBack={onBackToPatientTop}
+          onToggleLearningSupport={onToggleLearningSupport}
+          learningSupportOpen={learningSupportOpen}
+          studentNumber={initialForm2?.payload?.student.studentNumber}
+          studentName={initialForm2?.payload?.student.studentName}
         />
       );
-    }
   }
 }

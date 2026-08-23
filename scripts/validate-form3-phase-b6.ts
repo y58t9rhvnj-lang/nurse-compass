@@ -184,7 +184,10 @@ async function main() {
     check("DnD なし", !editor.includes("onDrag") && !ws.includes("onDrop"));
     check("Coach なし", !ws.includes("Coach") && !editor.includes("Coach"));
     check("Related Map なし", !ws.includes("RelatedMap"));
-    check("FEATURE_FLAGS.form3PhaseB false", FEATURE_FLAGS.form3PhaseB === false);
+    check(
+      "form3PhaseB flag removed (Phase B is default)",
+      !("form3PhaseB" in FEATURE_FLAGS),
+    );
   }
 
   const failed = checks.filter((c) => !c.ok);

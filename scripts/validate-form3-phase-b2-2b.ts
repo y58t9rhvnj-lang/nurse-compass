@@ -192,18 +192,21 @@ const PATIENT = "A";
   );
 }
 
-// ── Flag OFF ──
+// ── featureEnabled:false Gate 契約（本番は常時 true。flag 自体は撤去） ──
 {
-  check("FEATURE_FLAGS.form3PhaseB default false", FEATURE_FLAGS.form3PhaseB === false);
+  check(
+    "form3PhaseB flag removed (Phase B is default)",
+    !("form3PhaseB" in FEATURE_FLAGS),
+  );
   const gate = canPersistForm3V2({
-    featureEnabled: FEATURE_FLAGS.form3PhaseB,
+    featureEnabled: false,
     hasUserEdited: true,
     dirty: true,
     saveStatus: "dirty",
     hasConflict: false,
   });
   check(
-    "Flag OFF Gate 拒否",
+    "featureEnabled:false Gate 拒否",
     !gate.allowed && gate.reason === "feature_disabled",
   );
 }
@@ -476,8 +479,9 @@ const PATIENT = "A";
     actionSrc.includes("prepareForm3V2ForPersist"),
   );
   check(
-    "Action が Flag OFF で拒否",
-    actionSrc.includes('isFeatureEnabled("form3PhaseB")'),
+    "Action に form3PhaseB flag 分岐なし",
+    !actionSrc.includes('isFeatureEnabled("form3PhaseB")') &&
+      !actionSrc.includes("form3 phase b disabled"),
   );
   check(
     "既存 saveForm3Action 維持",
@@ -486,9 +490,9 @@ const PATIENT = "A";
   check("Hook に saveNowV2", hookSrc.includes("saveNowV2"));
   check("Hook に markUserEditedV2", hookSrc.includes("markUserEditedV2"));
   check(
-    "Hook Phase B で scheduleAutosave 抑止",
+    "Hook Phase B で v1 scheduleAutosave 抑止",
     hookSrc.includes("if (phaseB) return") &&
-      hookSrc.includes("Autosave は B2-2C"),
+      hookSrc.includes("PHASE_B_ENABLED"),
   );
   check(
     "saveForm3V2Action は debounce/autosave から呼ばない（timer なし）",

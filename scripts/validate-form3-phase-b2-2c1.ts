@@ -162,14 +162,14 @@ async function main() {
     check("Gate 拒否時 saveNowV2 未呼出", saveCalls === 0);
   }
 
-  // ── Flag OFF ──
+  // ── Gate featureEnabled:false（純関数 Gate 契約。本番は常時 true） ──
   {
     let saveCalls = 0;
     const flags = markForm3V2UserEdited(
       createInitialForm3V2WriteFlags({ hasPersistedV2: false }),
     ).flags;
     const controller = createForm3V2AutosaveController({
-      getGateInput: () => gateFromFlags(flags, FEATURE_FLAGS.form3PhaseB),
+      getGateInput: () => gateFromFlags(flags, false),
       saveNowV2: async () => {
         saveCalls++;
         return { ok: true, kind: "saved" };
@@ -177,12 +177,12 @@ async function main() {
     });
     controller.schedule();
     check(
-      "Flag OFF でも予約は可能（Controller）",
+      "featureEnabled:false でも予約は可能（Controller）",
       controller.getState().pending === true,
     );
     const r = await controller.flush();
     check(
-      "Flag OFF flush は Gate feature_disabled",
+      "featureEnabled:false flush は Gate feature_disabled",
       r.ok === false &&
         r.kind === "gate_rejected" &&
         r.gate.allowed === false &&
@@ -190,7 +190,7 @@ async function main() {
           ? r.gate.reason === "feature_disabled"
           : false),
     );
-    check("Flag OFF で save なし", saveCalls === 0);
+    check("featureEnabled:false で save なし", saveCalls === 0);
   }
 
   // ── 保存キュー（saving 中の再 schedule） ──
@@ -288,8 +288,8 @@ async function main() {
         !actionSrc.includes("form3V2Autosave"),
     );
     check(
-      "FEATURE_FLAGS.form3PhaseB false",
-      FEATURE_FLAGS.form3PhaseB === false,
+      "form3PhaseB flag removed (Phase B is default)",
+      !("form3PhaseB" in FEATURE_FLAGS),
     );
     // Hook 接続は B2-2C2。C1 では Controller 単体契約のみ確認。
     void hookSrc;

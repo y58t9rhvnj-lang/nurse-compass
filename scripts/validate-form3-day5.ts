@@ -121,7 +121,7 @@ check(
 );
 check(
   "WorkspaceHost が form3 ケースを持つ",
-  hostSrc.includes('case "form3"') && hostSrc.includes("Form3Workspace"),
+  hostSrc.includes('case "form3"') && hostSrc.includes("Form3PhaseBWorkspace"),
 );
 
 const failed = checks.filter((c) => !c.ok);

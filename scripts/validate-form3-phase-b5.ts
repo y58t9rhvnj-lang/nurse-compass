@@ -216,7 +216,10 @@ function check(name: string, ok: boolean) {
     "Host が onChangeFacingState を渡す",
     host.includes("onChangeFacingState={onChangeFacingState}"),
   );
-  check("FEATURE_FLAGS.form3PhaseB false", FEATURE_FLAGS.form3PhaseB === false);
+  check(
+    "form3PhaseB flag removed (Phase B is default)",
+    !("form3PhaseB" in FEATURE_FLAGS),
+  );
 }
 
 const failed = checks.filter((c) => !c.ok);
