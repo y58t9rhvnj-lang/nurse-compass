@@ -5,11 +5,16 @@
 
 import type { Form3PatternKey } from "@/lib/form3/form3Types";
 import type { AppProfile } from "@/lib/v2/auth/currentUser";
+import { PATIENT_A_CANONICAL_INFORMATION_CATALOG } from "@/lib/gold/patientA/canonicalInformationCatalog";
 import type { TeacherInsightDocument } from "./types";
 import {
   getPatientATeacherInsightByIdV1,
   getPatientATeacherInsightsV1OrNull,
 } from "./patientA/teacherInsightsV1";
+import {
+  resolveTeacherInsightsEvidence,
+  type ResolvedTeacherInsight,
+} from "./resolveEvidence";
 
 export type TeacherInsightsAccessResult =
   | { ok: true; documents: readonly TeacherInsightDocument[] }
@@ -110,4 +115,89 @@ export function peekPatientATeacherInsightById(
   id: string,
 ): TeacherInsightDocument | null {
   return getPatientATeacherInsightByIdV1(id);
+}
+
+export type TeacherInsightsForCtpResolvedResult =
+  | { ok: true; insights: readonly ResolvedTeacherInsight[] }
+  | {
+      ok: false;
+      kind: "unauthorized" | "not_ready" | "not_found" | "evidence_unresolved";
+      message: string;
+      unresolvedIds?: readonly string[];
+    };
+
+export type TeacherInsightsByCtpMapResult =
+  | {
+      ok: true;
+      byCtpId: ReadonlyMap<string, readonly ResolvedTeacherInsight[]>;
+    }
+  | {
+      ok: false;
+      kind: "unauthorized" | "not_ready" | "evidence_unresolved";
+      message: string;
+      unresolvedIds?: readonly string[];
+    };
+
+/** CTP 1件分の Insights をカタログ解決する（権限チェックは呼び出し側） */
+export function loadResolvedTeacherInsightsForCtp(
+  ctpId: string,
+): TeacherInsightsForCtpResolvedResult {
+  const loaded = loadTeacherInsightsForCtp(ctpId);
+  if (!loaded.ok) return loaded;
+  const resolved = resolveTeacherInsightsEvidence(
+    loaded.documents,
+    PATIENT_A_CANONICAL_INFORMATION_CATALOG,
+  );
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      kind: "evidence_unresolved",
+      message: resolved.message,
+      unresolvedIds: resolved.unresolvedIds,
+    };
+  }
+  return { ok: true, insights: resolved.insights };
+}
+
+/**
+ * 複数 CTP について relatedCtpIds に基づく Insights を解決する。
+ * 画面側に固定配列を持たせず、データ側の紐付けを正とする。
+ */
+export function loadResolvedTeacherInsightsByCtpIds(
+  ctpIds: readonly string[],
+): TeacherInsightsByCtpMapResult {
+  const byCtpId = new Map<string, readonly ResolvedTeacherInsight[]>();
+  const unresolved = new Set<string>();
+
+  for (const ctpId of ctpIds) {
+    const loaded = loadTeacherInsightsForCtp(ctpId);
+    if (!loaded.ok) {
+      return {
+        ok: false,
+        kind: loaded.kind === "not_found" ? "not_ready" : loaded.kind,
+        message: loaded.message,
+      };
+    }
+    const resolved = resolveTeacherInsightsEvidence(
+      loaded.documents,
+      PATIENT_A_CANONICAL_INFORMATION_CATALOG,
+    );
+    if (!resolved.ok) {
+      for (const id of resolved.unresolvedIds) unresolved.add(id);
+      continue;
+    }
+    byCtpId.set(ctpId, resolved.insights);
+  }
+
+  if (unresolved.size > 0) {
+    const ids = [...unresolved].sort();
+    return {
+      ok: false,
+      kind: "evidence_unresolved",
+      message: `unresolved teacher insight evidence ids: ${ids.join(", ")}`,
+      unresolvedIds: ids,
+    };
+  }
+
+  return { ok: true, byCtpId };
 }

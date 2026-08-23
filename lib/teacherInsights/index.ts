@@ -32,3 +32,18 @@ export {
 } from "./load";
 
 export { PATIENT_A_TEACHER_INSIGHT_EVIDENCE_MAP } from "./patientA/insightEvidenceMap";
+
+export {
+  COACHING_STAGE_LABEL_JA,
+  GOLD_RELATIONSHIP_KIND_LABEL_JA,
+  HYPOTHESIS_EVIDENCE_STATE_LABEL_JA,
+  uniqueStageLabelsJa,
+} from "./labels";
+
+export {
+  resolveTeacherInsightsEvidence,
+  type ResolvedTeacherEvidence,
+  type ResolvedTeacherHypothesis,
+  type ResolvedTeacherInsight,
+  type ResolveTeacherInsightsResult,
+} from "./resolveEvidence";

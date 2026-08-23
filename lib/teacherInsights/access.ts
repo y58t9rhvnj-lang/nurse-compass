@@ -11,15 +11,24 @@ import { getCurrentProfile } from "@/lib/v2/auth/currentUser";
 import {
   isTeacherOrAdminProfile,
   loadPatientATeacherInsights,
+  loadResolvedTeacherInsightsByCtpIds,
+  loadResolvedTeacherInsightsForCtp,
   loadTeacherInsightById,
   loadTeacherInsights,
   loadTeacherInsightsForCtp,
   loadTeacherInsightsForPattern,
   type TeacherInsightAccessResult,
   type TeacherInsightsAccessResult,
+  type TeacherInsightsByCtpMapResult,
+  type TeacherInsightsForCtpResolvedResult,
 } from "./library";
 
-export type { TeacherInsightAccessResult, TeacherInsightsAccessResult };
+export type {
+  TeacherInsightAccessResult,
+  TeacherInsightsAccessResult,
+  TeacherInsightsByCtpMapResult,
+  TeacherInsightsForCtpResolvedResult,
+};
 
 function unauthorized(): TeacherInsightsAccessResult {
   return {
@@ -72,4 +81,38 @@ export async function getTeacherInsightsForPattern(
 ): Promise<TeacherInsightsAccessResult> {
   if (!(await requireTeacher())) return unauthorized();
   return loadTeacherInsightsForPattern(patternKey);
+}
+
+/**
+ * CTP 向け Teacher Insight を Evidence 解決込みで返す。
+ * 解決不能 ID は黙って落とさず evidence_unresolved にする。
+ */
+export async function getResolvedTeacherInsightsForCtp(
+  ctpId: string,
+): Promise<TeacherInsightsForCtpResolvedResult> {
+  if (!(await requireTeacher())) {
+    return {
+      ok: false,
+      kind: "unauthorized",
+      message: "teacher or admin role required",
+    };
+  }
+  return loadResolvedTeacherInsightsForCtp(ctpId);
+}
+
+/**
+ * Gold Standard 詳細画面用: 複数 CTP の関連 Insights を一括解決。
+ * relatedCtpIds はデータ側を正とし、画面に固定配列を置かない。
+ */
+export async function getResolvedTeacherInsightsByCtpIds(
+  ctpIds: readonly string[],
+): Promise<TeacherInsightsByCtpMapResult> {
+  if (!(await requireTeacher())) {
+    return {
+      ok: false,
+      kind: "unauthorized",
+      message: "teacher or admin role required",
+    };
+  }
+  return loadResolvedTeacherInsightsByCtpIds(ctpIds);
 }
