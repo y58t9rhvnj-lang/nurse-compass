@@ -8,12 +8,14 @@ import {
   useState,
 } from "react";
 import {
-  CheckCircle2,
   FileText,
   Pencil,
   Printer,
   Send,
 } from "lucide-react";
+import AssessmentSubmissionHistory from "@/components/v2/assessment/AssessmentSubmissionHistory";
+import AssessmentSubmitDialog from "@/components/v2/assessment/AssessmentSubmitDialog";
+import AssessmentSubmitResultBanner from "@/components/v2/assessment/AssessmentSubmitResultBanner";
 import Form3AssessmentCardList from "@/components/v2/form3/Form3AssessmentCardList";
 import Form3InformationCardList from "@/components/v2/form3/Form3InformationCardList";
 import Form3PhaseBPatternPickerSheet from "@/components/v2/form3/Form3PhaseBPatternPickerSheet";
@@ -40,6 +42,7 @@ import {
   BRAND_UNSELECTED_PILL,
 } from "@/components/v2/workspace/darkSelectedSegment";
 import { requestWorkspaceBack } from "@/components/v2/workspace/requestWorkspaceBack";
+import { useAssessmentSubmit } from "@/hooks/v2/useAssessmentSubmit";
 import { useForm3Supabase } from "@/hooks/v2/useForm3Supabase";
 import {
   FORM3_PATTERN_ORDER,
@@ -188,17 +191,16 @@ export default function Form3PhaseBWorkspace({
   const [formDialogOpenAssess, setFormDialogOpenAssess] = useState(false);
   const formDialogOpen = formDialogOpenInfo || formDialogOpenAssess;
   const [panelEpoch, setPanelEpoch] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const rightScrollRef = useRef<HTMLDivElement>(null);
   const resolvedFacing = facingState ?? initialFacingState();
   const handleFacingChange = onChangeFacingState ?? (() => undefined);
+  const assessmentSubmit = useAssessmentSubmit(patientId);
 
   if (patternStatePatientId !== patientId) {
     setPatternStatePatientId(patientId);
     setSelectedPatternKey(readStoredPattern(patientId));
     setMode("edit");
-    setSubmitted(false);
     setSubmitDialogOpen(false);
   }
 
@@ -280,8 +282,8 @@ export default function Form3PhaseBWorkspace({
 
   const completeSubmit = useCallback(() => {
     setSubmitDialogOpen(false);
-    setSubmitted(true);
-  }, []);
+    void assessmentSubmit.beginSubmit();
+  }, [assessmentSubmit.beginSubmit]);
 
   const handleSubmit = useCallback(() => {
     const status = writeFlags.saveStatus;
@@ -293,7 +295,7 @@ export default function Form3PhaseBWorkspace({
       window.alert("保存状態を確認してから提出してください。");
       return;
     }
-    // Pattern 未入力は warning。確認 Dialog で了承後に提出可能。
+    // Pattern 未入力は warning。確認 Dialog で了承後に課題提出へ進む。
     if (missing.length > 0) {
       setSubmitDialogOpen(true);
       return;
@@ -610,10 +612,11 @@ export default function Form3PhaseBWorkspace({
         <button
           type="button"
           onClick={handleSubmit}
-          className="ml-4 flex h-12 min-h-[48px] items-center gap-2 rounded-2xl bg-[#1E88E5] px-3.5 text-[13px] font-semibold text-white transition-opacity duration-150 hover:opacity-90 motion-reduce:transition-none"
+          disabled={assessmentSubmit.submitting}
+          className="ml-4 flex h-12 min-h-[48px] items-center gap-2 rounded-2xl bg-[#1E88E5] px-3.5 text-[13px] font-semibold text-white transition-opacity duration-150 hover:opacity-90 disabled:opacity-50 motion-reduce:transition-none"
         >
           <Send className="h-4 w-4 text-white" strokeWidth={2} />
-          提出
+          課題を提出
         </button>
       </div>
       {learningSupportButton ? (
@@ -699,12 +702,15 @@ export default function Form3PhaseBWorkspace({
                 aria-labelledby={`form3-phase-b-pattern-tab-${selectedPatternKey}`}
               >
                 <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 pb-10 pt-4 sm:px-6">
-                  {submitted ? (
-                    <p className="no-print flex items-center gap-1.5 text-[13px] font-medium text-[#3F7E52]">
-                      <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-                      提出内容を確認しました（保存済みのカード内容が対象です）。
-                    </p>
+                  {assessmentSubmit.lastResult ? (
+                    <AssessmentSubmitResultBanner
+                      result={assessmentSubmit.lastResult}
+                    />
                   ) : null}
+                  <AssessmentSubmissionHistory
+                    patientId={patientId}
+                    refreshKey={assessmentSubmit.historyKey}
+                  />
 
                   {unclassifiedAssessCount > 0 ? (
                     <p className="text-[13px] text-[#8E8E93]">
@@ -735,12 +741,19 @@ export default function Form3PhaseBWorkspace({
               </div>
             ) : (
               <div className="bg-[#E8E8ED] px-3 py-6 sm:px-6">
-                {submitted ? (
-                  <p className="no-print mx-auto mb-4 flex max-w-3xl items-center gap-1.5 text-[13px] font-medium text-[#3F7E52]">
-                    <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-                    提出内容を確認しました（保存済みのカード内容が対象です）。
-                  </p>
+                {assessmentSubmit.lastResult ? (
+                  <div className="no-print mx-auto mb-4 max-w-3xl">
+                    <AssessmentSubmitResultBanner
+                      result={assessmentSubmit.lastResult}
+                    />
+                  </div>
                 ) : null}
+                <div className="no-print mx-auto mb-3 max-w-3xl">
+                  <AssessmentSubmissionHistory
+                    patientId={patientId}
+                    refreshKey={assessmentSubmit.historyKey}
+                  />
+                </div>
                 <Form3SheetView
                   layout={printLayout}
                   meta={printMeta}
@@ -766,6 +779,16 @@ export default function Form3PhaseBWorkspace({
         onClose={() => setSubmitDialogOpen(false)}
         onSubmitAnyway={completeSubmit}
         onJumpToPattern={jumpToMissing}
+      />
+
+      <AssessmentSubmitDialog
+        open={assessmentSubmit.dialogOpen}
+        preview={assessmentSubmit.preview}
+        submitting={assessmentSubmit.submitting}
+        onCancel={assessmentSubmit.closeDialog}
+        onConfirm={() => {
+          void assessmentSubmit.confirmSubmit();
+        }}
       />
 
       <Form3PrintPortal data={data} meta={printMeta} />

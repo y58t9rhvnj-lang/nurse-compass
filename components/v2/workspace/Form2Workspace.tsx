@@ -5,13 +5,15 @@
 
 import { useCallback, useState } from "react";
 import {
-  CheckCircle2,
   FileText,
   Pencil,
   Printer,
   Send,
   Sparkles,
 } from "lucide-react";
+import AssessmentSubmissionHistory from "@/components/v2/assessment/AssessmentSubmissionHistory";
+import AssessmentSubmitDialog from "@/components/v2/assessment/AssessmentSubmitDialog";
+import AssessmentSubmitResultBanner from "@/components/v2/assessment/AssessmentSubmitResultBanner";
 import Form2EditForm from "@/components/form2/Form2EditForm";
 import Form2PrintPortal from "@/components/form2/Form2PrintPortal";
 import FormWorkspaceShell from "@/components/v2/workspace/FormWorkspaceShell";
@@ -28,6 +30,7 @@ import {
   BRAND_UNSELECTED_PILL,
 } from "@/components/v2/workspace/darkSelectedSegment";
 import { requestWorkspaceBack } from "@/components/v2/workspace/requestWorkspaceBack";
+import { useAssessmentSubmit } from "@/hooks/v2/useAssessmentSubmit";
 import { useForm2Supabase } from "@/hooks/v2/useForm2Supabase";
 import { collectForm2Missing } from "@/lib/form2/collectForm2Missing";
 import { formatSavedAtJa } from "@/lib/datetime/formatSavedAtJa";
@@ -100,10 +103,11 @@ export default function Form2Workspace({
   const [mode, setMode] = useState<Mode>("edit");
   const [workspacePanel, setWorkspacePanel] =
     useState<WorkspacePanel>("form2");
-  const [submitted, setSubmitted] = useState(false);
   /** 狭幅 Sheet（様式2通常=患者参照 / 患者理解=様式2プレビュー） */
   const [referenceSheetOpen, setReferenceSheetOpen] = useState(false);
   const [showMissing, setShowMissing] = useState(false);
+
+  const assessmentSubmit = useAssessmentSubmit(patient.id);
 
   const openUnderstanding = useCallback(() => {
     setReferenceSheetOpen(false);
@@ -178,7 +182,7 @@ export default function Form2Workspace({
       window.alert("保存状態を確認してから提出してください。");
       return;
     }
-    setSubmitted(true);
+    void assessmentSubmit.beginSubmit();
   };
 
   const handlePrint = () => {
@@ -322,10 +326,11 @@ export default function Form2Workspace({
           <button
             type="button"
             onClick={handleSubmit}
-            className="ml-4 flex h-12 min-h-[48px] items-center gap-2 rounded-2xl bg-[#1E88E5] px-3.5 text-[13px] font-semibold text-white transition-opacity duration-150 hover:opacity-90 motion-reduce:transition-none"
+            disabled={assessmentSubmit.submitting}
+            className="ml-4 flex h-12 min-h-[48px] items-center gap-2 rounded-2xl bg-[#1E88E5] px-3.5 text-[13px] font-semibold text-white transition-opacity duration-150 hover:opacity-90 disabled:opacity-50 motion-reduce:transition-none"
           >
             <Send className="h-4 w-4 text-white" strokeWidth={2} />
-            提出
+            課題を提出
           </button>
         </div>
         <div className="ml-6 flex items-center gap-3">
@@ -421,12 +426,13 @@ export default function Form2Workspace({
       ) : (
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto w-full max-w-[900px] space-y-3 px-4 py-4">
-          {submitted ? (
-            <p className="no-print flex items-center gap-1.5 text-[13px] font-medium text-[#3F7E52]">
-              <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-              提出内容を確認しました（保存済みの内容が対象です）。
-            </p>
+          {assessmentSubmit.lastResult ? (
+            <AssessmentSubmitResultBanner result={assessmentSubmit.lastResult} />
           ) : null}
+          <AssessmentSubmissionHistory
+            patientId={patient.id}
+            refreshKey={assessmentSubmit.historyKey}
+          />
 
           {showMissing && missing.length > 0 ? (
             <section className="no-print rounded-2xl border border-[#F3D6D2] bg-[#FBEAE8] p-3">
@@ -499,6 +505,15 @@ export default function Form2Workspace({
       </div>
       )}
     </FormWorkspaceShell>
+    <AssessmentSubmitDialog
+      open={assessmentSubmit.dialogOpen}
+      preview={assessmentSubmit.preview}
+      submitting={assessmentSubmit.submitting}
+      onCancel={assessmentSubmit.closeDialog}
+      onConfirm={() => {
+        void assessmentSubmit.confirmSubmit();
+      }}
+    />
     </>
   );
 }
