@@ -133,6 +133,21 @@ export function form3PatternShortLabel(key: Form3PatternKey): string {
   return FORM3_PATTERN_SHORT_LABELS[key] ?? key;
 }
 
+/** 教員画面用：対象 Form3 パターンの日本語表示 */
+export function formatForm3PatternScopeJa(
+  scope: AssessmentSubmissionScope | null | undefined,
+): string {
+  if (!scope?.form3Scope) return "対象指定なし";
+  if (scope.form3Scope.mode === "all_patterns") return "すべて";
+  if (
+    scope.form3Scope.mode === "selected_patterns" &&
+    scope.form3Scope.patternIds.length > 0
+  ) {
+    return formatPatternIdsJa(scope.form3Scope.patternIds);
+  }
+  return "対象指定なし";
+}
+
 export function formatSubmissionScopeJa(
   type: AssessmentMilestoneType,
   scope: AssessmentSubmissionScope,

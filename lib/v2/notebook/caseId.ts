@@ -18,6 +18,19 @@ export function caseIdForPatient(patientId: string): string | null {
   return PATIENT_TO_CASE_ID[patientId] ?? null;
 }
 
+/** case_id または患者ID → 患者ID（教員レビュー表示用）。未知は null。 */
+export function patientIdForCaseId(caseId: string): string | null {
+  if (typeof caseId !== "string") return null;
+  // cycle.case_id が患者ID（例 "A"）で保存されている場合もある
+  if (Object.prototype.hasOwnProperty.call(PATIENT_TO_CASE_ID, caseId)) {
+    return caseId;
+  }
+  for (const [patientId, id] of Object.entries(PATIENT_TO_CASE_ID)) {
+    if (id === caseId) return patientId;
+  }
+  return null;
+}
+
 // この患者IDが保存対象（既知ケース）かどうか。
 export function isKnownPatient(patientId: string): boolean {
   return caseIdForPatient(patientId) !== null;
