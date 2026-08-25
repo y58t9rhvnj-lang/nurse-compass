@@ -1,6 +1,14 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  listTeacherAssessmentReviewsForMilestone,
+} from "./assessmentReviewRepository";
+import {
+  ASSESSMENT_RUBRIC_KEYS,
+  canCompleteAssessmentReview,
+  countRubricScores,
+} from "./assessmentRubric";
 import { parseSubmissionScope } from "./submissionScope";
 import { extractDeadlineAtAtSubmitFromSnapshot } from "./teacherReviewTimingDisplay";
 import type {
@@ -39,6 +47,27 @@ export type TeacherStudentProfile = {
   studentNumber: string | null;
 };
 
+/** 現在の evaluation candidate に紐づく review 表示状態 */
+export type TeacherReviewDisplayStatus =
+  | "none"
+  | "draft"
+  | "completed"
+  | "no_candidate";
+
+export type TeacherStudentReviewSummary = {
+  status: TeacherReviewDisplayStatus;
+  reviewId: string | null;
+  updatedAt: string | null;
+  updatedByName: string | null;
+  completedAt: string | null;
+  completedByName: string | null;
+  scoredCount: number;
+  rubricTotal: number;
+  hasOverallComment: boolean;
+  /** 一覧から一括確定可能か（保存済み draft + 条件充足） */
+  canBulkComplete: boolean;
+};
+
 export type TeacherStudentSubmissionRow = {
   student: TeacherStudentProfile;
   submissionCount: number;
@@ -49,7 +78,9 @@ export type TeacherStudentSubmissionRow = {
   latestDeadlineAtAtSubmit: string | null;
   hasCandidate: boolean;
   candidateSubmissionId: string | null;
+  /** @deprecated 提出系の粗い状態。review 表示は reviewSummary を使う */
   evaluationState: "unevaluated" | "no_candidate" | "not_submitted";
+  reviewSummary: TeacherStudentReviewSummary;
   isUnsubmitted: boolean;
   isLate: boolean;
   isPendingLateReview: boolean;
@@ -228,25 +259,34 @@ export async function listTeacherStudentSubmissionRows(
   const students = await listActiveStudentsInOrg(supabase, organizationId);
   if (students.error) return { rows: [], error: students.error };
 
-  const [{ data: subs, error: sErr }, { data: cands, error: cErr }] =
-    await Promise.all([
-      supabase
-        .from("assessment_submissions")
-        .select(
-          "id, student_user_id, submission_number, submitted_at, timing_status, late_review_status, snapshot",
-        )
-        .eq("organization_id", organizationId)
-        .eq("assessment_milestone_id", milestoneId)
-        .eq("is_withdrawn", false)
-        .order("submitted_at", { ascending: false }),
-      supabase
-        .from("assessment_evaluation_candidates")
-        .select("submission_id, student_user_id")
-        .eq("organization_id", organizationId)
-        .eq("assessment_milestone_id", milestoneId),
-    ]);
+  const [
+    { data: subs, error: sErr },
+    { data: cands, error: cErr },
+    reviewsRes,
+  ] = await Promise.all([
+    supabase
+      .from("assessment_submissions")
+      .select(
+        "id, student_user_id, submission_number, submitted_at, timing_status, late_review_status, snapshot",
+      )
+      .eq("organization_id", organizationId)
+      .eq("assessment_milestone_id", milestoneId)
+      .eq("is_withdrawn", false)
+      .order("submitted_at", { ascending: false }),
+    supabase
+      .from("assessment_evaluation_candidates")
+      .select("submission_id, student_user_id")
+      .eq("organization_id", organizationId)
+      .eq("assessment_milestone_id", milestoneId),
+    listTeacherAssessmentReviewsForMilestone(
+      supabase,
+      organizationId,
+      milestoneId,
+    ),
+  ]);
   if (sErr) return { rows: [], error: sErr };
   if (cErr) return { rows: [], error: cErr };
+  if (reviewsRes.error) return { rows: [], error: reviewsRes.error };
 
   const candByStudent = new Map<string, string>();
   for (const c of (cands ?? []) as Array<{
@@ -254,6 +294,35 @@ export async function listTeacherStudentSubmissionRows(
     student_user_id: string;
   }>) {
     candByStudent.set(c.student_user_id, c.submission_id);
+  }
+
+  /** candidate submission_id → review（1 submission = 最大1 review） */
+  const reviewBySubmissionId = new Map<string, (typeof reviewsRes.rows)[number]>();
+  for (const r of reviewsRes.rows) {
+    // 同一 submission に複数来ても後勝ちではなく先勝ち（unique 前提の防御）
+    if (!reviewBySubmissionId.has(r.assessmentSubmissionId)) {
+      reviewBySubmissionId.set(r.assessmentSubmissionId, r);
+    }
+  }
+
+  const actorIds = new Set<string>();
+  for (const r of reviewsRes.rows) {
+    actorIds.add(r.updatedBy);
+    if (r.completedBy) actorIds.add(r.completedBy);
+  }
+  const nameById = new Map<string, string>();
+  if (actorIds.size > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .eq("organization_id", organizationId)
+      .in("id", [...actorIds]);
+    for (const p of (profiles ?? []) as Array<{
+      id: string;
+      display_name: string | null;
+    }>) {
+      nameById.set(p.id, String(p.display_name ?? "").trim() || p.id);
+    }
   }
 
   type SubRow = {
@@ -272,7 +341,18 @@ export async function listTeacherStudentSubmissionRows(
     byStudent.set(s.student_user_id, list);
   }
 
-  const rows: TeacherStudentSubmissionRow[] = students.rows.map((student) => {
+  const rubricTotal = ASSESSMENT_RUBRIC_KEYS.length;
+
+  // student_user_id ごとに必ず1行（profiles 重複があっても排除）
+  const uniqueStudents: TeacherStudentProfile[] = [];
+  const seenStudentIds = new Set<string>();
+  for (const student of students.rows) {
+    if (seenStudentIds.has(student.id)) continue;
+    seenStudentIds.add(student.id);
+    uniqueStudents.push(student);
+  }
+
+  const rows: TeacherStudentSubmissionRow[] = uniqueStudents.map((student) => {
     const list = byStudent.get(student.id) ?? [];
     const latest = list[0] ?? null;
     const candidateId = candByStudent.get(student.id) ?? null;
@@ -283,6 +363,62 @@ export async function listTeacherStudentSubmissionRows(
     if (!isUnsubmitted) {
       evaluationState = hasCandidate ? "unevaluated" : "no_candidate";
     }
+
+    let reviewSummary: TeacherStudentReviewSummary;
+    if (!hasCandidate || !candidateId) {
+      reviewSummary = {
+        status: "no_candidate",
+        reviewId: null,
+        updatedAt: null,
+        updatedByName: null,
+        completedAt: null,
+        completedByName: null,
+        scoredCount: 0,
+        rubricTotal,
+        hasOverallComment: false,
+        canBulkComplete: false,
+      };
+    } else {
+      const review = reviewBySubmissionId.get(candidateId) ?? null;
+      if (!review) {
+        reviewSummary = {
+          status: "none",
+          reviewId: null,
+          updatedAt: null,
+          updatedByName: null,
+          completedAt: null,
+          completedByName: null,
+          scoredCount: 0,
+          rubricTotal,
+          hasOverallComment: false,
+          canBulkComplete: false,
+        };
+      } else {
+        const scoredCount = countRubricScores(review.rubricScores);
+        const hasOverallComment = review.overallComment.trim().length >= 1;
+        const canBulkComplete =
+          review.status === "draft" &&
+          canCompleteAssessmentReview({
+            overallComment: review.overallComment,
+            rubricScores: review.rubricScores,
+          });
+        reviewSummary = {
+          status: review.status === "completed" ? "completed" : "draft",
+          reviewId: review.id,
+          updatedAt: review.updatedAt,
+          updatedByName: nameById.get(review.updatedBy) ?? null,
+          completedAt: review.completedAt,
+          completedByName: review.completedBy
+            ? (nameById.get(review.completedBy) ?? null)
+            : null,
+          scoredCount,
+          rubricTotal,
+          hasOverallComment,
+          canBulkComplete,
+        };
+      }
+    }
+
     return {
       student,
       submissionCount: list.length,
@@ -297,6 +433,7 @@ export async function listTeacherStudentSubmissionRows(
       hasCandidate,
       candidateSubmissionId: candidateId,
       evaluationState,
+      reviewSummary,
       isUnsubmitted,
       isLate: latest?.timing_status === "late",
       isPendingLateReview: latest?.late_review_status === "pending",

@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
-import { getTeacherStudentSubmissionDetailAction } from "@/app/v2/actions/assessmentReviews";
+import { useCallback, useEffect, useMemo, useState, useTransition, type MouseEvent } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  getTeacherStudentSubmissionDetailAction,
+  listTeacherStudentSubmissionRowsAction,
+} from "@/app/v2/actions/assessmentReviews";
 import type {
   TeacherReviewMilestoneSummary,
   TeacherStudentProfile,
@@ -18,10 +23,14 @@ import {
   studentIdLabel,
 } from "@/lib/v2/assessment/teacherReviewLabels";
 import {
+  loadTeacherReviewOrder,
+} from "@/lib/v2/assessment/teacherReviewOrderStorage";
+import {
   buildTeacherTimingDisplayLines,
   formatTeacherTimingDisplayText,
 } from "@/lib/v2/assessment/teacherReviewTimingDisplay";
 import { TeacherTimingDisplayBlock } from "@/components/v2/assessment/TeacherTimingDisplayBlock";
+import TeacherAssessmentReviewPanel from "@/components/v2/assessment/TeacherAssessmentReviewPanel";
 import {
   SnapshotEvidenceLinksReadonly,
   SnapshotFieldReflectionsReadonly,
@@ -84,12 +93,17 @@ function sourceVersionsLabel(raw: unknown): string {
 
 export default function TeacherReviewStudentDetailClient({
   milestoneId,
-  studentId,
+  studentId: initialStudentId,
   initial,
 }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const listHref = `/v2/teacher/reviews/${milestoneId}`;
+
+  const [studentId, setStudentId] = useState(initialStudentId);
   const [tab, setTab] = useState<TabKey>("overview");
-  const [milestone] = useState(initial.milestone);
-  const [student] = useState(initial.student);
+  const [milestone, setMilestone] = useState(initial.milestone);
+  const [student, setStudent] = useState(initial.student);
   const [history, setHistory] = useState(initial.history);
   const [candidateSubmissionId, setCandidateSubmissionId] = useState(
     initial.candidateSubmissionId,
@@ -103,9 +117,130 @@ export default function TeacherReviewStudentDetailClient({
   const [readModel, setReadModel] = useState(initial.readModel);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [reviewOpen, setReviewOpen] = useState(
+    () => searchParams.get("review") === "open",
+  );
+  const [studentIdsOrdered, setStudentIdsOrdered] = useState<string[]>([
+    initialStudentId,
+  ]);
+  const [reviewDirty, setReviewDirty] = useState(false);
+  const [listNavRequestId, setListNavRequestId] = useState(0);
 
   const viewing = history.find((h) => h.id === viewingSubmissionId) ?? null;
   const candidate = history.find((h) => h.id === candidateSubmissionId) ?? null;
+
+  const candidateInfo = useMemo(
+    () =>
+      candidate
+        ? {
+            submissionId: candidate.id,
+            submissionNumber: candidate.submissionNumber,
+            submittedAt: candidate.submittedAt,
+            timingStatus: candidate.timingStatus,
+            deadlineAtAtSubmit: candidate.deadlineAtAtSubmit,
+          }
+        : null,
+    [
+      candidate?.id,
+      candidate?.submissionNumber,
+      candidate?.submittedAt,
+      candidate?.timingStatus,
+      candidate?.deadlineAtAtSubmit,
+    ],
+  );
+
+  // sessionStorage 順序（失敗時は一覧再取得で名前順）
+  useEffect(() => {
+    const fromStorage = loadTeacherReviewOrder(milestoneId, studentId);
+    if (fromStorage) {
+      setStudentIdsOrdered(fromStorage);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const res = await listTeacherStudentSubmissionRowsAction(milestoneId);
+      if (cancelled || !res.ok) {
+        setStudentIdsOrdered([studentId]);
+        return;
+      }
+      const ids = [...res.rows]
+        .sort((a, b) =>
+          a.student.displayName.localeCompare(b.student.displayName, "ja"),
+        )
+        .map((r) => r.student.id);
+      setStudentIdsOrdered(ids.includes(studentId) ? ids : [studentId, ...ids]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [milestoneId, studentId]);
+
+  // URL の review=open と同期
+  useEffect(() => {
+    const wantOpen = searchParams.get("review") === "open";
+    setReviewOpen(wantOpen);
+  }, [searchParams]);
+
+  // サーバーから渡された studentId が変わった場合（直接 URL 移動）
+  useEffect(() => {
+    if (initialStudentId === studentId) return;
+    setStudentId(initialStudentId);
+    setMilestone(initial.milestone);
+    setStudent(initial.student);
+    setHistory(initial.history);
+    setCandidateSubmissionId(initial.candidateSubmissionId);
+    setViewingSubmissionId(initial.viewingSubmissionId);
+    setIsViewingCandidate(initial.isViewingCandidate);
+    setReadModel(initial.readModel);
+    setTab("overview");
+  }, [initialStudentId, initial, studentId]);
+
+  const syncReviewOpenQuery = useCallback(
+    (open: boolean, targetStudentId: string, mode: "push" | "replace") => {
+      const path = `/v2/teacher/reviews/${milestoneId}/${targetStudentId}`;
+      const url = open ? `${path}?review=open` : path;
+      if (mode === "push") router.push(url, { scroll: false });
+      else router.replace(url, { scroll: false });
+    },
+    [milestoneId, router],
+  );
+
+  const applyDetail = useCallback(
+    (res: Extract<
+      Awaited<ReturnType<typeof getTeacherStudentSubmissionDetailAction>>,
+      { ok: true }
+    >) => {
+      setMilestone(res.milestone);
+      setStudent(res.student);
+      setHistory(res.history);
+      setCandidateSubmissionId(res.candidateSubmissionId);
+      setViewingSubmissionId(res.viewingSubmissionId);
+      setIsViewingCandidate(res.isViewingCandidate);
+      setReadModel(res.readModel);
+      setTab("overview");
+      setError(null);
+    },
+    [],
+  );
+
+  const loadStudentDetail = useCallback(
+    (nextStudentId: string) => {
+      startTransition(async () => {
+        setError(null);
+        const res = await getTeacherStudentSubmissionDetailAction({
+          milestoneId,
+          studentId: nextStudentId,
+        });
+        if (!res.ok) {
+          setError("学生データを読み込めませんでした。");
+          return;
+        }
+        setStudentId(nextStudentId);
+        applyDetail(res);
+      });
+    },
+    [applyDetail, milestoneId],
+  );
 
   const loadSubmission = useCallback(
     (submissionId: string) => {
@@ -120,15 +255,35 @@ export default function TeacherReviewStudentDetailClient({
           setError("提出データを読み込めませんでした。");
           return;
         }
-        setHistory(res.history);
-        setCandidateSubmissionId(res.candidateSubmissionId);
-        setViewingSubmissionId(res.viewingSubmissionId);
-        setIsViewingCandidate(res.isViewingCandidate);
-        setReadModel(res.readModel);
+        applyDetail(res);
       });
     },
-    [milestoneId, studentId],
+    [applyDetail, milestoneId, studentId],
   );
+
+  const onOpenChange = (open: boolean) => {
+    setReviewOpen(open);
+    syncReviewOpenQuery(open, studentId, "replace");
+  };
+
+  const onNavigateStudent = (nextId: string) => {
+    syncReviewOpenQuery(true, nextId, "replace");
+    loadStudentDetail(nextId);
+  };
+
+  const onNavigateList = () => {
+    router.push(listHref);
+  };
+
+  const onListLinkClick = (e: MouseEvent) => {
+    if (!reviewDirty) return;
+    e.preventDefault();
+    if (!reviewOpen) {
+      setReviewOpen(true);
+      syncReviewOpenQuery(true, studentId, "replace");
+    }
+    setListNavRequestId((n) => n + 1);
+  };
 
   const candidateTimingText = candidate
     ? formatTeacherTimingDisplayText(
@@ -194,6 +349,16 @@ export default function TeacherReviewStudentDetailClient({
 
   return (
     <div className="space-y-4">
+      <div>
+        <Link
+          href={listHref}
+          onClick={onListLinkClick}
+          className="inline-flex min-h-11 items-center text-sm text-slate-500 hover:underline"
+        >
+          ← 学生提出一覧
+        </Link>
+      </div>
+
       <header className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h1 className="text-xl font-bold text-slate-900">
           {student.displayName}
@@ -242,9 +407,25 @@ export default function TeacherReviewStudentDetailClient({
         </div>
       </header>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* 提出内容（左） / iPad縦は上 */}
-        <div className="min-w-0 flex-1 space-y-3">
+      <div className="space-y-4">
+        <TeacherAssessmentReviewPanel
+          milestoneId={milestoneId}
+          milestoneTitle={milestone.title}
+          milestoneDeadlineAt={milestone.deadlineAt}
+          studentId={studentId}
+          studentDisplayName={student.displayName}
+          candidate={candidateInfo}
+          viewingSubmissionId={viewingSubmissionId}
+          open={reviewOpen}
+          onOpenChange={onOpenChange}
+          studentIdsOrdered={studentIdsOrdered}
+          onNavigateStudent={onNavigateStudent}
+          onNavigateList={onNavigateList}
+          onDirtyChange={setReviewDirty}
+          listNavRequestId={listNavRequestId}
+        />
+
+        <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap gap-1.5">
             {TABS.map((t) => (
               <button
@@ -388,26 +569,6 @@ export default function TeacherReviewStudentDetailClient({
             )}
           </div>
         </div>
-
-        {/* 評価領域（右） / iPad縦は下 */}
-        <aside className="w-full shrink-0 rounded-xl border border-dashed border-slate-300 bg-white p-4 lg:sticky lg:top-4 lg:w-72 xl:w-80">
-          <h2 className="text-sm font-semibold text-slate-800">評価</h2>
-          <p className="mt-3 text-sm text-slate-600">
-            評価入力は次のSprintで追加します
-          </p>
-          {candidateSubmissionId ? (
-            <p className="mt-4 text-xs text-emerald-800">
-              評価対象提出：
-              {candidate
-                ? `第${candidate.submissionNumber}回（${formatAssessmentDateTimeJa(candidate.submittedAt)}）`
-                : candidateSubmissionId}
-            </p>
-          ) : (
-            <p className="mt-4 text-xs text-slate-500">
-              この学生には現在評価対象の提出がありません。
-            </p>
-          )}
-        </aside>
       </div>
     </div>
   );

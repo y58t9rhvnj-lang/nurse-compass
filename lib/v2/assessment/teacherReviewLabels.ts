@@ -46,6 +46,21 @@ export function evaluationStateLabel(
   }
 }
 
+export function reviewDisplayStatusLabel(
+  status: "none" | "draft" | "completed" | "no_candidate",
+): string {
+  switch (status) {
+    case "none":
+      return "未作成";
+    case "draft":
+      return "下書き";
+    case "completed":
+      return "評価確定";
+    case "no_candidate":
+      return "評価対象なし";
+  }
+}
+
 export function studentIdLabel(student: {
   studentNumber: string | null;
   loginId: string;
