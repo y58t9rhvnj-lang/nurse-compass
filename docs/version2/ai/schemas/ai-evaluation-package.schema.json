@@ -1,0 +1,524 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nurse-compass.local/schemas/ai-evaluation-package.schema.json",
+  "title": "AiEvaluationPackage",
+  "description": "Compass AI evaluation input package (package_schema_version 1). One package = one anonymized submission.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "metadata",
+    "compass_policy",
+    "rubric",
+    "gold_standard",
+    "case_context",
+    "student_submission",
+    "evaluation_instructions",
+    "output_schema_hint"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package_schema_version",
+        "compass_policy_version",
+        "rubric_version",
+        "gold_standard_version",
+        "case_version",
+        "export_schema_version",
+        "generated_at",
+        "evaluation_request_id",
+        "generated_by_role",
+        "locale"
+      ],
+      "properties": {
+        "package_schema_version": { "type": "integer", "const": 1 },
+        "compass_policy_version": { "type": "string", "minLength": 1 },
+        "rubric_version": { "type": "string", "minLength": 1 },
+        "gold_standard_version": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+/[0-9]+$",
+          "description": "Stable case key, e.g. patient-a/1"
+        },
+        "case_version": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+/[0-9]+$"
+        },
+        "export_schema_version": { "type": "integer", "minimum": 1 },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "evaluation_request_id": { "type": "string", "format": "uuid" },
+        "generated_by_role": { "type": "string", "enum": ["teacher", "admin"] },
+        "locale": { "type": "string", "const": "ja-JP" }
+      }
+    },
+    "compass_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "mission",
+        "education_principles",
+        "ai_role",
+        "prohibitions",
+        "evaluation_target",
+        "authority"
+      ],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "mission": { "type": "string", "minLength": 1 },
+        "education_principles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "ai_role": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "prohibitions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "evaluation_target": { "type": "string", "minLength": 1 },
+        "authority": { "type": "string", "minLength": 1 }
+      }
+    },
+    "rubric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "scale", "items", "pass_criteria"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "scale": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max", "levels"],
+          "properties": {
+            "min": { "type": "integer", "const": 1 },
+            "max": { "type": "integer", "const": 5 },
+            "levels": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["value", "label"],
+                "properties": {
+                  "value": { "type": "integer", "minimum": 1, "maximum": 5 },
+                  "label": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        "items": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "label", "focus"],
+            "properties": {
+              "key": {
+                "type": "string",
+                "enum": [
+                  "information_gathering",
+                  "relating_information",
+                  "interpretation_analysis",
+                  "clarity_of_evidence",
+                  "awareness_of_gaps",
+                  "patient_understanding",
+                  "overall_integration"
+                ]
+              },
+              "label": { "type": "string", "minLength": 1 },
+              "focus": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "pass_criteria": {
+          "description": "Initial version: always null. Reserved for school/assignment pass rules.",
+          "type": "null"
+        }
+      }
+    },
+    "gold_standard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema_version",
+        "declaration",
+        "purpose",
+        "not_for_verbatim_matching",
+        "teacher_insight_included",
+        "initial_understanding",
+        "critical_thinking_points",
+        "integrated_understanding",
+        "remaining_unknowns",
+        "assessment_criteria"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+/[0-9]+$"
+        },
+        "schema_version": { "type": "integer", "minimum": 1 },
+        "declaration": {
+          "type": "string",
+          "const": "Gold Standardは、重要情報・根拠・臨床推論の可能性・不足情報を確認する評価参照である。学生の記述が同じ文章、同じ順序、同じ結論であることを要求してはならない。事例情報に基づく妥当な別解を認めること。"
+        },
+        "purpose": { "type": "string", "minLength": 1 },
+        "framework": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "initial_understanding": { "type": "string", "minLength": 1 },
+        "critical_thinking_points": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "student_assumption",
+              "facts",
+              "gordon_lenses",
+              "meaning",
+              "missing",
+              "update",
+              "next_question",
+              "evidence_information_ids"
+            ],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "title": { "type": "string" },
+              "student_assumption": { "type": "string", "minLength": 1 },
+              "facts": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "gordon_lenses": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "meaning": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "missing": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "update": { "type": "string", "minLength": 1 },
+              "next_question": { "type": "string", "minLength": 1 },
+              "evidence_information_ids": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
+        "integrated_understanding": { "type": "string", "minLength": 1 },
+        "remaining_unknowns": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "assessment_criteria": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "not_for_verbatim_matching": { "type": "boolean", "const": true },
+        "teacher_insight_included": { "type": "boolean", "const": false }
+      }
+    },
+    "case_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_key",
+        "case_version",
+        "evaluation_moment",
+        "canonical_case",
+        "gold_referenced_information",
+        "student_visible_scope",
+        "excluded_from_evaluation"
+      ],
+      "properties": {
+        "case_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "case_version": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+/[0-9]+$"
+        },
+        "evaluation_moment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["anonymous_label", "milestone_type"],
+          "properties": {
+            "anonymous_label": { "type": "string", "minLength": 1 },
+            "milestone_type": { "type": ["string", "null"] },
+            "evaluation_type": { "type": ["string", "null"] }
+          }
+        },
+        "canonical_case": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["summary", "allowed_facts"],
+          "properties": {
+            "summary": { "type": "string", "minLength": 1 },
+            "allowed_facts": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "gold_referenced_information": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["anonymous_id", "so_type", "content"],
+            "properties": {
+              "anonymous_id": { "type": "string", "minLength": 1 },
+              "so_type": { "type": "string", "enum": ["S", "O"] },
+              "primary_pattern_key": { "type": "string" },
+              "content": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "student_visible_scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["description", "includes"],
+          "properties": {
+            "description": { "type": "string", "minLength": 1 },
+            "includes": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "excluded_from_evaluation": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "student_submission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "export_kind",
+        "anonymous_ids",
+        "meta",
+        "included_artifacts",
+        "form2",
+        "form3",
+        "information_cards",
+        "evidence_links",
+        "field_reflections",
+        "patient_understanding",
+        "source_versions"
+      ],
+      "properties": {
+        "schema_version": { "type": "integer", "minimum": 1 },
+        "export_kind": { "type": "string", "const": "assessment_submission" },
+        "anonymous_ids": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["case_id", "cycle_id", "milestone_id", "submission_id"],
+          "properties": {
+            "case_id": { "type": "string", "minLength": 1 },
+            "cycle_id": { "type": "string", "minLength": 1 },
+            "milestone_id": { "type": "string", "minLength": 1 },
+            "submission_id": { "type": "string", "minLength": 1 }
+          }
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "timing_status",
+            "submission_number",
+            "submitted_at",
+            "evaluation_type",
+            "milestone_type",
+            "cycle_title",
+            "milestone_title"
+          ],
+          "properties": {
+            "timing_status": { "type": ["string", "null"] },
+            "submission_number": { "type": ["integer", "null"] },
+            "submitted_at": { "type": ["string", "null"] },
+            "evaluation_type": { "type": ["string", "null"] },
+            "milestone_type": { "type": ["string", "null"] },
+            "cycle_title": { "type": ["string", "null"] },
+            "milestone_title": { "type": ["string", "null"] }
+          }
+        },
+        "included_artifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "form2": { "type": ["object", "null"] },
+        "form3": { "type": ["object", "null"] },
+        "information_cards": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "evidence_links": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "field_reflections": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "patient_understanding": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["case_ref", "overview_text", "updated_at"],
+          "properties": {
+            "case_ref": { "type": "string" },
+            "overview_text": { "type": "string" },
+            "updated_at": { "type": ["string", "null"] }
+          }
+        },
+        "source_versions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["form2", "form3", "patient_understanding"],
+          "properties": {
+            "form2": { "type": ["integer", "null"] },
+            "form3": { "type": ["integer", "null"] },
+            "patient_understanding": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "evaluation_instructions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "do_not_require_verbatim_gold_match",
+        "allow_valid_alternative_interpretations",
+        "evaluate_information_interpretation_links",
+        "do_not_speculate_missing_information",
+        "distinguish_fact_inference_evaluation",
+        "make_uncertainty_explicit",
+        "citation_rules",
+        "output_separation",
+        "persistence_rules",
+        "language"
+      ],
+      "properties": {
+        "do_not_require_verbatim_gold_match": { "type": "boolean", "const": true },
+        "allow_valid_alternative_interpretations": { "type": "boolean", "const": true },
+        "evaluate_information_interpretation_links": { "type": "boolean", "const": true },
+        "do_not_speculate_missing_information": { "type": "boolean", "const": true },
+        "distinguish_fact_inference_evaluation": { "type": "boolean", "const": true },
+        "make_uncertainty_explicit": { "type": "boolean", "const": true },
+        "citation_rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "require_field_path_or_anonymous_object_id",
+            "do_not_use_array_index_alone_as_persistent_id"
+          ],
+          "properties": {
+            "require_field_path_or_anonymous_object_id": {
+              "type": "boolean",
+              "const": true
+            },
+            "do_not_use_array_index_alone_as_persistent_id": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        },
+        "output_separation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "student_feedback_draft_vs_teacher_observation",
+            "teacher_observation_not_for_student_return",
+            "private_note_not_sent_to_ai"
+          ],
+          "properties": {
+            "student_feedback_draft_vs_teacher_observation": {
+              "type": "boolean",
+              "const": true
+            },
+            "teacher_observation_not_for_student_return": {
+              "type": "boolean",
+              "const": true
+            },
+            "private_note_not_sent_to_ai": { "type": "boolean", "const": true }
+          }
+        },
+        "persistence_rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "do_not_write_assessment_reviews_directly",
+            "staging_required_before_teacher_adoption"
+          ],
+          "properties": {
+            "do_not_write_assessment_reviews_directly": {
+              "type": "boolean",
+              "const": true
+            },
+            "staging_required_before_teacher_adoption": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        },
+        "language": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locale", "tone", "forbidden_tones"],
+          "properties": {
+            "locale": { "type": "string", "const": "ja-JP" },
+            "tone": { "type": "string", "minLength": 1 },
+            "forbidden_tones": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "output_schema_hint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result_schema", "required_sections"],
+      "properties": {
+        "result_schema": {
+          "type": "string",
+          "const": "ai-evaluation-result.schema.json"
+        },
+        "required_sections": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

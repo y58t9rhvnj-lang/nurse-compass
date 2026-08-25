@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nurse-compass.local/schemas/ai-evaluation-result.schema.json",
+  "title": "AiEvaluationResult",
+  "description": "Compass AI evaluation output result (result_schema_version 1). Must reference source package evaluation_request_id. Must not be written directly to assessment_reviews.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "metadata",
+    "item_evaluations",
+    "student_feedback_draft",
+    "teacher_observation",
+    "uncertainty",
+    "follow_up_checks",
+    "staging_hint"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result_schema_version",
+        "evaluation_request_id",
+        "package_schema_version",
+        "compass_policy_version",
+        "rubric_version",
+        "gold_standard_version",
+        "generated_at",
+        "locale"
+      ],
+      "properties": {
+        "result_schema_version": { "type": "integer", "const": 1 },
+        "evaluation_request_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Must equal the source package metadata.evaluation_request_id"
+        },
+        "package_schema_version": { "type": "integer", "minimum": 1 },
+        "compass_policy_version": { "type": "string", "minLength": 1 },
+        "rubric_version": { "type": "string", "minLength": 1 },
+        "gold_standard_version": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+/[0-9]+$"
+        },
+        "case_version": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+/[0-9]+$"
+        },
+        "export_schema_version": { "type": "integer", "minimum": 1 },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "model_label": { "type": "string" },
+        "locale": { "type": "string", "const": "ja-JP" }
+      }
+    },
+    "item_evaluations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rubric_key", "score", "level_label", "rationale", "citations"],
+        "properties": {
+          "rubric_key": {
+            "type": "string",
+            "enum": [
+              "information_gathering",
+              "relating_information",
+              "interpretation_analysis",
+              "clarity_of_evidence",
+              "awareness_of_gaps",
+              "patient_understanding",
+              "overall_integration"
+            ]
+          },
+          "score": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "maximum": 5
+          },
+          "level_label": { "type": ["string", "null"] },
+          "rationale": { "type": "string", "minLength": 1 },
+          "uncertainty_note": { "type": "string" },
+          "citations": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/citation" }
+          }
+        }
+      }
+    },
+    "student_feedback_draft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strengths",
+        "supporting_information",
+        "next_questions",
+        "gaps_or_alternatives"
+      ],
+      "properties": {
+        "strengths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "supporting_information": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "next_questions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "gaps_or_alternatives": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "overall_tone_check": { "type": "string" }
+      }
+    },
+    "teacher_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "attention_points", "suggested_focus_for_feedback"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "attention_points": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "suggested_focus_for_feedback": { "type": "string", "minLength": 1 }
+      },
+      "description": "Teacher-only. Not for student return. private_note is intentionally undefined."
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["overall_confidence", "notes", "affected_rubric_keys"],
+      "properties": {
+        "overall_confidence": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "notes": { "type": "string", "minLength": 1 },
+        "affected_rubric_keys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "information_gathering",
+              "relating_information",
+              "interpretation_analysis",
+              "clarity_of_evidence",
+              "awareness_of_gaps",
+              "patient_understanding",
+              "overall_integration"
+            ]
+          }
+        }
+      }
+    },
+    "follow_up_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["question", "reason", "related_rubric_keys"],
+        "properties": {
+          "question": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "related_rubric_keys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "information_gathering",
+                "relating_information",
+                "interpretation_analysis",
+                "clarity_of_evidence",
+                "awareness_of_gaps",
+                "patient_understanding",
+                "overall_integration"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "staging_hint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "persist_to",
+        "must_not_write_to",
+        "teacher_actions_expected",
+        "auto_apply_forbidden"
+      ],
+      "properties": {
+        "persist_to": {
+          "type": "string",
+          "const": "future_ai_evaluation_staging"
+        },
+        "must_not_write_to": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "const": "assessment_reviews" }
+        },
+        "teacher_actions_expected": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "enum": ["adopt", "edit", "reject"]
+          }
+        },
+        "auto_apply_forbidden": { "type": "boolean", "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "field_path": { "type": "string", "minLength": 1 },
+        "anonymous_object_id": { "type": "string", "minLength": 1 },
+        "excerpt": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "anyOf": [
+        { "required": ["field_path"] },
+        { "required": ["anonymous_object_id"] }
+      ]
+    }
+  }
+}

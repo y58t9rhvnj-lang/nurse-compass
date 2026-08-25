@@ -1,0 +1,322 @@
+{
+  "metadata": {
+    "package_schema_version": 1,
+    "compass_policy_version": "2026.1",
+    "rubric_version": "1",
+    "gold_standard_version": "patient-a/1",
+    "case_version": "patient-a/1",
+    "export_schema_version": 1,
+    "generated_at": "2026-08-25T14:00:00.000Z",
+    "evaluation_request_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "generated_by_role": "teacher",
+    "locale": "ja-JP"
+  },
+  "compass_policy": {
+    "version": "2026.1",
+    "mission": "Compassは完成物の採点ではなく、根拠ある臨床推論と患者理解の形成を支援する。",
+    "education_principles": [
+      "AIは答えを代筆しない",
+      "事実と解釈を区別する",
+      "未完成の思考にも価値がある",
+      "妥当な複数の患者理解を認める"
+    ],
+    "ai_role": [
+      "視点を広げる",
+      "根拠を問い返す",
+      "見落としに気付かせる",
+      "形成的ルーブリック評価の草案を返す"
+    ],
+    "prohibitions": [
+      "正解／不正解の単純判定",
+      "Gold Standard文章への一致採点・書き換え要求",
+      "完成アセスメントの代筆",
+      "情報不足の推測補完",
+      "private_noteの送信",
+      "assessment_reviewsへの直接書き込み",
+      "学生への自動返却"
+    ],
+    "evaluation_target": "学生の臨床推論過程（情報・関連づけ・解釈・根拠・不足への気づき・患者理解・全体統合）",
+    "authority": "AI結果は教員の確定評価ではない。staging経由で教員が採用・修正・却下する。"
+  },
+  "rubric": {
+    "version": "1",
+    "scale": {
+      "min": 1,
+      "max": 5,
+      "levels": [
+        { "value": 1, "label": "到達していない" },
+        { "value": 2, "label": "一部到達" },
+        { "value": 3, "label": "概ね到達" },
+        { "value": 4, "label": "十分到達" },
+        { "value": 5, "label": "高い水準で到達" }
+      ]
+    },
+    "items": [
+      {
+        "key": "information_gathering",
+        "label": "情報収集",
+        "focus": "必要なInformationを集め、事実として扱えているか"
+      },
+      {
+        "key": "relating_information",
+        "label": "情報の関連づけ",
+        "focus": "情報同士のつながりを示せているか"
+      },
+      {
+        "key": "interpretation_analysis",
+        "label": "解釈・分析",
+        "focus": "事実と区別した解釈・分析ができているか"
+      },
+      {
+        "key": "clarity_of_evidence",
+        "label": "根拠の明確さ",
+        "focus": "解釈を支える根拠（Evidence）が明示されているか"
+      },
+      {
+        "key": "awareness_of_gaps",
+        "label": "不足情報への気づき",
+        "focus": "わからないこと・足りない情報を認識しているか"
+      },
+      {
+        "key": "patient_understanding",
+        "label": "患者理解",
+        "focus": "この人の理解として更新・統合に向かっているか（別解可）"
+      },
+      {
+        "key": "overall_integration",
+        "label": "全体統合",
+        "focus": "様式・振り返り・患者理解が全体として一貫しているか"
+      }
+    ],
+    "pass_criteria": null
+  },
+  "gold_standard": {
+    "version": "patient-a/1",
+    "schema_version": 1,
+    "declaration": "Gold Standardは、重要情報・根拠・臨床推論の可能性・不足情報を確認する評価参照である。学生の記述が同じ文章、同じ順序、同じ結論であることを要求してはならない。事例情報に基づく妥当な別解を認めること。",
+    "purpose": "完成答案を提示するのではなく、事実・意味・不足情報・患者理解の更新を追体験する教材",
+    "framework": {
+      "philosophy": "Patient Understanding First",
+      "basic_cycle": ["facts", "meaning", "missing", "update"]
+    },
+    "initial_understanding": "統合失調症の症状が残存し、活動性が低く、退院後の生活に不安を抱えている人である、という初期仮説。症状やできていないことだけに目が向きやすい段階。",
+    "critical_thinking_points": [
+      {
+        "id": "ctp_anon_01",
+        "title": "活動性の低さを病気だけで説明しない",
+        "student_assumption": "統合失調症だから意欲が低く、活動できない。",
+        "facts": [
+          "OTは「気が向かない」と辞退することがある。",
+          "SST参加は定着している。",
+          "夜間幻聴による入眠困難と翌朝の持ち越し倦怠感がある。"
+        ],
+        "gordon_lenses": ["活動―運動", "睡眠―休息", "認知―知覚"],
+        "meaning": [
+          "活動量には波があり、すべての活動を拒否しているわけではない。",
+          "日中の疲労や活動低下には、夜間幻聴と睡眠不足が影響している可能性がある。"
+        ],
+        "missing": [
+          "OTを辞退する日の前夜の睡眠状況",
+          "参加できた活動と辞退した活動の違い"
+        ],
+        "update": "一律に意欲が低いのではなく、夜間の症状・疲労・活動内容・安心感などの条件によって力を発揮できる程度が変化する人である。",
+        "next_question": "参加しやすい条件と、参加を妨げる条件は何か。",
+        "evidence_information_ids": ["cinfo_a1b2c3d4e5f60718", "cinfo_91aa22bb33cc44dd"]
+      }
+    ],
+    "integrated_understanding": "症状名・できないことの列挙ではなく、条件によって力が変化する人として理解を更新する方向性がある。",
+    "remaining_unknowns": [
+      "本人が感じる疲労の内容と程度",
+      "促し方や関わる人による反応の違い"
+    ],
+    "assessment_criteria": [
+      "事実と解釈が区別されているか",
+      "不足情報への言及があるか",
+      "患者理解が更新されているか"
+    ],
+    "not_for_verbatim_matching": true,
+    "teacher_insight_included": false
+  },
+  "case_context": {
+    "case_key": "patient-a",
+    "case_version": "patient-a/1",
+    "evaluation_moment": {
+      "anonymous_label": "評価時点1",
+      "milestone_type": "midterm",
+      "evaluation_type": "formative"
+    },
+    "canonical_case": {
+      "summary": "精神看護の教育症例（匿名）。退院準備期の生活・症状・活動参加に関する情報が学生に提示される。",
+      "allowed_facts": [
+        "OT辞退とSST定着に関する観察",
+        "夜間幻聴と対処行動に関する観察",
+        "促しがあれば入浴・洗濯を実施できるという観察"
+      ]
+    },
+    "gold_referenced_information": [
+      {
+        "anonymous_id": "cinfo_a1b2c3d4e5f60718",
+        "so_type": "O",
+        "primary_pattern_key": "活動―運動",
+        "content": "OTは「気が向かない」と辞退することがある。"
+      },
+      {
+        "anonymous_id": "cinfo_91aa22bb33cc44dd",
+        "so_type": "O",
+        "primary_pattern_key": "認知―知覚",
+        "content": "夜間を中心に「だめな人間だ」と聞こえる。"
+      }
+    ],
+    "student_visible_scope": {
+      "description": "提出時点で学生が学習ワークスペース上で参照可能だった症例情報・自身の様式・ノートのみを評価に用いる。",
+      "includes": [
+        "症例正本のうち学生公開範囲",
+        "Goldが参照する根拠情報のうち学生が収集し得た事実に対応するもの",
+        "提出スナップショット内の様式2・様式3・Evidence・振り返り・患者理解"
+      ]
+    },
+    "excluded_from_evaluation": [
+      "教員のみが知る後日情報",
+      "非公開カルテ拡張",
+      "Teacher Insight",
+      "private_note"
+    ]
+  },
+  "student_submission": {
+    "schema_version": 1,
+    "export_kind": "assessment_submission",
+    "anonymous_ids": {
+      "case_id": "case_0f1e2d3c4b5a6978",
+      "cycle_id": "cyc_1122334455667788",
+      "milestone_id": "ms_aabbccddeeff0011",
+      "submission_id": "sub_99aa88bb77cc66dd"
+    },
+    "meta": {
+      "timing_status": "on_time",
+      "submission_number": 1,
+      "submitted_at": "2026-08-20T05:30:00.000Z",
+      "evaluation_type": "formative",
+      "milestone_type": "midterm",
+      "cycle_title": "課題1",
+      "milestone_title": "評価時点1"
+    },
+    "included_artifacts": [
+      "form2",
+      "form3",
+      "evidence_links",
+      "field_reflections",
+      "patient_understanding"
+    ],
+    "form2": {
+      "version": 1,
+      "patientId": "case_0f1e2d3c4b5a6978",
+      "student": {},
+      "basicInformation": {
+        "patientName": "",
+        "age": "40代",
+        "sex": "女性",
+        "diagnosis": "統合失調症",
+        "chiefComplaint": "退院後の生活への不安"
+      },
+      "history": {
+        "currentCondition": "夜間に幻聴があり、日中は疲労を訴えることがある。"
+      }
+    },
+    "form3": {
+      "schemaVersion": 2,
+      "patientId": "case_0f1e2d3c4b5a6978",
+      "informationCards": [
+        {
+          "id": "card_37bec5170489673d",
+          "soType": "O",
+          "content": "OTを辞退することがある。SSTには参加できている。"
+        },
+        {
+          "id": "card_55aa66bb77cc88dd",
+          "soType": "O",
+          "content": "夜間に「だめな人間だ」と聞こえることがある。"
+        }
+      ],
+      "assessmentCards": [
+        {
+          "id": "card_aa11bb22cc33dd44",
+          "interpretation": "意欲が低いため活動できない可能性がある。",
+          "evidenceInformationIds": ["card_37bec5170489673d"]
+        }
+      ]
+    },
+    "information_cards": [
+      {
+        "id": "card_37bec5170489673d",
+        "content": "OTを辞退することがある。SSTには参加できている。"
+      }
+    ],
+    "evidence_links": [
+      {
+        "id": "lnk_fedcba9876543210",
+        "informationCardId": "card_37bec5170489673d",
+        "form2FieldKey": "history.currentCondition"
+      }
+    ],
+    "field_reflections": [
+      {
+        "id": "ref_0102030405060708",
+        "fieldKey": "history.currentCondition",
+        "reflectionText": "症状の残存に注目したが、参加できている活動との対比は十分でない。"
+      }
+    ],
+    "patient_understanding": {
+      "case_ref": "case_0f1e2d3c4b5a6978",
+      "overview_text": "統合失調症のため意欲が低く、活動が難しい人だと理解している。",
+      "updated_at": "2026-08-20T05:00:00.000Z"
+    },
+    "source_versions": {
+      "form2": 3,
+      "form3": 5,
+      "patient_understanding": "2026-08-20T05:00:00.000Z"
+    }
+  },
+  "evaluation_instructions": {
+    "do_not_require_verbatim_gold_match": true,
+    "allow_valid_alternative_interpretations": true,
+    "evaluate_information_interpretation_links": true,
+    "do_not_speculate_missing_information": true,
+    "distinguish_fact_inference_evaluation": true,
+    "make_uncertainty_explicit": true,
+    "citation_rules": {
+      "require_field_path_or_anonymous_object_id": true,
+      "do_not_use_array_index_alone_as_persistent_id": true
+    },
+    "output_separation": {
+      "student_feedback_draft_vs_teacher_observation": true,
+      "teacher_observation_not_for_student_return": true,
+      "private_note_not_sent_to_ai": true
+    },
+    "persistence_rules": {
+      "do_not_write_assessment_reviews_directly": true,
+      "staging_required_before_teacher_adoption": true
+    },
+    "language": {
+      "locale": "ja-JP",
+      "tone": "教育的・非断定・丁寧",
+      "forbidden_tones": [
+        "正解／不正解の単純判定",
+        "威圧的・断定的表現",
+        "Gold Standard文章への書き換え要求",
+        "完成アセスメントの代筆"
+      ]
+    }
+  },
+  "output_schema_hint": {
+    "result_schema": "ai-evaluation-result.schema.json",
+    "required_sections": [
+      "metadata",
+      "item_evaluations",
+      "student_feedback_draft",
+      "teacher_observation",
+      "uncertainty",
+      "follow_up_checks",
+      "staging_hint"
+    ]
+  }
+}
