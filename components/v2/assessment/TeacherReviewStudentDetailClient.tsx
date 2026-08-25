@@ -32,6 +32,7 @@ import {
 import { TeacherTimingDisplayBlock } from "@/components/v2/assessment/TeacherTimingDisplayBlock";
 import LateSubmissionReviewActions from "@/components/v2/assessment/LateSubmissionReviewActions";
 import TeacherAssessmentReviewPanel from "@/components/v2/assessment/TeacherAssessmentReviewPanel";
+import TeacherAiExportDialog from "@/components/v2/assessment/TeacherAiExportDialog";
 import {
   SnapshotEvidenceLinksReadonly,
   SnapshotFieldReflectionsReadonly,
@@ -451,6 +452,19 @@ export default function TeacherReviewStudentDetailClient({
             </span>
           )}
         </div>
+        {viewingSubmissionId ? (
+          <div className="mt-3">
+            <TeacherAiExportDialog
+              mode={{
+                kind: "submission",
+                milestoneId,
+                studentId,
+                submissionId: viewingSubmissionId,
+              }}
+              buttonLabel="この提出をAI解析用エクスポート"
+            />
+          </div>
+        ) : null}
       </header>
 
       {candidateChangeNotice ? (

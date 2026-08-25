@@ -26,6 +26,7 @@ import {
   formatSubmissionScopeJa,
   statusLabel,
 } from "@/lib/v2/assessment/submissionScope";
+import TeacherAiExportDialog from "@/components/v2/assessment/TeacherAiExportDialog";
 
 type FilterKey =
   | "all"
@@ -294,6 +295,15 @@ export default function TeacherReviewStudentsClient({
             {milestone.unsubmittedStudentCount}名・評価対象{" "}
             {milestone.candidateStudentCount}名
           </p>
+          <div className="mt-3">
+            <TeacherAiExportDialog
+              mode={{
+                kind: "milestone",
+                milestoneId: milestone.milestoneId,
+              }}
+              buttonLabel="AI解析用エクスポート（評価対象）"
+            />
+          </div>
         </div>
 
         <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950 sm:text-sm">
