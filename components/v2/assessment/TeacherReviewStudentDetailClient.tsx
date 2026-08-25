@@ -33,6 +33,7 @@ import { TeacherTimingDisplayBlock } from "@/components/v2/assessment/TeacherTim
 import LateSubmissionReviewActions from "@/components/v2/assessment/LateSubmissionReviewActions";
 import TeacherAssessmentReviewPanel from "@/components/v2/assessment/TeacherAssessmentReviewPanel";
 import TeacherAiExportDialog from "@/components/v2/assessment/TeacherAiExportDialog";
+import TeacherAiEvaluationImportDialog from "@/components/v2/assessment/TeacherAiEvaluationImportDialog";
 import {
   SnapshotEvidenceLinksReadonly,
   SnapshotFieldReflectionsReadonly,
@@ -453,7 +454,7 @@ export default function TeacherReviewStudentDetailClient({
           )}
         </div>
         {viewingSubmissionId ? (
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap gap-2">
             <TeacherAiExportDialog
               mode={{
                 kind: "submission",
@@ -463,6 +464,7 @@ export default function TeacherReviewStudentDetailClient({
               }}
               buttonLabel="この提出をAI解析用エクスポート"
             />
+            <TeacherAiEvaluationImportDialog buttonLabel="AI評価結果を取込" />
           </div>
         ) : null}
       </header>

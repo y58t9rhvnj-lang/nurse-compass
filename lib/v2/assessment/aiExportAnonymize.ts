@@ -454,6 +454,11 @@ export type AiExportSourceIds = {
 export type AiAnonymizedAssessmentRecord = {
   schema_version: typeof AI_EXPORT_SCHEMA_VERSION;
   export_kind: "assessment_submission";
+  /**
+   * AI評価リクエスト ID（実 submission UUID ではない）。
+   * Sprint 5B: package/export 時に requests 表へ記録した正本と対応。
+   */
+  evaluation_request_id?: string;
   anonymous_ids: {
     case_id: string;
     cycle_id: string;

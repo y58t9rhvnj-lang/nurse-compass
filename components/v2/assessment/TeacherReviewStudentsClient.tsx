@@ -27,6 +27,7 @@ import {
   statusLabel,
 } from "@/lib/v2/assessment/submissionScope";
 import TeacherAiExportDialog from "@/components/v2/assessment/TeacherAiExportDialog";
+import TeacherAiEvaluationImportDialog from "@/components/v2/assessment/TeacherAiEvaluationImportDialog";
 
 type FilterKey =
   | "all"
@@ -303,6 +304,7 @@ export default function TeacherReviewStudentsClient({
               }}
               buttonLabel="AI解析用エクスポート（評価対象）"
             />
+            <TeacherAiEvaluationImportDialog buttonLabel="AI評価結果を取込" />
           </div>
         </div>
 

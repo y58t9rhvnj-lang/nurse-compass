@@ -1,10 +1,11 @@
 "use server";
 
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { isSupabaseConfigured } from "@/lib/v2/env";
-import { getServiceRoleKey } from "@/lib/v2/env.server";
+import { getServiceRoleKey, isServiceRoleConfigured } from "@/lib/v2/env.server";
 import { getCurrentProfile, type AppProfile } from "@/lib/v2/auth/currentUser";
 import { createServerSupabaseClient } from "@/lib/v2/supabase/serverClient";
+import { createAdminSupabaseClient } from "@/lib/v2/supabase/adminClient";
 import { patientIdForCaseId } from "@/lib/v2/notebook/caseId";
 import {
   getTeacherMilestoneMeta,
@@ -22,6 +23,16 @@ import {
   type AiAnonymizedAssessmentRecord,
 } from "@/lib/v2/assessment/aiExportAnonymize";
 import { writeAiExportAuditLog } from "@/lib/v2/assessment/aiExportAudit";
+import { insertAiEvaluationRequest } from "@/lib/v2/assessment/aiEvaluationRequestRepository";
+import { sha256HexOfCanonicalJson } from "@/lib/v2/assessment/aiEvaluationResultHash";
+import {
+  AI_EVAL_COMPASS_POLICY_VERSION,
+  AI_EVAL_PACKAGE_SCHEMA_VERSION,
+  AI_EVAL_REQUEST_TTL_DAYS,
+  AI_EVAL_RESULT_SCHEMA_VERSION,
+  AI_EVAL_RUBRIC_VERSION,
+  aiEvalCaseVersionsForPatientId,
+} from "@/lib/v2/assessment/aiEvaluationVersions";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type StaffContext =
@@ -90,6 +101,10 @@ type BuiltRecord = {
   submissionId: string;
   submissionNumber: number;
   timingStatus: string;
+  assessmentCycleId: string;
+  assessmentMilestoneId: string;
+  studentUserId: string;
+  caseId: string;
 };
 
 async function loadCandidateSubmissionsForMilestone(
@@ -108,6 +123,7 @@ async function loadCandidateSubmissionsForMilestone(
         submittedAt: string;
         timingStatus: string;
         snapshot: unknown;
+        studentUserId: string;
       }>;
     }
   | { ok: false; kind: string; message: string }
@@ -138,7 +154,7 @@ async function loadCandidateSubmissionsForMilestone(
   const { data: subs, error: sErr } = await supabase
     .from("assessment_submissions")
     .select(
-      "id, assessment_cycle_id, assessment_milestone_id, case_id, submission_number, submitted_at, timing_status, snapshot",
+      "id, assessment_cycle_id, assessment_milestone_id, case_id, submission_number, submitted_at, timing_status, snapshot, student_user_id",
     )
     .eq("organization_id", organizationId)
     .eq("assessment_milestone_id", milestoneId)
@@ -164,6 +180,7 @@ async function loadCandidateSubmissionsForMilestone(
       submittedAt: String(s.submitted_at),
       timingStatus: String(s.timing_status ?? "on_time"),
       snapshot: s.snapshot,
+      studentUserId: String(s.student_user_id),
     })),
   };
 }
@@ -178,6 +195,7 @@ function buildRecordsFromRows(
     submissionNumber: number;
     timingStatus: string;
     snapshot: unknown;
+    studentUserId: string;
   }>,
 ): BuiltRecord[] {
   const ids = createAiAnonymousIdMapper(
@@ -208,6 +226,10 @@ function buildRecordsFromRows(
       submissionId: row.id,
       submissionNumber: row.submissionNumber,
       timingStatus: row.timingStatus,
+      assessmentCycleId: row.assessmentCycleId,
+      assessmentMilestoneId: row.assessmentMilestoneId,
+      studentUserId: row.studentUserId,
+      caseId: row.caseId,
     });
   }
   return built;
@@ -284,7 +306,7 @@ export async function previewSubmissionAiExportAction(input: {
   const { data: full, error } = await ctx.supabase
     .from("assessment_submissions")
     .select(
-      "id, assessment_cycle_id, assessment_milestone_id, case_id, submission_number, timing_status, snapshot",
+      "id, assessment_cycle_id, assessment_milestone_id, case_id, submission_number, timing_status, snapshot, student_user_id",
     )
     .eq("id", input.submissionId)
     .eq("organization_id", ctx.profile.organizationId)
@@ -305,6 +327,7 @@ export async function previewSubmissionAiExportAction(input: {
       submissionNumber: Number(row.submission_number),
       timingStatus: String(row.timing_status ?? "on_time"),
       snapshot: row.snapshot,
+      studentUserId: String(row.student_user_id ?? input.studentId),
     },
   ]);
   if (built.length === 0) {
@@ -356,9 +379,9 @@ async function finishExport(input: {
   milestoneId: string;
   milestoneTitle: string;
   format: "json" | "jsonl";
-  records: AiAnonymizedAssessmentRecord[];
+  built: BuiltRecord[];
 }): Promise<AiExportDownloadResult> {
-  if (input.records.length === 0) {
+  if (input.built.length === 0) {
     return {
       ok: false,
       kind: "validation",
@@ -366,13 +389,66 @@ async function finishExport(input: {
     };
   }
 
-  const exportedAt = new Date().toISOString();
-  const includedArtifacts = summarizeIncludedArtifacts(input.records);
+  const generatedAt = new Date();
+  const expiresAt = new Date(
+    generatedAt.getTime() + AI_EVAL_REQUEST_TTL_DAYS * 24 * 60 * 60 * 1000,
+  );
+  const generatedAtIso = generatedAt.toISOString();
+  const expiresAtIso = expiresAt.toISOString();
+
+  // Sprint 5B: 提出ごとに evaluation_request を記録し、匿名 JSON に ID のみ載せる
+  if (isServiceRoleConfigured()) {
+    const admin = createAdminSupabaseClient();
+    for (const b of input.built) {
+      const evaluationRequestId = randomUUID();
+      const patientId = patientIdForCaseId(b.caseId) ?? "A";
+      const caseVersions = aiEvalCaseVersionsForPatientId(patientId);
+      const packageHash = sha256HexOfCanonicalJson({
+        schema_version: AI_EXPORT_SCHEMA_VERSION,
+        evaluation_request_id: evaluationRequestId,
+        anonymous_ids: b.record.anonymous_ids,
+        source_versions: b.record.source_versions,
+        included_artifacts: b.record.included_artifacts,
+      });
+      const inserted = await insertAiEvaluationRequest(admin, {
+        organizationId: input.profile.organizationId,
+        assessmentSubmissionId: b.submissionId,
+        assessmentCycleId: b.assessmentCycleId,
+        assessmentMilestoneId: b.assessmentMilestoneId,
+        studentUserId: b.studentUserId,
+        evaluationRequestId,
+        packageSchemaVersion: AI_EVAL_PACKAGE_SCHEMA_VERSION,
+        resultSchemaVersion: AI_EVAL_RESULT_SCHEMA_VERSION,
+        compassPolicyVersion: AI_EVAL_COMPASS_POLICY_VERSION,
+        rubricVersion: AI_EVAL_RUBRIC_VERSION,
+        goldStandardVersion: caseVersions.goldStandardVersion,
+        caseVersion: caseVersions.caseVersion,
+        exportSchemaVersion: AI_EXPORT_SCHEMA_VERSION,
+        packageHash,
+        anonymousSubmissionId: b.record.anonymous_ids.submission_id,
+        generatedAt: generatedAtIso,
+        generatedBy: input.profile.id,
+        expiresAt: expiresAtIso,
+      });
+      if (inserted.ok) {
+        b.record.evaluation_request_id = evaluationRequestId;
+      } else {
+        console.error(
+          "[assessmentAiExport] failed to record evaluation request",
+          inserted.kind,
+        );
+      }
+    }
+  }
+
+  const records = input.built.map((b) => b.record);
+  const exportedAt = generatedAtIso;
+  const includedArtifacts = summarizeIncludedArtifacts(records);
   const body =
     input.format === "jsonl"
-      ? buildJsonlExportText(input.records)
+      ? buildJsonlExportText(records)
       : JSON.stringify(
-          buildJsonExportDocument(input.records, exportedAt),
+          buildJsonExportDocument(records, exportedAt),
           null,
           2,
         );
@@ -380,7 +456,7 @@ async function finishExport(input: {
   const stamp = exportedAt.slice(0, 10);
   const filename =
     input.format === "jsonl"
-      ? `ai-export-${stamp}-${input.records.length}.jsonl`
+      ? `ai-export-${stamp}-${records.length}.jsonl`
       : `ai-export-${stamp}.json`;
 
   const audit = await writeAiExportAuditLog({
@@ -390,12 +466,14 @@ async function finishExport(input: {
     actorRole: input.profile.role === "admin" ? "admin" : "teacher",
     milestoneId: input.milestoneId,
     format: input.format,
-    recordCount: input.records.length,
+    recordCount: records.length,
     includedArtifacts,
-    summary: `AI匿名化エクスポート: ${input.milestoneTitle}（${input.records.length}件・${input.format}）`,
+    summary: `AI匿名化エクスポート: ${input.milestoneTitle}（${records.length}件・${input.format}）`,
     metadata: {
       schema_version: AI_EXPORT_SCHEMA_VERSION,
-      // 実 submission uuid は監査に残さない（件数のみ）
+      evaluation_requests_recorded: records.filter(
+        (r) => typeof r.evaluation_request_id === "string",
+      ).length,
     },
   });
 
@@ -408,7 +486,7 @@ async function finishExport(input: {
         ? "application/x-ndjson; charset=utf-8"
         : "application/json; charset=utf-8",
     body,
-    recordCount: input.records.length,
+    recordCount: records.length,
     includedArtifacts,
     auditLogged: audit.ok,
   };
@@ -447,7 +525,7 @@ export async function exportMilestoneAiDataAction(input: {
     milestoneId: meta.row.milestoneId,
     milestoneTitle: meta.row.title,
     format: input.format,
-    records: built.map((b) => b.record),
+    built,
   });
 }
 
@@ -498,6 +576,7 @@ export async function exportSubmissionAiDataAction(input: {
       submissionNumber: Number(row.submission_number),
       timingStatus: String(row.timing_status ?? "on_time"),
       snapshot: row.snapshot,
+      studentUserId: String(row.student_user_id),
     },
   ]);
 
@@ -506,6 +585,6 @@ export async function exportSubmissionAiDataAction(input: {
     milestoneId: meta.row.milestoneId,
     milestoneTitle: meta.row.title,
     format,
-    records: built.map((b) => b.record),
+    built,
   });
 }
