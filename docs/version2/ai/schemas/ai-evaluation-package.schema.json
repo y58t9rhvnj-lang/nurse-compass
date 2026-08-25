@@ -381,6 +381,7 @@
           "items": { "type": "object" }
         },
         "evidence_links": {
+          "description": "Archive schema key retained. AI evaluation packages always use [] (form2_evidence_links are not evaluation evidence).",
           "type": "array",
           "items": { "type": "object" }
         },

@@ -503,6 +503,11 @@ export type BuildAiRecordInput = {
   submissionNumber?: number | null;
 };
 
+/**
+ * 匿名化レコードを構築する（アーカイブ形。evidence_links を含み得る）。
+ * AI評価 package へ載せる前に prepareAiEvaluationPackageStudentSubmission で
+ * scope 適用と evidence_links 空化を行うこと。
+ */
 export function buildAiAnonymizedAssessmentRecord(
   input: BuildAiRecordInput,
 ): AiAnonymizedAssessmentRecord {

@@ -36,7 +36,7 @@ function baseRequest(
     evaluationRequestId: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
     packageSchemaVersion: 1,
     resultSchemaVersion: 1,
-    compassPolicyVersion: "2026.1",
+    compassPolicyVersion: "2026.2",
     rubricVersion: "1",
     goldStandardVersion: "patient-a/1",
     caseVersion: "patient-a/1",

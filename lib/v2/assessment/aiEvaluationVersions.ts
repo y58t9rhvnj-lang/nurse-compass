@@ -2,7 +2,7 @@
 
 export const AI_EVAL_PACKAGE_SCHEMA_VERSION = 1 as const;
 export const AI_EVAL_RESULT_SCHEMA_VERSION = 1 as const;
-export const AI_EVAL_COMPASS_POLICY_VERSION = "2026.1" as const;
+export const AI_EVAL_COMPASS_POLICY_VERSION = "2026.2" as const;
 export const AI_EVAL_RUBRIC_VERSION = "1" as const;
 export const AI_EVAL_REQUEST_TTL_DAYS = 90 as const;
 

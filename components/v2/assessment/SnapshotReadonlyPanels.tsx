@@ -285,10 +285,18 @@ export function SnapshotFieldReflectionsReadonly({
       render={(item) => (
         <div className="space-y-1">
           <p className="font-medium">
-            {str(item.fieldKey) || str(item.form2FieldId) || "フィールド"}
+            {str(item.form2_field_key) ||
+              str(item.fieldKey) ||
+              str(item.form2FieldKey) ||
+              str(item.form2FieldId) ||
+              "フィールド"}
           </p>
           <p className="whitespace-pre-wrap text-slate-700">
-            {str(item.reflectionText) || str(item.text) || str(item.body) || "—"}
+            {str(item.reflection_text) ||
+              str(item.reflectionText) ||
+              str(item.text) ||
+              str(item.body) ||
+              "—"}
           </p>
         </div>
       )}

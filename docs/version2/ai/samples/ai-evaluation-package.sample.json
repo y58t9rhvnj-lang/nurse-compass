@@ -1,7 +1,7 @@
 {
   "metadata": {
     "package_schema_version": 1,
-    "compass_policy_version": "2026.1",
+    "compass_policy_version": "2026.2",
     "rubric_version": "1",
     "gold_standard_version": "patient-a/1",
     "case_version": "patient-a/1",
@@ -12,13 +12,14 @@
     "locale": "ja-JP"
   },
   "compass_policy": {
-    "version": "2026.1",
+    "version": "2026.2",
     "mission": "Compassは完成物の採点ではなく、根拠ある臨床推論と患者理解の形成を支援する。",
     "education_principles": [
       "AIは答えを代筆しない",
       "事実と解釈を区別する",
       "未完成の思考にも価値がある",
-      "妥当な複数の患者理解を認める"
+      "妥当な複数の患者理解を認める",
+      "工程と成果物の内容的つながりを評価する"
     ],
     "ai_role": [
       "視点を広げる",
@@ -31,11 +32,13 @@
       "Gold Standard文章への一致採点・書き換え要求",
       "完成アセスメントの代筆",
       "情報不足の推測補完",
-      "private_noteの送信",
+      "private_note / student_notes の送信",
+      "form2_evidence_links を様式2評価根拠に使うこと",
+      "カード数・リンク数・保存回数・文章量を努力点として加点すること",
       "assessment_reviewsへの直接書き込み",
       "学生への自動返却"
     ],
-    "evaluation_target": "学生の臨床推論過程（情報・関連づけ・解釈・根拠・不足への気づき・患者理解・全体統合）",
+    "evaluation_target": "成果物（form2・patient_understanding・scope内form3）と理解形成工程（field_reflections・information_cards）の内容的つながり。information_cards→field_reflections→form2→patient_understanding。",
     "authority": "AI結果は教員の確定評価ではない。staging経由で教員が採用・修正・却下する。"
   },
   "rubric": {
@@ -55,37 +58,37 @@
       {
         "key": "information_gathering",
         "label": "情報収集",
-        "focus": "必要なInformationを集め、事実として扱えているか"
+        "focus": "information_cardsとform2に、評価に必要な情報が含まれているか（件数加点ではない）"
       },
       {
         "key": "relating_information",
         "label": "情報の関連づけ",
-        "focus": "情報同士のつながりを示せているか"
+        "focus": "form2とfield_reflectionsで症状・生活・治療・背景を内容的に関連づけているか"
       },
       {
         "key": "interpretation_analysis",
         "label": "解釈・分析",
-        "focus": "事実と区別した解釈・分析ができているか"
+        "focus": "field_reflectionsとpatient_understandingに、情報から導いた解釈があるか"
       },
       {
         "key": "clarity_of_evidence",
         "label": "根拠の明確さ",
-        "focus": "解釈を支える根拠（Evidence）が明示されているか"
+        "focus": "information_cards・form2・field_reflectionsの間で判断を支える情報が説明可能か（form2_evidence_linksは使わない）"
       },
       {
         "key": "awareness_of_gaps",
         "label": "不足情報への気づき",
-        "focus": "わからないこと・足りない情報を認識しているか"
+        "focus": "field_reflectionsとpatient_understandingで不足・不確実性・別の可能性を認識しているか"
       },
       {
         "key": "patient_understanding",
         "label": "患者理解",
-        "focus": "この人の理解として更新・統合に向かっているか（別解可）"
+        "focus": "form2とpatient_understandingから、症状だけでなく生活者として捉えているか（別解可）"
       },
       {
         "key": "overall_integration",
         "label": "全体統合",
-        "focus": "様式・振り返り・患者理解が全体として一貫しているか"
+        "focus": "information_cards・field_reflections・form2・patient_understandingの一貫性"
       }
     ],
     "pass_criteria": null
@@ -168,18 +171,23 @@
       }
     ],
     "student_visible_scope": {
-      "description": "提出時点で学生が学習ワークスペース上で参照可能だった症例情報・自身の様式・ノートのみを評価に用いる。",
+      "description": "提出時点のスナップショットのうち、課題scopeに含まれる成果物と理解形成工程のみを評価に用いる。",
       "includes": [
         "症例正本のうち学生公開範囲",
         "Goldが参照する根拠情報のうち学生が収集し得た事実に対応するもの",
-        "提出スナップショット内の様式2・様式3・Evidence・振り返り・患者理解"
+        "提出スナップショット内の様式2・情報カード・フィールド振り返り・患者理解",
+        "課題scopeに含まれる場合の様式3"
       ]
     },
     "excluded_from_evaluation": [
       "教員のみが知る後日情報",
       "非公開カルテ拡張",
       "Teacher Insight",
-      "private_note"
+      "private_note",
+      "student_notes",
+      "form2_evidence_links",
+      "保存回数・入力回数・編集履歴・autosave・作業時間・文章量そのもの",
+      "カード数・リンク数の努力点加点"
     ]
   },
   "student_submission": {
@@ -201,11 +209,11 @@
       "milestone_title": "評価時点1"
     },
     "included_artifacts": [
-      "form2",
-      "form3",
-      "evidence_links",
-      "field_reflections",
-      "patient_understanding"
+      "様式2",
+      "様式3",
+      "情報カード",
+      "フィールド振り返り",
+      "患者理解"
     ],
     "form2": {
       "version": 1,
@@ -248,21 +256,18 @@
     "information_cards": [
       {
         "id": "card_37bec5170489673d",
-        "content": "OTを辞退することがある。SSTには参加できている。"
+        "content": "OTを辞退することがある。SSTには参加できている。",
+        "source_type": "observation",
+        "source_label": "観察",
+        "updated_at": "2026-08-19T10:00:00.000Z"
       }
     ],
-    "evidence_links": [
-      {
-        "id": "lnk_fedcba9876543210",
-        "informationCardId": "card_37bec5170489673d",
-        "form2FieldKey": "history.currentCondition"
-      }
-    ],
+    "evidence_links": [],
     "field_reflections": [
       {
-        "id": "ref_0102030405060708",
-        "fieldKey": "history.currentCondition",
-        "reflectionText": "症状の残存に注目したが、参加できている活動との対比は十分でない。"
+        "form2_field_key": "history.currentCondition",
+        "reflection_text": "症状の残存に注目したが、参加できている活動との対比は十分でない。",
+        "updated_at": "2026-08-20T04:50:00.000Z"
       }
     ],
     "patient_understanding": {
@@ -303,7 +308,8 @@
         "正解／不正解の単純判定",
         "威圧的・断定的表現",
         "Gold Standard文章への書き換え要求",
-        "完成アセスメントの代筆"
+        "完成アセスメントの代筆",
+        "カード数・リンク数・保存回数による努力不足の断定"
       ]
     }
   },

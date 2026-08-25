@@ -3,7 +3,7 @@
     "result_schema_version": 1,
     "evaluation_request_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
     "package_schema_version": 1,
-    "compass_policy_version": "2026.1",
+    "compass_policy_version": "2026.2",
     "rubric_version": "1",
     "gold_standard_version": "patient-a/1",
     "case_version": "patient-a/1",
@@ -17,18 +17,17 @@
       "rubric_key": "information_gathering",
       "score": 3,
       "level_label": "概ね到達",
-      "rationale": "OT辞退とSST参加、夜間幻聴など、活動と症状に関するInformationが提出内に確認できます。ただし睡眠や参加条件の対比は十分には収集されていないように見えます。",
+      "rationale": "情報カードと様式2に、OT辞退・SST参加・夜間幻聴など活動と症状に関する情報が確認できます。件数そのものではなく、必要な観察が提出内に含まれているかを見ています。",
       "citations": [
         {
-          "field_path": "student_submission.form3.informationCards",
+          "field_path": "student_submission.information_cards",
           "anonymous_object_id": "card_37bec5170489673d",
           "excerpt": "OTを辞退することがある。SSTには参加できている。",
-          "note": "活動に関する観察情報"
+          "note": "ノート上の情報カード"
         },
         {
-          "field_path": "student_submission.form3.informationCards",
-          "anonymous_object_id": "card_55aa66bb77cc88dd",
-          "excerpt": "夜間に「だめな人間だ」と聞こえることがある。"
+          "field_path": "student_submission.form2.history.currentCondition",
+          "excerpt": "夜間に幻聴があり、日中は疲労を訴えることがある。"
         }
       ]
     },
@@ -36,11 +35,14 @@
       "rubric_key": "relating_information",
       "score": 2,
       "level_label": "一部到達",
-      "rationale": "辞退と参加の両方が記録されていますが、両者の条件差や睡眠との関連づけは提出からは十分には読み取れません。",
+      "rationale": "様式2の現病と振り返りで症状に触れていますが、参加できている活動との条件差や生活・治療との内容的な関連づけは十分には読み取れません。",
       "citations": [
         {
-          "field_path": "student_submission.form3.informationCards",
-          "anonymous_object_id": "card_37bec5170489673d"
+          "field_path": "student_submission.form2.history.currentCondition"
+        },
+        {
+          "field_path": "student_submission.field_reflections",
+          "note": "form2_field_key=history.currentCondition"
         }
       ],
       "uncertainty_note": "関連づけの意図が振り返りに一部あるが、様式上の明示は限定的"
@@ -49,12 +51,16 @@
       "rubric_key": "interpretation_analysis",
       "score": 2,
       "level_label": "一部到達",
-      "rationale": "「意欲が低いため活動できない」という解釈が見られます。事実（辞退・参加の混在）との区別や、別の可能性の検討は限られているように見えます。これは不正解という判定ではなく、解釈の幅の確認が必要、という意味です。",
+      "rationale": "患者理解に『意欲が低く活動が難しい』という解釈が見られます。振り返りでは対比不足への言及があり、情報から導いた意味づけは一部あります。これは不正解判定ではなく、解釈の幅の確認が必要という意味です。",
       "citations": [
         {
-          "field_path": "student_submission.form3.assessmentCards",
-          "anonymous_object_id": "card_aa11bb22cc33dd44",
-          "excerpt": "意欲が低いため活動できない可能性がある。"
+          "field_path": "student_submission.field_reflections",
+          "note": "form2_field_key=history.currentCondition",
+          "excerpt": "参加できている活動との対比は十分でない。"
+        },
+        {
+          "field_path": "student_submission.patient_understanding.overview_text",
+          "excerpt": "統合失調症のため意欲が低く、活動が難しい人だと理解している。"
         }
       ]
     },
@@ -62,12 +68,18 @@
       "rubric_key": "clarity_of_evidence",
       "score": 3,
       "level_label": "概ね到達",
-      "rationale": "AssessmentにInformationカードへの参照があり、根拠の明示は一部できています。",
+      "rationale": "情報カードの観察内容と様式2・振り返りを突き合わせると、判断を支える情報は一部説明可能です。リンク有無やリンク数は評価していません。",
       "citations": [
         {
-          "field_path": "student_submission.form3.assessmentCards",
-          "anonymous_object_id": "card_aa11bb22cc33dd44",
-          "note": "evidenceInformationIds に card_37bec5170489673d を参照"
+          "field_path": "student_submission.information_cards",
+          "anonymous_object_id": "card_37bec5170489673d"
+        },
+        {
+          "field_path": "student_submission.form2.history.currentCondition"
+        },
+        {
+          "field_path": "student_submission.field_reflections",
+          "note": "form2_field_key=history.currentCondition"
         }
       ]
     },
@@ -79,8 +91,11 @@
       "citations": [
         {
           "field_path": "student_submission.field_reflections",
-          "anonymous_object_id": "ref_0102030405060708",
+          "note": "form2_field_key=history.currentCondition",
           "excerpt": "参加できている活動との対比は十分でない。"
+        },
+        {
+          "field_path": "student_submission.patient_understanding.overview_text"
         }
       ]
     },
@@ -92,8 +107,11 @@
       "citations": [
         {
           "field_path": "student_submission.patient_understanding.overview_text",
-          "anonymous_object_id": "sub_99aa88bb77cc66dd",
           "excerpt": "統合失調症のため意欲が低く、活動が難しい人だと理解している。"
+        },
+        {
+          "field_path": "student_submission.form2.basicInformation.chiefComplaint",
+          "excerpt": "退院後の生活への不安"
         }
       ]
     },
@@ -101,27 +119,33 @@
       "rubric_key": "overall_integration",
       "score": 3,
       "level_label": "概ね到達",
-      "rationale": "様式2・3・振り返り・患者理解は大枠で一貫していますが、解釈と不足情報の扱いが全体として十分に統合されているとは言い切れません。",
+      "rationale": "情報カード・振り返り・様式2・患者理解は大枠で一貫していますが、解釈と不足情報の扱いが全体として十分に統合されているとは言い切れません。成果物のみが整い工程が欠ける場合や、工程が成果に反映されない場合は、より低く評価します。",
       "citations": [
         {
-          "field_path": "student_submission.patient_understanding",
-          "anonymous_object_id": "sub_99aa88bb77cc66dd"
+          "field_path": "student_submission.information_cards",
+          "anonymous_object_id": "card_37bec5170489673d"
         },
         {
-          "field_path": "student_submission.evidence_links",
-          "anonymous_object_id": "lnk_fedcba9876543210"
+          "field_path": "student_submission.field_reflections",
+          "note": "form2_field_key=history.currentCondition"
+        },
+        {
+          "field_path": "student_submission.form2.history.currentCondition"
+        },
+        {
+          "field_path": "student_submission.patient_understanding.overview_text"
         }
       ]
     }
   ],
   "student_feedback_draft": {
     "strengths": [
-      "OTの辞退とSSTへの参加など、活動に関する観察をInformationとして残せている点が読み取れます。",
+      "情報カードと様式2に、OTの辞退とSSTへの参加など活動に関する観察を残せている点が読み取れます。",
       "振り返りで、参加できている活動との対比が十分でないことに自ら触れています。"
     ],
     "supporting_information": [
       "『OTを辞退することがある。SSTには参加できている。』という記録は、活動が一様ではない可能性を考える手がかりになります。",
-      "AssessmentからInformationカードへの参照があり、根拠を示そうとする姿勢が確認できます。"
+      "様式2の現病記述と振り返りの内容は、症状への注目という点でつながっています。"
     ],
     "next_questions": [
       "辞退した日と参加できた日で、前夜の睡眠や当日の体調・活動内容に違いはありましたか。",
@@ -131,14 +155,15 @@
       "提出からは、OT辞退日前夜の睡眠状況は確認できません。推測で補わず、確認が必要です。",
       "病名と意欲低下だけで理解を固定せず、条件によって力が変化する人、という別の妥当な理解もあり得ます。"
     ],
-    "overall_tone_check": "正解／不正解表現なし。代筆なし。非断定。"
+    "overall_tone_check": "正解／不正解表現なし。代筆なし。非断定。努力点加点なし。"
   },
   "teacher_observation": {
     "summary": "情報収集は一定ある一方、意欲低下への単一解釈が強く、条件差・不足情報の扱いが評価の焦点になりそうです。AI草案であり確定ではありません。",
     "attention_points": [
-      "Assessmentの解釈が事実の両義性（辞退と参加）を十分に反映していない可能性",
+      "振り返りと患者理解の解釈が、情報カードの両義性（辞退と参加）を十分に反映していない可能性",
       "患者理解が病名起点に寄っている可能性",
-      "Gold文章一致は求めないこと"
+      "Gold文章一致は求めないこと",
+      "evidence_linksやカード数は評価根拠にしないこと"
     ],
     "suggested_focus_for_feedback": "参加／辞退の条件差と、不足情報を次の問いに変える支援"
   },
@@ -154,12 +179,12 @@
   "follow_up_checks": [
     {
       "question": "学生は夜間幻聴と日中疲労のつながりを、口頭や別ノートで検討していないか。",
-      "reason": "提出スナップショットだけでは、授業内の口頭推論は確認できないため。",
+      "reason": "提出スナップショットだけでは、授業内の口頭推論は確認できないため。student_notesは評価対象外。",
       "related_rubric_keys": ["relating_information", "awareness_of_gaps"]
     },
     {
-      "question": "Evidenceリンク以外に、様式2履歴とInformationの対応意図を学生に確認するか。",
-      "reason": "リンクは1件のみで、関連づけの全体像が不明瞭なため。",
+      "question": "情報カード・振り返り・様式2の対応意図を、内容のつながりとして学生に確認するか。",
+      "reason": "form2_evidence_linksは評価根拠に使わないため、内容的な整合の確認が必要。",
       "related_rubric_keys": ["clarity_of_evidence", "overall_integration"]
     }
   ],

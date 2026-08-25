@@ -22,6 +22,7 @@ import {
   summarizeIncludedArtifacts,
   type AiAnonymizedAssessmentRecord,
 } from "@/lib/v2/assessment/aiExportAnonymize";
+import { prepareAiEvaluationPackageStudentSubmission } from "@/lib/v2/assessment/aiEvaluationPackageSubmission";
 import { writeAiExportAuditLog } from "@/lib/v2/assessment/aiExportAudit";
 import { insertAiEvaluationRequest } from "@/lib/v2/assessment/aiEvaluationRequestRepository";
 import { sha256HexOfCanonicalJson } from "@/lib/v2/assessment/aiEvaluationResultHash";
@@ -33,6 +34,7 @@ import {
   AI_EVAL_RUBRIC_VERSION,
   aiEvalCaseVersionsForPatientId,
 } from "@/lib/v2/assessment/aiEvaluationVersions";
+import type { AssessmentSubmissionScope } from "@/lib/v2/assessment/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type StaffContext =
@@ -197,6 +199,8 @@ function buildRecordsFromRows(
     snapshot: unknown;
     studentUserId: string;
   }>,
+  /** 課題の提出範囲。AI評価 package 向けに scope 外成果物を除外する */
+  submissionScope?: AssessmentSubmissionScope | null,
 ): BuiltRecord[] {
   const ids = createAiAnonymousIdMapper(
     getAiExportIdSecret(),
@@ -208,7 +212,9 @@ function buildRecordsFromRows(
     const patientId = patientIdForCaseId(row.caseId) ?? "A";
     const readModel = parseAssessmentSnapshot(row.snapshot, patientId);
     if (!readModel.ok) continue;
-    const record = buildAiAnonymizedAssessmentRecord({
+    // 匿名化アーカイブ形を構築したうえで、評価 package 用に絞り込み
+    // （evidence_links キーは残し中身は空、scope 外は除外）
+    const archiveRecord = buildAiAnonymizedAssessmentRecord({
       ids,
       titles,
       sourceIds: {
@@ -221,6 +227,12 @@ function buildRecordsFromRows(
       timingStatus: row.timingStatus,
       submissionNumber: row.submissionNumber,
     });
+    const scopeForPackage =
+      submissionScope ?? readModel.submissionScope ?? null;
+    const record = prepareAiEvaluationPackageStudentSubmission(
+      archiveRecord,
+      scopeForPackage,
+    );
     built.push({
       record,
       submissionId: row.id,
@@ -261,7 +273,11 @@ export async function previewMilestoneAiExportAction(
   );
   if (!loaded.ok) return loaded;
 
-  const built = buildRecordsFromRows(ctx.profile.organizationId, loaded.rows);
+  const built = buildRecordsFromRows(
+    ctx.profile.organizationId,
+    loaded.rows,
+    meta.row.submissionScope,
+  );
   const items: AiExportPreviewItem[] = built.map((b) => ({
     submissionId: b.submissionId,
     submissionNumber: b.submissionNumber,
@@ -318,18 +334,22 @@ export async function previewSubmissionAiExportAction(input: {
   }
 
   const row = full as Record<string, unknown>;
-  const built = buildRecordsFromRows(ctx.profile.organizationId, [
-    {
-      id: String(row.id),
-      assessmentCycleId: String(row.assessment_cycle_id),
-      assessmentMilestoneId: String(row.assessment_milestone_id),
-      caseId: String(row.case_id),
-      submissionNumber: Number(row.submission_number),
-      timingStatus: String(row.timing_status ?? "on_time"),
-      snapshot: row.snapshot,
-      studentUserId: String(row.student_user_id ?? input.studentId),
-    },
-  ]);
+  const built = buildRecordsFromRows(
+    ctx.profile.organizationId,
+    [
+      {
+        id: String(row.id),
+        assessmentCycleId: String(row.assessment_cycle_id),
+        assessmentMilestoneId: String(row.assessment_milestone_id),
+        caseId: String(row.case_id),
+        submissionNumber: Number(row.submission_number),
+        timingStatus: String(row.timing_status ?? "on_time"),
+        snapshot: row.snapshot,
+        studentUserId: String(row.student_user_id ?? input.studentId),
+      },
+    ],
+    meta.row.submissionScope,
+  );
   if (built.length === 0) {
     return {
       ok: false,
@@ -519,7 +539,11 @@ export async function exportMilestoneAiDataAction(input: {
   );
   if (!loaded.ok) return loaded;
 
-  const built = buildRecordsFromRows(ctx.profile.organizationId, loaded.rows);
+  const built = buildRecordsFromRows(
+    ctx.profile.organizationId,
+    loaded.rows,
+    meta.row.submissionScope,
+  );
   return finishExport({
     profile: ctx.profile,
     milestoneId: meta.row.milestoneId,
@@ -567,18 +591,22 @@ export async function exportSubmissionAiDataAction(input: {
   }
 
   const row = full as Record<string, unknown>;
-  const built = buildRecordsFromRows(ctx.profile.organizationId, [
-    {
-      id: String(row.id),
-      assessmentCycleId: String(row.assessment_cycle_id),
-      assessmentMilestoneId: String(row.assessment_milestone_id),
-      caseId: String(row.case_id),
-      submissionNumber: Number(row.submission_number),
-      timingStatus: String(row.timing_status ?? "on_time"),
-      snapshot: row.snapshot,
-      studentUserId: String(row.student_user_id),
-    },
-  ]);
+  const built = buildRecordsFromRows(
+    ctx.profile.organizationId,
+    [
+      {
+        id: String(row.id),
+        assessmentCycleId: String(row.assessment_cycle_id),
+        assessmentMilestoneId: String(row.assessment_milestone_id),
+        caseId: String(row.case_id),
+        submissionNumber: Number(row.submission_number),
+        timingStatus: String(row.timing_status ?? "on_time"),
+        snapshot: row.snapshot,
+        studentUserId: String(row.student_user_id),
+      },
+    ],
+    meta.row.submissionScope,
+  );
 
   return finishExport({
     profile: ctx.profile,

@@ -1,8 +1,8 @@
 # AI Evaluation Package Spec（初期版）
 
-Status: **仕様固定（設計のみ）**  
-Scope: 文書・JSON Schema・サンプルのみ。アプリコード / DB / Server Action / UI は変更しない。  
-`package_schema_version`: **1**
+Status: **仕様固定**  
+Scope: 文書・JSON Schema・サンプル、および Sprint 5A package 向け整形。提出 snapshot 構造・migration・staging・reviews は変更しない。  
+`package_schema_version`: **1**（キー構造維持。意味・例・policy は `compass_policy_version` **2026.2** で追跡）
 
 ---
 
@@ -77,7 +77,7 @@ ai_evaluation_package
 | フィールド | 型 | 説明 |
 |------------|-----|------|
 | `package_schema_version` | integer | 初期値 **1** |
-| `compass_policy_version` | string | 例: `"2026.1"` |
+| `compass_policy_version` | string | 例: `"2026.2"` |
 | `rubric_version` | string | 例: `"1"`（Sprint 4B 固定ルーブリック） |
 | `gold_standard_version` | string | 安定 case key。例: `"patient-a/1"` |
 | `case_version` | string | 症例正本版。例: `"patient-a/1"` |
@@ -112,15 +112,15 @@ Sprint 4B `assessmentRubric.ts` と対応。
 | `items[]` | 7 項目。各 `key` / `label` / `focus`（評価観点） |
 | `pass_criteria` | 初期版は **`null`**。将来学校・課題単位の拡張用スロット |
 
-項目 key（固定）:
+項目 key（固定）と主な評価根拠（`02_ai_evaluation_policy.md` §7）:
 
-1. `information_gathering`
-2. `relating_information`
-3. `interpretation_analysis`
-4. `clarity_of_evidence`
-5. `awareness_of_gaps`
-6. `patient_understanding`
-7. `overall_integration`
+1. `information_gathering` — `information_cards` + `form2`
+2. `relating_information` — `form2` + `field_reflections`
+3. `interpretation_analysis` — `field_reflections` + `patient_understanding`
+4. `clarity_of_evidence` — `information_cards` / `form2` / `field_reflections`（**`evidence_links` 不使用**）
+5. `awareness_of_gaps` — `field_reflections` + `patient_understanding`
+6. `patient_understanding` — `form2` + `patient_understanding`
+7. `overall_integration` — 上記工程〜成果物の一貫性
 
 段階ラベル: 到達していない / 一部到達 / 概ね到達 / 十分到達 / 高い水準で到達
 
@@ -158,33 +158,40 @@ Sprint 4B `assessmentRubric.ts` と対応。
 | `evaluation_moment` | 匿名ラベル（例: 評価時点1）と種別 |
 | `canonical_case` | 症例正本の要約／許可された事実ブロック（匿名化） |
 | `gold_referenced_information[]` | Gold が参照する根拠情報（匿名 id + 内容） |
-| `student_visible_scope` | 提出時点で学生が参照可能だった情報範囲の宣言 |
-| `excluded_from_evaluation` | 教員のみ後日情報・非公開情報は評価に使わない旨 |
+| `student_visible_scope` | 提出時点で学生が参照可能だった情報範囲の宣言（様式2・情報カード・振り返り・患者理解、および scope 内の様式3） |
+| `excluded_from_evaluation` | 教員のみ後日情報・非公開情報・`student_notes`・操作ログ系・`form2_evidence_links` 等は評価に使わない旨 |
 
-**含めないもの:** 教員専用メモ、後日開示情報、Teacher Insight、未公開カルテ拡張。
+**含めないもの:** 教員専用メモ、後日開示情報、Teacher Insight、未公開カルテ拡張、`student_notes`、努力点指標。
 
 ### 5.6 `student_submission`（必須）
 
-Sprint 5A の `AiAnonymizedAssessmentRecord` を **1 件だけ** 含む。
+Sprint 5A の `AiAnonymizedAssessmentRecord` を **1 件だけ** 含む（AI 評価 package 向けに整形済み）。
 
 - `schema_version` / `export_kind` / `anonymous_ids` / `meta`
 - `form2` / `form3` / `information_cards` / `evidence_links`
 - `field_reflections` / `patient_understanding` / `source_versions` / `included_artifacts`
 
-`private_note`・教員コメント・内部 user/org ID は含めない。
+整形ルール（キー構造は維持、`package_schema_version` は 1 のまま）:
+
+- `submissionScope` 外の成果物は可能な範囲で除外（例: `includeForm3=false` なら `form3: null`）
+- **`evidence_links` は常に `[]`**（`form2_evidence_links` を様式2評価根拠にしない。アーカイブ型のキーは残す）
+- `included_artifacts` は日本語ラベル（例: `様式2`・`情報カード`・`フィールド振り返り`・`患者理解`）
+- `field_reflections` は提出 snapshot の実データ形（`form2_field_key` / `reflection_text` / `updated_at`）
+- `private_note`・`student_notes`・教員コメント・内部 user/org ID は含めない
 
 ### 5.7 `evaluation_instructions`（必須）
 
 | 指示 | 内容 |
 |------|------|
 | 別解 | Gold との文章一致を求めない。妥当な別解を認める |
-| つながり | 情報と解釈のつながりを評価する |
-| 推測禁止 | 情報不足を推測で補完しない |
+| つながり | 情報カード→振り返り→様式2→患者理解の内容的つながりを評価する |
+| 推測禁止 | 情報不足を推測で補完しない。根拠不足時は能力断定せず「評価可能な根拠が不足」 |
 | 区別 | 事実・推論・評価を区別する |
 | 不確実性 | 不確実な評価は明示する |
-| 引用 | 各項目に `citations`（`field_path` + `anonymous_object_id`） |
+| 引用 | 各項目に `citations`（`field_path` + `anonymous_object_id`）。`evidence_links` は様式2根拠に使わない |
 | 出力分離 | `student_feedback_draft` と `teacher_observation` を分離 |
 | 永続化 | 既存 `assessment_reviews` へ直接書き込まない |
+| 努力点禁止 | 保存回数・カード数・リンク数・文章量そのものを加点しない |
 
 ### 5.8 `output_schema_hint`（必須）
 
@@ -247,6 +254,15 @@ ai_evaluation_result
 
 \* 少なくとも `field_path` または `anonymous_object_id` のいずれかは必須。  
 配列インデックス alone（例: `assessmentCards[2]` のみ）を永続識別子にしてはならない。インデックスを使う場合も `anonymous_object_id` を併記する。
+
+推奨 citation 例:
+
+- `student_submission.form2.history.currentCondition`
+- `student_submission.field_reflections`（`form2_field_key` を note / path で明示）
+- `student_submission.information_cards` + `card_…`
+- `student_submission.patient_understanding.overview_text`
+
+様式2評価で `student_submission.evidence_links` を引用しない。
 
 ### 6.3 `student_feedback_draft`（必須）
 
