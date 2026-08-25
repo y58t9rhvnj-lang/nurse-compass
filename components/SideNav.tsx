@@ -11,6 +11,7 @@ import {
   LayoutList,
   LogOut,
   MessageCircle,
+  MessageSquareText,
   Network,
   NotebookPen,
   Settings,
@@ -33,6 +34,7 @@ export type AppView =
   | "form2"
   | "form3"
   | "submissions"
+  | "feedback"
   | "patient-top"
   | "conversation"
   | "clinical-workspace"
@@ -94,6 +96,7 @@ export const STUDENT_NAV_ITEMS: NavItem[] = [
   { label: "様式2", icon: ClipboardList, view: "clinical-workspace" },
   { label: "様式3", icon: LayoutList, view: "form3" },
   { label: "提出", icon: Send, view: "submissions" },
+  { label: "フィードバック", icon: MessageSquareText, view: "feedback" },
   { label: "情報BOX", icon: MessageCircle, badge: 2 },
   { label: "申し送り", icon: MessageCircle },
   { label: "スケジュール", icon: Calendar },

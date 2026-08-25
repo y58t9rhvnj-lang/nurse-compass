@@ -13,7 +13,9 @@ import CoreLayer from "@/components/v2/core/CoreLayer";
 import LearningLayer from "@/components/v2/learning/LearningLayer";
 import { isLearningWorkspaceView } from "@/components/v2/learning/workspace/WorkspaceHost";
 import StudentSubmissionsWorkspace from "@/components/v2/assessment/StudentSubmissionsWorkspace";
+import StudentFeedbackWorkspace from "@/components/v2/assessment/StudentFeedbackWorkspace";
 import { getSubmissionPendingBadgeCountAction } from "@/app/v2/actions/assessmentSubmission";
+import { listStudentReturnedReviewsAction } from "@/app/v2/actions/assessmentStudentFeedback";
 import {
   EvidenceCaptureProvider,
   type EvidenceCaptureApi,
@@ -286,6 +288,11 @@ export default function AppShell({
     setPendingQuestion(null);
     setActiveView("submissions");
   }, []);
+  const goFeedback = useCallback(() => {
+    setNotice(null);
+    setPendingQuestion(null);
+    setActiveView("feedback");
+  }, []);
   // 電子カルテを開く。tab 指定時はそのタブから、focus 指定時は該当記録へ移動・強調。
   const goChart = (tab?: ChartTabId, focus?: ChartFocus) => {
     setNotice(null);
@@ -314,6 +321,7 @@ export default function AppShell({
     else if (view === "form2" && (FORM2_ENABLED || mode === "v2")) goForm2();
     else if (view === "form3" && mode === "v2") goForm3();
     else if (view === "submissions" && mode === "v2") goSubmissions();
+    else if (view === "feedback" && mode === "v2") goFeedback();
   };
 
   // ── Version2 学習支援 Inspector（P4） ───────────────────────────
@@ -452,6 +460,7 @@ export default function AppShell({
   const showInspector = mode === "v2" && inspectorEnabled && inspectorTargetView;
 
   const [submissionBadgeCount, setSubmissionBadgeCount] = useState(0);
+  const [feedbackBadgeCount, setFeedbackBadgeCount] = useState(0);
   const refreshSubmissionBadge = useCallback(async () => {
     if (mode !== "v2" || lectureMode || !fixedPatientId) {
       setSubmissionBadgeCount(0);
@@ -461,22 +470,43 @@ export default function AppShell({
     if (res.ok) setSubmissionBadgeCount(res.count);
   }, [mode, lectureMode, fixedPatientId]);
 
+  const refreshFeedbackBadge = useCallback(async () => {
+    if (mode !== "v2" || lectureMode) {
+      setFeedbackBadgeCount(0);
+      return;
+    }
+    const res = await listStudentReturnedReviewsAction();
+    if (res.ok) setFeedbackBadgeCount(res.count);
+    else setFeedbackBadgeCount(0);
+  }, [mode, lectureMode]);
+
   useEffect(() => {
     void refreshSubmissionBadge();
   }, [refreshSubmissionBadge]);
 
+  useEffect(() => {
+    void refreshFeedbackBadge();
+  }, [refreshFeedbackBadge]);
+
   const studentNavItems = useMemo<NavItem[]>(
     () =>
-      STUDENT_NAV_ITEMS.map((item) =>
-        item.view === "submissions"
-          ? {
-              ...item,
-              badge:
-                submissionBadgeCount > 0 ? submissionBadgeCount : undefined,
-            }
-          : item,
-      ),
-    [submissionBadgeCount],
+      STUDENT_NAV_ITEMS.map((item) => {
+        if (item.view === "submissions") {
+          return {
+            ...item,
+            badge:
+              submissionBadgeCount > 0 ? submissionBadgeCount : undefined,
+          };
+        }
+        if (item.view === "feedback") {
+          return {
+            ...item,
+            badge: feedbackBadgeCount > 0 ? feedbackBadgeCount : undefined,
+          };
+        }
+        return item;
+      }),
+    [submissionBadgeCount, feedbackBadgeCount],
   );
 
   // ── Version2 学生シェル = V1 Core シェル + Learning 重畳 ─────────────────
@@ -588,6 +618,13 @@ export default function AppShell({
                   }}
                   onPendingCountChange={setSubmissionBadgeCount}
                   onNotify={(message) => setNotice(message)}
+                />
+              </>
+            ) : activeView === "feedback" ? (
+              <>
+                {studentSideNav}
+                <StudentFeedbackWorkspace
+                  onCountChange={setFeedbackBadgeCount}
                 />
               </>
             ) : activeView === "evidence-review" ? (

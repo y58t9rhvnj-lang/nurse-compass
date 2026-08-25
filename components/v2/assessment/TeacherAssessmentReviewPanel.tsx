@@ -13,10 +13,13 @@ import {
   completeTeacherAssessmentReviewAction,
   getTeacherAssessmentReviewAction,
   reopenTeacherAssessmentReviewAction,
+  returnTeacherAssessmentReviewAction,
+  revokeReturnedAssessmentReviewAction,
   saveAndCompleteTeacherAssessmentReviewAction,
   saveTeacherAssessmentReviewDraftAction,
 } from "@/app/v2/actions/assessmentReviewWrite";
 import type { AssessmentReviewRow } from "@/lib/v2/assessment/assessmentReviewRepository";
+import { isAssessmentReviewCurrentlyReturned } from "@/lib/v2/assessment/assessmentReviewStatus";
 import {
   ASSESSMENT_RUBRIC_KEYS,
   ASSESSMENT_RUBRIC_LABELS,
@@ -82,7 +85,23 @@ type SaveState =
   | { kind: "error"; message: string }
   | { kind: "conflict"; message: string };
 
-function statusBadge(status: "draft" | "completed" | null) {
+function statusBadge(
+  status: "draft" | "completed" | "returned" | "return_revoked" | null,
+) {
+  if (status === "returned") {
+    return (
+      <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-900">
+        返却済み
+      </span>
+    );
+  }
+  if (status === "return_revoked") {
+    return (
+      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">
+        返却取消済み
+      </span>
+    );
+  }
   if (status === "completed") {
     return (
       <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900">
@@ -254,6 +273,8 @@ export default function TeacherAssessmentReviewPanel({
     }),
   );
   const [pendingNav, setPendingNav] = useState<PendingNav | null>(null);
+  const [revokeReason, setRevokeReason] = useState("");
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
   const panelScrollRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   /** 進行中の get を無効化するための世代。mutation 成功時に進めて stale 上書きを防ぐ */
@@ -262,6 +283,12 @@ export default function TeacherAssessmentReviewPanel({
   useBodyScrollLock(open, rootRef);
 
   const readOnly = review?.status === "completed";
+  const currentlyReturned = Boolean(
+    review && isAssessmentReviewCurrentlyReturned(review),
+  );
+  const returnRevoked = Boolean(
+    review?.returnedAt && review.returnRevokedAt,
+  );
   const candidateSubmissionId = candidate?.submissionId ?? null;
 
   const currentForm = useMemo(
@@ -546,6 +573,14 @@ export default function TeacherAssessmentReviewPanel({
     if (!candidate || !review || review.status !== "completed" || pending) {
       return;
     }
+    if (currentlyReturned) {
+      setSaveState({
+        kind: "error",
+        message:
+          "返却済みの評価は、先に返却を取り消してから下書きに戻せます。",
+      });
+      return;
+    }
     const ok = window.confirm(
       "評価を下書きに戻して編集できるようにしますか？",
     );
@@ -571,6 +606,91 @@ export default function TeacherAssessmentReviewPanel({
       commitReviewFromAction(res.review, {
         completedByDisplayName: completedByName,
       });
+      setSaveState({ kind: "idle" });
+    });
+  };
+
+  const onReturnToStudent = () => {
+    if (
+      !candidate ||
+      !review ||
+      review.status !== "completed" ||
+      currentlyReturned ||
+      pending
+    ) {
+      return;
+    }
+    const ok = window.confirm(
+      "この評価を学生へ返却します。\n返却後、学生は評価とコメントを閲覧できます。",
+    );
+    if (!ok) return;
+    setSaveState({ kind: "saving" });
+    startTransition(async () => {
+      const res = await returnTeacherAssessmentReviewAction({
+        milestoneId,
+        studentId,
+        submissionId: candidate.submissionId,
+        reviewId: review.id,
+        baseUpdatedAt: baseUpdatedAt!,
+      });
+      if (!res.ok) {
+        setSaveState(
+          res.kind === "conflict"
+            ? { kind: "conflict", message: res.message }
+            : { kind: "error", message: res.message },
+        );
+        return;
+      }
+      commitReviewFromAction(res.review, {
+        completedByDisplayName: completedByName,
+      });
+      setSaveState({
+        kind: "saved",
+        at: formatAssessmentDateTimeJa(res.review.updatedAt),
+      });
+    });
+  };
+
+  const onConfirmRevokeReturn = () => {
+    if (
+      !candidate ||
+      !review ||
+      !currentlyReturned ||
+      pending
+    ) {
+      return;
+    }
+    const reason = revokeReason.trim();
+    if (reason.length < 1 || reason.length > 1000) {
+      setSaveState({
+        kind: "error",
+        message: "取消理由は1〜1000文字で入力してください。",
+      });
+      return;
+    }
+    setSaveState({ kind: "saving" });
+    startTransition(async () => {
+      const res = await revokeReturnedAssessmentReviewAction({
+        milestoneId,
+        studentId,
+        submissionId: candidate.submissionId,
+        reviewId: review.id,
+        baseUpdatedAt: baseUpdatedAt!,
+        reason,
+      });
+      if (!res.ok) {
+        setSaveState(
+          res.kind === "conflict"
+            ? { kind: "conflict", message: res.message }
+            : { kind: "error", message: res.message },
+        );
+        return;
+      }
+      commitReviewFromAction(res.review, {
+        completedByDisplayName: completedByName,
+      });
+      setRevokeDialogOpen(false);
+      setRevokeReason("");
       setSaveState({ kind: "idle" });
     });
   };
@@ -631,8 +751,22 @@ export default function TeacherAssessmentReviewPanel({
 
   const completedBanner =
     readOnly && review ? (
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
-        <p className="font-semibold">評価確定済み</p>
+      <div
+        className={`rounded-lg border px-3 py-2 text-xs ${
+          currentlyReturned
+            ? "border-sky-200 bg-sky-50 text-sky-950"
+            : returnRevoked
+              ? "border-amber-200 bg-amber-50 text-amber-950"
+              : "border-emerald-200 bg-emerald-50 text-emerald-950"
+        }`}
+      >
+        <p className="font-semibold">
+          {currentlyReturned
+            ? "学生へ返却済み"
+            : returnRevoked
+              ? "返却取消済み（評価確定）"
+              : "評価確定済み"}
+        </p>
         <p className="mt-1">
           確定日時：
           {review.completedAt
@@ -640,8 +774,20 @@ export default function TeacherAssessmentReviewPanel({
             : "—"}
         </p>
         <p>確定者：{completedByName ?? "—"}</p>
-        <p className="mt-1 text-emerald-900/90">
-          この評価を編集する場合は、下書きに戻してください。
+        {currentlyReturned && review.returnedAt ? (
+          <p className="mt-1">
+            返却日時：{formatAssessmentDateTimeJa(review.returnedAt)}
+          </p>
+        ) : null}
+        {returnRevoked && review.returnRevokedAt ? (
+          <p className="mt-1">
+            取消日時：{formatAssessmentDateTimeJa(review.returnRevokedAt)}
+          </p>
+        ) : null}
+        <p className="mt-1 opacity-90">
+          {currentlyReturned
+            ? "編集するには、先に返却を取り消してください。"
+            : "この評価を編集する場合は、下書きに戻してください。"}
         </p>
       </div>
     ) : null;
@@ -821,7 +967,30 @@ export default function TeacherAssessmentReviewPanel({
           </button>
         </div>
       ) : null}
-      {candidate && readOnly ? (
+      {candidate && readOnly && !currentlyReturned ? (
+        <button
+          type="button"
+          disabled={pending}
+          className="flex min-h-11 w-full items-center justify-center rounded-lg bg-sky-700 text-sm font-medium text-white disabled:opacity-50"
+          onClick={onReturnToStudent}
+        >
+          学生へ返却
+        </button>
+      ) : null}
+      {candidate && readOnly && currentlyReturned ? (
+        <button
+          type="button"
+          disabled={pending}
+          className="flex min-h-11 w-full items-center justify-center rounded-lg border border-amber-400 bg-amber-50 text-sm font-medium text-amber-950 disabled:opacity-50"
+          onClick={() => {
+            setRevokeReason("");
+            setRevokeDialogOpen(true);
+          }}
+        >
+          返却を取り消す
+        </button>
+      ) : null}
+      {candidate && readOnly && !currentlyReturned ? (
         <button
           type="button"
           disabled={pending}
@@ -833,6 +1002,56 @@ export default function TeacherAssessmentReviewPanel({
       ) : null}
     </div>
   );
+
+  const revokeDialog =
+    revokeDialogOpen ? (
+      <div className="absolute inset-0 z-30 flex items-end justify-center bg-slate-900/50 p-4 sm:items-center">
+        <div
+          role="alertdialog"
+          aria-labelledby="revoke-return-title"
+          className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl"
+        >
+          <p
+            id="revoke-return-title"
+            className="text-sm font-semibold text-slate-900"
+          >
+            学生への返却を取り消します。
+            <br />
+            学生画面ではこの評価が表示されなくなります。
+          </p>
+          <label className="mt-3 block text-xs font-medium text-slate-700">
+            取消理由（必須）
+            <textarea
+              className="mt-1 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              maxLength={1000}
+              value={revokeReason}
+              onChange={(e) => setRevokeReason(e.target.value)}
+              placeholder="取消理由を入力"
+            />
+          </label>
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={pending || revokeReason.trim().length < 1}
+              className="flex min-h-11 items-center justify-center rounded-lg bg-amber-700 text-sm font-medium text-white disabled:opacity-50"
+              onClick={onConfirmRevokeReturn}
+            >
+              返却を取り消す
+            </button>
+            <button
+              type="button"
+              className="flex min-h-11 items-center justify-center rounded-lg text-sm text-slate-600"
+              onClick={() => {
+                setRevokeDialogOpen(false);
+                setRevokeReason("");
+              }}
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null;
 
   const dirtyDialog =
     pendingNav != null ? (
@@ -877,6 +1096,21 @@ export default function TeacherAssessmentReviewPanel({
       </div>
     ) : null;
 
+  const reviewDisplayStatus:
+    | "draft"
+    | "completed"
+    | "returned"
+    | "return_revoked"
+    | null = !review
+    ? null
+    : currentlyReturned
+      ? "returned"
+      : returnRevoked
+        ? "return_revoked"
+        : review.status === "completed"
+          ? "completed"
+          : "draft";
+
   return (
     <div ref={rootRef}>
       <div className="flex flex-wrap items-center gap-2">
@@ -902,13 +1136,7 @@ export default function TeacherAssessmentReviewPanel({
             評価対象なし
           </span>
         ) : (
-          statusBadge(
-            review?.status === "completed"
-              ? "completed"
-              : review
-                ? "draft"
-                : null,
-          )
+          statusBadge(reviewDisplayStatus)
         )}
         {loadError ? (
           <span className="text-xs text-rose-700">{loadError}</span>
@@ -996,13 +1224,7 @@ export default function TeacherAssessmentReviewPanel({
                   評価対象なし
                 </span>
               ) : (
-                statusBadge(
-                  review?.status === "completed"
-                    ? "completed"
-                    : review
-                      ? "draft"
-                      : null,
-                )
+                statusBadge(reviewDisplayStatus)
               )}
               <span className="truncate">{milestoneTitle}</span>
               {candidate ? (
@@ -1060,6 +1282,7 @@ export default function TeacherAssessmentReviewPanel({
 
           {footerActions}
           {dirtyDialog}
+          {revokeDialog}
         </div>
       </div>
     </div>

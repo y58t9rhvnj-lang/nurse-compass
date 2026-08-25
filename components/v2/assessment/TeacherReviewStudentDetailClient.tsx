@@ -19,7 +19,7 @@ import {
   formatSubmissionScopeJa,
 } from "@/lib/v2/assessment/submissionScope";
 import {
-  lateReviewStatusLabel,
+  reviewDisplayStatusLabel,
   studentIdLabel,
 } from "@/lib/v2/assessment/teacherReviewLabels";
 import {
@@ -30,6 +30,7 @@ import {
   formatTeacherTimingDisplayText,
 } from "@/lib/v2/assessment/teacherReviewTimingDisplay";
 import { TeacherTimingDisplayBlock } from "@/components/v2/assessment/TeacherTimingDisplayBlock";
+import LateSubmissionReviewActions from "@/components/v2/assessment/LateSubmissionReviewActions";
 import TeacherAssessmentReviewPanel from "@/components/v2/assessment/TeacherAssessmentReviewPanel";
 import {
   SnapshotEvidenceLinksReadonly,
@@ -125,6 +126,9 @@ export default function TeacherReviewStudentDetailClient({
   ]);
   const [reviewDirty, setReviewDirty] = useState(false);
   const [listNavRequestId, setListNavRequestId] = useState(0);
+  const [candidateChangeNotice, setCandidateChangeNotice] = useState<
+    string | null
+  >(null);
 
   const viewing = history.find((h) => h.id === viewingSubmissionId) ?? null;
   const candidate = history.find((h) => h.id === candidateSubmissionId) ?? null;
@@ -275,6 +279,48 @@ export default function TeacherReviewStudentDetailClient({
     router.push(listHref);
   };
 
+  const reloadCurrentStudent = useCallback(() => {
+    startTransition(async () => {
+      setError(null);
+      const res = await getTeacherStudentSubmissionDetailAction({
+        milestoneId,
+        studentId,
+        submissionId: viewingSubmissionId,
+      });
+      if (!res.ok) {
+        setError("学生データを読み込めませんでした。");
+        return;
+      }
+      applyDetail(res);
+    });
+  }, [applyDetail, milestoneId, studentId, viewingSubmissionId]);
+
+  const onLateReviewDone = useCallback(
+    (result: {
+      candidateChanged: boolean;
+      previousCandidateSubmissionId: string | null;
+      newCandidateSubmissionId: string | null;
+      submissionNumber: number;
+      decision: "approved" | "rejected";
+    }) => {
+      if (result.decision === "approved" && result.candidateChanged) {
+        const prev = history.find(
+          (h) => h.id === result.previousCandidateSubmissionId,
+        );
+        const prevLabel = prev
+          ? `第${prev.submissionNumber}回提出`
+          : "以前の評価対象";
+        setCandidateChangeNotice(
+          `期限後提出の承認により、評価対象が第${result.submissionNumber}回提出へ変更されました。\n${prevLabel}の評価は履歴として保持されています。`,
+        );
+      } else {
+        setCandidateChangeNotice(null);
+      }
+      reloadCurrentStudent();
+    },
+    [history, reloadCurrentStudent],
+  );
+
   const onListLinkClick = (e: MouseEvent) => {
     if (!reviewDirty) return;
     e.preventDefault();
@@ -407,6 +453,12 @@ export default function TeacherReviewStudentDetailClient({
         </div>
       </header>
 
+      {candidateChangeNotice ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm whitespace-pre-line text-amber-950">
+          {candidateChangeNotice}
+        </div>
+      ) : null}
+
       <div className="space-y-4">
         <TeacherAssessmentReviewPanel
           milestoneId={milestoneId}
@@ -509,19 +561,22 @@ export default function TeacherReviewStudentDetailClient({
                   />
                 ) : null}
                 {tab === "history" ? (
-                  <ul className="space-y-2">
+                  <ul className="space-y-3">
                     {history.map((item) => {
                       const isCand = item.id === candidateSubmissionId;
                       const isView = item.id === viewingSubmissionId;
                       return (
-                        <li key={item.id}>
+                        <li
+                          key={item.id}
+                          className={`rounded-lg border px-3 py-2 ${
+                            isView
+                              ? "border-sky-400 bg-sky-50"
+                              : "border-slate-200 bg-white"
+                          }`}
+                        >
                           <button
                             type="button"
-                            className={`flex min-h-11 w-full flex-col items-start rounded-lg border px-3 py-2 text-left text-sm ${
-                              isView
-                                ? "border-sky-400 bg-sky-50"
-                                : "border-slate-200 bg-white"
-                            }`}
+                            className="flex min-h-11 w-full flex-col items-start text-left text-sm"
                             onClick={() => loadSubmission(item.id)}
                           >
                             <span className="font-semibold text-slate-900">
@@ -537,22 +592,43 @@ export default function TeacherReviewStudentDetailClient({
                                 className="whitespace-pre-line text-xs leading-snug text-slate-600"
                               />
                               <span className="mt-1 block">
-                                確認：
-                                {lateReviewStatusLabel(item.lateReviewStatus)}{" "}
-                                ・ 版：
+                                版：
                                 {sourceVersionsLabel(item.sourceVersions)}
                               </span>
                             </span>
                             <span className="mt-1 flex flex-wrap gap-2">
                               {isCand ? (
                                 <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900">
-                                  評価対象
+                                  現在の評価対象
                                 </span>
                               ) : (
                                 <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                                  評価対象外
+                                  過去の提出
                                 </span>
                               )}
+                              {item.reviewDisplayStatus !== "none" ? (
+                                <span
+                                  className={`rounded px-2 py-0.5 text-xs font-medium ${
+                                    item.reviewDisplayStatus === "returned"
+                                      ? "bg-sky-100 text-sky-900"
+                                      : item.reviewDisplayStatus ===
+                                          "return_revoked"
+                                        ? "bg-amber-100 text-amber-900"
+                                        : item.reviewDisplayStatus ===
+                                            "completed"
+                                          ? "bg-emerald-100 text-emerald-900"
+                                          : "bg-slate-100 text-slate-700"
+                                  }`}
+                                >
+                                  {isCand
+                                    ? reviewDisplayStatusLabel(
+                                        item.reviewDisplayStatus,
+                                      )
+                                    : item.reviewDisplayStatus === "returned"
+                                      ? "過去に返却済み"
+                                      : `過去の評価・${reviewDisplayStatusLabel(item.reviewDisplayStatus)}`}
+                                </span>
+                              ) : null}
                               {isView ? (
                                 <span className="rounded bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-900">
                                   閲覧中
@@ -560,6 +636,14 @@ export default function TeacherReviewStudentDetailClient({
                               ) : null}
                             </span>
                           </button>
+                          <div className="mt-2 border-t border-slate-100 pt-2">
+                            <LateSubmissionReviewActions
+                              submissionId={item.id}
+                              lateReviewStatus={item.lateReviewStatus}
+                              timingIsLate={item.timingStatus === "late"}
+                              onDone={onLateReviewDone}
+                            />
+                          </div>
                         </li>
                       );
                     })}

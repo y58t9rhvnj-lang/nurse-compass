@@ -12,10 +12,13 @@ import {
   getTeacherAssessmentReviewBySubmissionId,
   insertTeacherAssessmentReviewDraft,
   reopenTeacherAssessmentReviewRow,
+  returnTeacherAssessmentReviewRow,
+  revokeReturnedAssessmentReviewRow,
   updateTeacherAssessmentReviewDraft,
   validateReviewTargetSubmission,
   type AssessmentReviewRow,
 } from "@/lib/v2/assessment/assessmentReviewRepository";
+import { isAssessmentReviewCurrentlyReturned } from "@/lib/v2/assessment/assessmentReviewStatus";
 import { getTeacherStudentProfile } from "@/lib/v2/assessment/teacherReviewRepository";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -483,6 +486,14 @@ export async function reopenTeacherAssessmentReviewAction(input: {
       message: "確定済みの評価のみ下書きに戻せます。",
     };
   }
+  if (isAssessmentReviewCurrentlyReturned(existing.row)) {
+    return {
+      ok: false,
+      kind: "validation",
+      message:
+        "返却済みの評価は、先に返却を取り消してから下書きに戻せます。",
+    };
+  }
 
   const reopened = await reopenTeacherAssessmentReviewRow(ctx.supabase, {
     organizationId: ctx.profile.organizationId,
@@ -494,6 +505,157 @@ export async function reopenTeacherAssessmentReviewAction(input: {
     return { ok: false, kind: reopened.kind, message: reopened.message };
   }
   return { ok: true, review: reopened.row };
+}
+
+export async function returnTeacherAssessmentReviewAction(input: {
+  milestoneId: string;
+  studentId: string;
+  submissionId: string;
+  reviewId: string;
+  baseUpdatedAt: string;
+}): Promise<
+  | { ok: true; review: AssessmentReviewRow }
+  | { ok: false; kind: string; message: string }
+> {
+  const ctx = await requireStaffContext();
+  if (!ctx.ok) return ctx;
+
+  const studentOk = await assertStudentInOrg(
+    ctx.supabase,
+    ctx.profile.organizationId,
+    input.studentId,
+  );
+  if (!studentOk.ok) return studentOk;
+
+  const validated = await validateReviewTargetSubmission(
+    ctx.supabase,
+    ctx.profile.organizationId,
+    {
+      milestoneId: input.milestoneId,
+      studentId: input.studentId,
+      submissionId: input.submissionId,
+    },
+  );
+  if (!validated.ok) {
+    return { ok: false, kind: validated.kind, message: validated.message };
+  }
+
+  const existing = await getTeacherAssessmentReviewBySubmissionId(
+    ctx.supabase,
+    ctx.profile.organizationId,
+    input.submissionId,
+  );
+  if (existing.error || !existing.row || existing.row.id !== input.reviewId) {
+    return {
+      ok: false,
+      kind: "conflict",
+      message:
+        "別の画面でこの評価が更新されています。再読み込みして内容を確認してください。",
+    };
+  }
+  if (existing.row.status !== "completed") {
+    return {
+      ok: false,
+      kind: "validation",
+      message: "確定済みの評価のみ返却できます。",
+    };
+  }
+  if (isAssessmentReviewCurrentlyReturned(existing.row)) {
+    return {
+      ok: false,
+      kind: "validation",
+      message: "すでに学生へ返却済みです。",
+    };
+  }
+
+  const returned = await returnTeacherAssessmentReviewRow(ctx.supabase, {
+    organizationId: ctx.profile.organizationId,
+    reviewId: input.reviewId,
+    baseUpdatedAt: input.baseUpdatedAt,
+    actorUserId: ctx.profile.id,
+  });
+  if (!returned.ok) {
+    return { ok: false, kind: returned.kind, message: returned.message };
+  }
+  return { ok: true, review: returned.row };
+}
+
+export async function revokeReturnedAssessmentReviewAction(input: {
+  milestoneId: string;
+  studentId: string;
+  submissionId: string;
+  reviewId: string;
+  baseUpdatedAt: string;
+  reason: unknown;
+}): Promise<
+  | { ok: true; review: AssessmentReviewRow }
+  | { ok: false; kind: string; message: string }
+> {
+  const ctx = await requireStaffContext();
+  if (!ctx.ok) return ctx;
+
+  const studentOk = await assertStudentInOrg(
+    ctx.supabase,
+    ctx.profile.organizationId,
+    input.studentId,
+  );
+  if (!studentOk.ok) return studentOk;
+
+  const reason =
+    typeof input.reason === "string" ? input.reason.trim() : "";
+  if (reason.length < 1 || reason.length > 1000) {
+    return {
+      ok: false,
+      kind: "validation",
+      message: "取消理由は1〜1000文字で入力してください。",
+    };
+  }
+
+  const validated = await validateReviewTargetSubmission(
+    ctx.supabase,
+    ctx.profile.organizationId,
+    {
+      milestoneId: input.milestoneId,
+      studentId: input.studentId,
+      submissionId: input.submissionId,
+    },
+  );
+  if (!validated.ok) {
+    return { ok: false, kind: validated.kind, message: validated.message };
+  }
+
+  const existing = await getTeacherAssessmentReviewBySubmissionId(
+    ctx.supabase,
+    ctx.profile.organizationId,
+    input.submissionId,
+  );
+  if (existing.error || !existing.row || existing.row.id !== input.reviewId) {
+    return {
+      ok: false,
+      kind: "conflict",
+      message:
+        "別の画面でこの評価が更新されています。再読み込みして内容を確認してください。",
+    };
+  }
+  if (!isAssessmentReviewCurrentlyReturned(existing.row)) {
+    return {
+      ok: false,
+      kind: "validation",
+      message: "返却中の評価のみ取消できます。",
+    };
+  }
+
+  const revoked = await revokeReturnedAssessmentReviewRow(ctx.supabase, {
+    organizationId: ctx.profile.organizationId,
+    reviewId: input.reviewId,
+    baseUpdatedAt: input.baseUpdatedAt,
+    actorUserId: ctx.profile.id,
+    reason,
+  });
+  if (!revoked.ok) {
+    return { ok: false, kind: revoked.kind, message: revoked.message };
+  }
+  return { ok: true, review: revoked.row };
 }
 
 export type BulkCompleteItemInput = {

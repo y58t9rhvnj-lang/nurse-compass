@@ -29,12 +29,17 @@ export type AssessmentReviewRow = {
   completedBy: string | null;
   reopenedAt: string | null;
   reopenedBy: string | null;
+  returnedAt: string | null;
+  returnedBy: string | null;
+  returnRevokedAt: string | null;
+  returnRevokedBy: string | null;
+  returnRevokeReason: string | null;
 };
 
 type PgErr = { message?: string; code?: string } | null;
 
 const SELECT_COLS =
-  "id, organization_id, assessment_cycle_id, assessment_milestone_id, student_user_id, assessment_submission_id, status, rubric_scores, overall_comment, strengths_comment, next_steps_comment, missing_information_comment, private_note, created_at, created_by, updated_at, updated_by, completed_at, completed_by, reopened_at, reopened_by";
+  "id, organization_id, assessment_cycle_id, assessment_milestone_id, student_user_id, assessment_submission_id, status, rubric_scores, overall_comment, strengths_comment, next_steps_comment, missing_information_comment, private_note, created_at, created_by, updated_at, updated_by, completed_at, completed_by, reopened_at, reopened_by, returned_at, returned_by, return_revoked_at, return_revoked_by, return_revoke_reason";
 
 function mapRow(r: Record<string, unknown>): AssessmentReviewRow {
   const status = r.status === "completed" ? "completed" : "draft";
@@ -60,6 +65,16 @@ function mapRow(r: Record<string, unknown>): AssessmentReviewRow {
     completedBy: typeof r.completed_by === "string" ? r.completed_by : null,
     reopenedAt: typeof r.reopened_at === "string" ? r.reopened_at : null,
     reopenedBy: typeof r.reopened_by === "string" ? r.reopened_by : null,
+    returnedAt: typeof r.returned_at === "string" ? r.returned_at : null,
+    returnedBy: typeof r.returned_by === "string" ? r.returned_by : null,
+    returnRevokedAt:
+      typeof r.return_revoked_at === "string" ? r.return_revoked_at : null,
+    returnRevokedBy:
+      typeof r.return_revoked_by === "string" ? r.return_revoked_by : null,
+    returnRevokeReason:
+      typeof r.return_revoke_reason === "string"
+        ? r.return_revoke_reason
+        : null,
   };
 }
 
@@ -442,6 +457,8 @@ export async function reopenTeacherAssessmentReviewRow(
     .eq("organization_id", input.organizationId)
     .eq("updated_at", input.baseUpdatedAt)
     .eq("status", "completed")
+    // 返却中は下書きへ戻せない（取消後、または未返却のみ）
+    .or("returned_at.is.null,return_revoked_at.not.is.null")
     .select(SELECT_COLS)
     .maybeSingle();
 
@@ -450,6 +467,105 @@ export async function reopenTeacherAssessmentReviewRow(
       ok: false,
       kind: "db_error",
       message: "下書きに戻せませんでした。",
+    };
+  }
+  if (!data) {
+    return {
+      ok: false,
+      kind: "conflict",
+      message:
+        "別の画面でこの評価が更新されています。再読み込みして内容を確認してください。",
+    };
+  }
+  return { ok: true, row: mapRow(data as Record<string, unknown>) };
+}
+
+export async function returnTeacherAssessmentReviewRow(
+  supabase: SupabaseClient,
+  input: {
+    organizationId: string;
+    reviewId: string;
+    baseUpdatedAt: string;
+    actorUserId: string;
+  },
+): Promise<
+  | { ok: true; row: AssessmentReviewRow }
+  | { ok: false; kind: "conflict" | "db_error"; message: string }
+> {
+  const now = new Date().toISOString();
+  // 未返却、または取消済みなら再返却可。現在返却中は 0 件。
+  const { data, error } = await supabase
+    .from("assessment_reviews")
+    .update({
+      returned_at: now,
+      returned_by: input.actorUserId,
+      return_revoked_at: null,
+      return_revoked_by: null,
+      return_revoke_reason: null,
+      updated_by: input.actorUserId,
+    })
+    .eq("id", input.reviewId)
+    .eq("organization_id", input.organizationId)
+    .eq("updated_at", input.baseUpdatedAt)
+    .eq("status", "completed")
+    .or("returned_at.is.null,return_revoked_at.not.is.null")
+    .select(SELECT_COLS)
+    .maybeSingle();
+
+  if (error) {
+    return {
+      ok: false,
+      kind: "db_error",
+      message: "評価を返却できませんでした。",
+    };
+  }
+  if (!data) {
+    return {
+      ok: false,
+      kind: "conflict",
+      message:
+        "別の画面でこの評価が更新されています。再読み込みして内容を確認してください。",
+    };
+  }
+  return { ok: true, row: mapRow(data as Record<string, unknown>) };
+}
+
+export async function revokeReturnedAssessmentReviewRow(
+  supabase: SupabaseClient,
+  input: {
+    organizationId: string;
+    reviewId: string;
+    baseUpdatedAt: string;
+    actorUserId: string;
+    reason: string;
+  },
+): Promise<
+  | { ok: true; row: AssessmentReviewRow }
+  | { ok: false; kind: "conflict" | "db_error"; message: string }
+> {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("assessment_reviews")
+    .update({
+      return_revoked_at: now,
+      return_revoked_by: input.actorUserId,
+      return_revoke_reason: input.reason,
+      updated_by: input.actorUserId,
+    })
+    .eq("id", input.reviewId)
+    .eq("organization_id", input.organizationId)
+    .eq("updated_at", input.baseUpdatedAt)
+    .eq("status", "completed")
+    .not("returned_at", "is", null)
+    .is("return_revoked_at", null)
+    .select(SELECT_COLS)
+    .maybeSingle();
+
+  if (error) {
+    return {
+      ok: false,
+      kind: "db_error",
+      message: "返却を取り消せませんでした。",
     };
   }
   if (!data) {

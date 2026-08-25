@@ -463,18 +463,25 @@ export default function TeacherReviewStudentsClient({
                       <p className="font-medium">
                         {reviewDisplayStatusLabel(rs.status)}
                       </p>
-                      {rs.status === "draft" || rs.status === "completed" ? (
+                      {rs.status === "draft" ||
+                      rs.status === "completed" ||
+                      rs.status === "returned" ||
+                      rs.status === "return_revoked" ? (
                         <>
                           <p className="text-xs tabular-nums text-slate-600">
                             項目 {rs.scoredCount}/{rs.rubricTotal}
                             {rs.hasOverallComment ? " ・総合あり" : ""}
                           </p>
                           <p className="text-xs text-slate-500">
-                            {rs.status === "completed" && rs.completedAt
-                              ? `確定 ${formatAssessmentDateTimeJa(rs.completedAt)}`
-                              : rs.updatedAt
-                                ? `保存 ${formatAssessmentDateTimeJa(rs.updatedAt)}`
-                                : null}
+                            {rs.status === "returned" && rs.returnedAt
+                              ? `返却 ${formatAssessmentDateTimeJa(rs.returnedAt)}`
+                              : rs.status === "completed" && rs.completedAt
+                                ? `確定 ${formatAssessmentDateTimeJa(rs.completedAt)}`
+                                : rs.status === "return_revoked" && rs.completedAt
+                                  ? `確定 ${formatAssessmentDateTimeJa(rs.completedAt)}（返却取消）`
+                                  : rs.updatedAt
+                                    ? `保存 ${formatAssessmentDateTimeJa(rs.updatedAt)}`
+                                    : null}
                             {rs.updatedByName
                               ? ` ・${rs.updatedByName}`
                               : null}

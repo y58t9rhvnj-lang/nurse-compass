@@ -52,6 +52,8 @@ export type TeacherReviewDisplayStatus =
   | "none"
   | "draft"
   | "completed"
+  | "returned"
+  | "return_revoked"
   | "no_candidate";
 
 export type TeacherStudentReviewSummary = {
@@ -61,6 +63,7 @@ export type TeacherStudentReviewSummary = {
   updatedByName: string | null;
   completedAt: string | null;
   completedByName: string | null;
+  returnedAt: string | null;
   scoredCount: number;
   rubricTotal: number;
   hasOverallComment: boolean;
@@ -93,6 +96,8 @@ export type TeacherSubmissionHistoryItem = {
   timingStatus: AssessmentTimingStatus;
   lateReviewStatus: AssessmentLateReviewStatus | null;
   isEvaluationCandidate: boolean;
+  /** この提出に紐づく review の表示状態（無ければ none） */
+  reviewDisplayStatus: Exclude<TeacherReviewDisplayStatus, "no_candidate">;
   sourceVersions: unknown;
   /** snapshot から読んだ提出時 deadlineAt（無い場合 null） */
   deadlineAtAtSubmit: string | null;
@@ -373,6 +378,7 @@ export async function listTeacherStudentSubmissionRows(
         updatedByName: null,
         completedAt: null,
         completedByName: null,
+        returnedAt: null,
         scoredCount: 0,
         rubricTotal,
         hasOverallComment: false,
@@ -388,6 +394,7 @@ export async function listTeacherStudentSubmissionRows(
           updatedByName: null,
           completedAt: null,
           completedByName: null,
+          returnedAt: null,
           scoredCount: 0,
           rubricTotal,
           hasOverallComment: false,
@@ -402,8 +409,13 @@ export async function listTeacherStudentSubmissionRows(
             overallComment: review.overallComment,
             rubricScores: review.rubricScores,
           });
+        let status: TeacherReviewDisplayStatus =
+          review.status === "completed" ? "completed" : "draft";
+        if (review.status === "completed" && review.returnedAt) {
+          status = review.returnRevokedAt ? "return_revoked" : "returned";
+        }
         reviewSummary = {
-          status: review.status === "completed" ? "completed" : "draft",
+          status,
           reviewId: review.id,
           updatedAt: review.updatedAt,
           updatedByName: nameById.get(review.updatedBy) ?? null,
@@ -411,6 +423,7 @@ export async function listTeacherStudentSubmissionRows(
           completedByName: review.completedBy
             ? (nameById.get(review.completedBy) ?? null)
             : null,
+          returnedAt: review.returnedAt,
           scoredCount,
           rubricTotal,
           hasOverallComment,
@@ -480,7 +493,7 @@ export async function listTeacherStudentSubmissionHistory(
   candidateSubmissionId: string | null;
   error: PgErr;
 }> {
-  const [{ data: subs, error: sErr }, { data: cand, error: cErr }] =
+  const [{ data: subs, error: sErr }, { data: cand, error: cErr }, reviewsRes] =
     await Promise.all([
       supabase
         .from("assessment_submissions")
@@ -499,28 +512,64 @@ export async function listTeacherStudentSubmissionHistory(
         .eq("assessment_milestone_id", milestoneId)
         .eq("student_user_id", studentId)
         .maybeSingle(),
+      listTeacherAssessmentReviewsForMilestone(
+        supabase,
+        organizationId,
+        milestoneId,
+      ),
     ]);
   if (sErr) return { items: [], candidateSubmissionId: null, error: sErr };
   if (cErr) return { items: [], candidateSubmissionId: null, error: cErr };
+  if (reviewsRes.error) {
+    return { items: [], candidateSubmissionId: null, error: reviewsRes.error };
+  }
 
   const candidateSubmissionId =
     cand && typeof (cand as { submission_id?: string }).submission_id === "string"
       ? (cand as { submission_id: string }).submission_id
       : null;
 
+  const reviewBySubmission = new Map<
+    string,
+    (typeof reviewsRes.rows)[number]
+  >();
+  for (const r of reviewsRes.rows) {
+    if (r.studentUserId !== studentId) continue;
+    if (!reviewBySubmission.has(r.assessmentSubmissionId)) {
+      reviewBySubmission.set(r.assessmentSubmissionId, r);
+    }
+  }
+
   const items: TeacherSubmissionHistoryItem[] = (
     (subs ?? []) as Record<string, unknown>[]
-  ).map((s) => ({
-    id: String(s.id),
-    submissionNumber: Number(s.submission_number),
-    submittedAt: String(s.submitted_at),
-    timingStatus: asTiming(s.timing_status),
-    lateReviewStatus: asLate(s.late_review_status),
-    isEvaluationCandidate: String(s.id) === candidateSubmissionId,
-    sourceVersions: s.source_versions ?? null,
-    deadlineAtAtSubmit: extractDeadlineAtAtSubmitFromSnapshot(s.snapshot),
-    snapshot: s.snapshot,
-  }));
+  ).map((s) => {
+    const id = String(s.id);
+    const review = reviewBySubmission.get(id) ?? null;
+    let reviewDisplayStatus: TeacherSubmissionHistoryItem["reviewDisplayStatus"] =
+      "none";
+    if (review) {
+      if (review.status === "completed" && review.returnedAt) {
+        reviewDisplayStatus = review.returnRevokedAt
+          ? "return_revoked"
+          : "returned";
+      } else {
+        reviewDisplayStatus =
+          review.status === "completed" ? "completed" : "draft";
+      }
+    }
+    return {
+      id,
+      submissionNumber: Number(s.submission_number),
+      submittedAt: String(s.submitted_at),
+      timingStatus: asTiming(s.timing_status),
+      lateReviewStatus: asLate(s.late_review_status),
+      isEvaluationCandidate: id === candidateSubmissionId,
+      reviewDisplayStatus,
+      sourceVersions: s.source_versions ?? null,
+      deadlineAtAtSubmit: extractDeadlineAtAtSubmitFromSnapshot(s.snapshot),
+      snapshot: s.snapshot,
+    };
+  });
 
   return { items, candidateSubmissionId, error: null };
 }

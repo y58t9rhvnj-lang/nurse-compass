@@ -47,7 +47,13 @@ export function evaluationStateLabel(
 }
 
 export function reviewDisplayStatusLabel(
-  status: "none" | "draft" | "completed" | "no_candidate",
+  status:
+    | "none"
+    | "draft"
+    | "completed"
+    | "returned"
+    | "return_revoked"
+    | "no_candidate",
 ): string {
   switch (status) {
     case "none":
@@ -56,6 +62,10 @@ export function reviewDisplayStatusLabel(
       return "下書き";
     case "completed":
       return "評価確定";
+    case "returned":
+      return "返却済み";
+    case "return_revoked":
+      return "返却取消済み";
     case "no_candidate":
       return "評価対象なし";
   }
