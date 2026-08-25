@@ -833,7 +833,6 @@ export default function TeacherAssessmentReviewPanel({
     </p>
   ) : (
     <>
-      {completedBanner}
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-slate-700">評価項目</p>
         <button
@@ -922,7 +921,6 @@ export default function TeacherAssessmentReviewPanel({
 
   const footerActions: ReactNode = (
     <div className="sticky bottom-0 shrink-0 space-y-2 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-      {candidate && readOnly ? completedBanner : null}
       {saveState.kind === "saving" || pending ? (
         <p className="text-xs text-slate-500">保存中…</p>
       ) : null}
@@ -1167,11 +1165,11 @@ export default function TeacherAssessmentReviewPanel({
           role="dialog"
           aria-modal="true"
           aria-label="評価入力"
-          className="relative z-10 ml-auto flex w-full flex-col bg-white shadow-xl max-lg:mt-auto max-lg:h-[min(92dvh,100%)] max-lg:rounded-t-2xl lg:h-full lg:w-96 xl:w-[28rem]"
+          className="relative z-10 ml-auto flex w-full flex-col bg-white shadow-xl max-lg:mt-auto max-lg:h-[min(92dvh,100%)] max-lg:rounded-t-2xl lg:h-full lg:w-[min(36rem,42vw)] xl:w-[min(40rem,38vw)]"
           onClick={(e) => e.stopPropagation()}
           onTouchMove={(e) => e.stopPropagation()}
         >
-          <div className="sticky top-0 z-10 shrink-0 space-y-2 border-b border-slate-100 bg-white px-3 py-2.5">
+          <div className="sticky top-0 z-10 shrink-0 space-y-2 border-b border-slate-100 bg-white px-3 py-2.5 sm:px-4">
             {/* 1行目: 閉じる + 前後ナビ + 学生 */}
             <div className="flex flex-nowrap items-center gap-1.5">
               <button
