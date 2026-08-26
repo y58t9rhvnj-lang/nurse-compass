@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   // ログイン後の画面遷移が失敗する（本番 `next start` には一切影響しない）。
   allowedDevOrigins: [
     "localhost",
+    "127.0.0.1",
     "192.168.1.*",
     "192.168.11.*",
     "10.0.0.*",

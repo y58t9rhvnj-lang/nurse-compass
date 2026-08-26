@@ -63,18 +63,39 @@ const FULL_SELECT = [
   "teacher_draft_overlay_json",
 ].join(", ");
 
-function asWarnings(raw: unknown): AiEvalWarning[] {
+function asWarnings(
+  raw: unknown,
+  columnFamily: "version" | "pii",
+): AiEvalWarning[] {
   if (!Array.isArray(raw)) return [];
-  return raw.filter((w): w is AiEvalWarning => {
-    if (!w || typeof w !== "object") return false;
+  const out: AiEvalWarning[] = [];
+  for (const w of raw) {
+    if (!w || typeof w !== "object") continue;
     const o = w as Record<string, unknown>;
-    return (
-      typeof o.code === "string" &&
-      typeof o.message === "string" &&
-      typeof o.payload_hash === "string" &&
-      (o.family === "version" || o.family === "pii")
-    );
-  });
+    if (
+      typeof o.code !== "string" ||
+      typeof o.message !== "string" ||
+      typeof o.payload_hash !== "string"
+    ) {
+      continue;
+    }
+    // Column implies family; tolerate rows that omit it (or mismatch).
+    const family =
+      o.family === "version" || o.family === "pii" ? o.family : columnFamily;
+    const rawPayload = o.payload ?? o.details;
+    const payload =
+      rawPayload && typeof rawPayload === "object" && !Array.isArray(rawPayload)
+        ? (rawPayload as Record<string, unknown>)
+        : {};
+    out.push({
+      family,
+      code: o.code,
+      message: o.message,
+      payload,
+      payload_hash: o.payload_hash,
+    });
+  }
+  return out;
 }
 
 function asIssues(raw: unknown): AiEvalIssue[] {
@@ -107,8 +128,8 @@ function mapFull(r: Record<string, unknown>): AiEvaluationStagingFullRow {
     resultHash: String(r.result_hash),
     validationStatus: String(r.validation_status),
     validationErrors: asIssues(r.validation_errors),
-    versionWarnings: asWarnings(r.version_warnings),
-    piiWarnings: asWarnings(r.pii_warnings),
+    versionWarnings: asWarnings(r.version_warnings, "version"),
+    piiWarnings: asWarnings(r.pii_warnings, "pii"),
     reviewStatus: String(r.review_status),
     sourceModel: typeof r.source_model === "string" ? r.source_model : null,
     sourceProvider:
