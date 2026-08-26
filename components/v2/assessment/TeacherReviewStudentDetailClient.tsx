@@ -68,6 +68,32 @@ const TABS: Array<{ key: TabKey; label: string }> = [
   { key: "history", label: "提出履歴" },
 ];
 
+
+/** TeacherAssessmentReviewPanel と同じ分割条件 */
+const SPLIT_REVIEW_MQ =
+  "(min-width: 900px) and (orientation: landscape), (min-width: 1100px)";
+
+function useSplitReviewLayout(): boolean | null {
+  const [matches, setMatches] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia(SPLIT_REVIEW_MQ);
+    const apply = () => setMatches(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    window.addEventListener("orientationchange", apply);
+    window.addEventListener("resize", apply);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", apply);
+    return () => {
+      mq.removeEventListener("change", apply);
+      window.removeEventListener("orientationchange", apply);
+      window.removeEventListener("resize", apply);
+      vv?.removeEventListener("resize", apply);
+    };
+  }, []);
+  return matches;
+}
+
 type Props = {
   milestoneId: string;
   studentId: string;
@@ -123,6 +149,7 @@ export default function TeacherReviewStudentDetailClient({
   const [reviewOpen, setReviewOpen] = useState(
     () => searchParams.get("review") === "open",
   );
+  const isSplitReview = useSplitReviewLayout();
   const [studentIdsOrdered, setStudentIdsOrdered] = useState<string[]>([
     initialStudentId,
   ]);
@@ -475,7 +502,13 @@ export default function TeacherReviewStudentDetailClient({
         </div>
       ) : null}
 
-      <div className="space-y-4">
+      <div
+        className={`space-y-4 ${
+          reviewOpen && isSplitReview === true
+            ? "mr-[clamp(26.25rem,42vw,35rem)] min-w-[26.25rem]"
+            : ""
+        }`}
+      >
         <TeacherAssessmentReviewPanel
           milestoneId={milestoneId}
           milestoneTitle={milestone.title}

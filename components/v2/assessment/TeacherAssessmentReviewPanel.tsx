@@ -159,7 +159,38 @@ function scoreChipClass(selected: boolean): string {
   return "border border-slate-300 bg-white font-semibold text-slate-900 disabled:border-slate-300 disabled:bg-white disabled:text-slate-900 disabled:opacity-100";
 }
 
-/** 評価パネル表示中に背景スクロールを止め、閉じたら位置を復元する */
+/**
+ * 評価パネルを左右分割するか。
+ * 分割 media 条件:
+ *   (min-width: 900px) and (orientation: landscape), (min-width: 1100px)
+ * iPad 横向きで lg(1024) 未満の実効幅でも split する。
+ */
+const SPLIT_REVIEW_MQ =
+  "(min-width: 900px) and (orientation: landscape), (min-width: 1100px)";
+
+function useSplitReviewLayout(): boolean | null {
+  const [matches, setMatches] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia(SPLIT_REVIEW_MQ);
+    const apply = () => setMatches(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    // iPad Safari: orientation / visualViewport 変化で MQ が遅れないよう補助
+    window.addEventListener("orientationchange", apply);
+    window.addEventListener("resize", apply);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", apply);
+    return () => {
+      mq.removeEventListener("change", apply);
+      window.removeEventListener("orientationchange", apply);
+      window.removeEventListener("resize", apply);
+      vv?.removeEventListener("resize", apply);
+    };
+  }, []);
+  return matches;
+}
+
+/** 評価パネル表示中に背景スクロールを止め、閉じたら位置を復元する（狭い画面の modal 時のみ） */
 function useBodyScrollLock(
   locked: boolean,
   anchorRef: React.RefObject<HTMLElement | null>,
@@ -281,7 +312,9 @@ export default function TeacherAssessmentReviewPanel({
   /** 進行中の get を無効化するための世代。mutation 成功時に進めて stale 上書きを防ぐ */
   const fetchGenRef = useRef(0);
 
-  useBodyScrollLock(open, rootRef);
+  const isSplitReview = useSplitReviewLayout();
+  // 分割表示時は body/祖先スクロールをロックしない（未計測時もロックしない）
+  useBodyScrollLock(open && isSplitReview === false, rootRef);
 
   const readOnly = review?.status === "completed";
   const currentlyReturned = Boolean(
@@ -1179,26 +1212,37 @@ export default function TeacherAssessmentReviewPanel({
 
       <div
         className={
-          open
-            ? "fixed inset-0 z-50 flex flex-col lg:flex-row"
-            : "pointer-events-none fixed inset-0 z-50 hidden"
+          !open
+            ? "pointer-events-none fixed inset-0 z-50 hidden"
+            : isSplitReview === false
+              ? "fixed inset-0 z-50 flex flex-col"
+              : "pointer-events-none fixed inset-0 z-50 flex flex-row"
         }
         aria-hidden={!open}
       >
-        <button
-          type="button"
-          aria-label="評価パネルを閉じる"
-          className="absolute inset-0 bg-slate-900/40"
-          onClick={requestClose}
-        />
+        {/* modal 時のみ backdrop（split / 未計測時は左提出物操作のためスモークなし） */}
+        {isSplitReview === false ? (
+          <button
+            type="button"
+            aria-label="評価パネルを閉じる"
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={requestClose}
+          />
+        ) : null}
 
-        <div
-          role="dialog"
-          aria-modal="true"
+        <aside
+          role={isSplitReview === false ? "dialog" : "complementary"}
+          aria-modal={isSplitReview === false ? true : undefined}
           aria-label="評価入力"
-          className="relative z-10 ml-auto flex w-full flex-col bg-white shadow-xl max-lg:mt-auto max-lg:h-[min(92dvh,100%)] max-lg:rounded-t-2xl lg:h-full lg:w-[min(36rem,42vw)] xl:w-[min(40rem,38vw)]"
+          className={
+            isSplitReview === false
+              ? "pointer-events-auto relative z-10 ml-auto mt-auto flex h-[min(92dvh,100%)] w-full flex-col rounded-t-2xl border-slate-200 bg-white shadow-xl"
+              : "pointer-events-auto relative z-10 ml-auto flex h-dvh w-[clamp(26.25rem,42vw,35rem)] min-w-[26.25rem] max-w-[35rem] flex-col border-l border-slate-200 bg-white shadow-xl"
+          }
           onClick={(e) => e.stopPropagation()}
-          onTouchMove={(e) => e.stopPropagation()}
+          onTouchMove={
+            isSplitReview === false ? (e) => e.stopPropagation() : undefined
+          }
         >
           <div className="sticky top-0 z-10 shrink-0 space-y-2 border-b border-slate-100 bg-white px-3 py-2.5 sm:px-4">
             {/* 1行目: 閉じる + 前後ナビ + 学生 */}
@@ -1312,7 +1356,7 @@ export default function TeacherAssessmentReviewPanel({
           {footerActions}
           {dirtyDialog}
           {revokeDialog}
-        </div>
+        </aside>
       </div>
     </div>
   );

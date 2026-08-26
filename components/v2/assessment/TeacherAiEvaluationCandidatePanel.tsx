@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
 import { getAiEvaluationCandidateForSubmissionAction } from "@/app/v2/actions/assessmentAiEvaluationCandidate";
 import { adoptAiEvaluationCandidateAction } from "@/app/v2/actions/assessmentAiEvaluationAdopt";
 import {
@@ -12,8 +12,14 @@ import type {
   AiEvaluationCandidateReadModel,
 } from "@/lib/v2/assessment/aiEvaluationCandidateReadModel";
 import { feedbackBlockToReviewComment } from "@/lib/v2/assessment/aiEvaluationCandidateReadModel";
+import {
+  AI_FEEDBACK_BLOCK_LABELS,
+  aiReviewStatusLabel,
+  aiValidationStatusLabel,
+} from "@/lib/v2/assessment/aiEvaluationCandidateUiLabels";
 import type { AssessmentRubricKey } from "@/lib/v2/assessment/assessmentRubric";
 import TeacherAiEvaluationItemCard from "./TeacherAiEvaluationItemCard";
+import TeacherAiEvaluationSection from "./TeacherAiEvaluationSection";
 import TeacherAiEvaluationWarningList from "./TeacherAiEvaluationWarningList";
 
 type Props = {
@@ -40,6 +46,9 @@ export default function TeacherAiEvaluationCandidatePanel({
   readOnly,
   onAdopted,
 }: Props) {
+  const panelDomId = useId();
+  const panelTopId = `${panelDomId}-top`;
+
   const [candidate, setCandidate] =
     useState<AiEvaluationCandidateReadModel | null>(null);
   const [actorRole, setActorRole] = useState<"teacher" | "admin">("teacher");
@@ -110,7 +119,6 @@ export default function TeacherAiEvaluationCandidatePanel({
     reload();
   }, [reload]);
 
-  // 教員スコアが親から変わったら表示比較を更新（candidate 再構築は reload）
   const itemsWithTeacher = useMemo(() => {
     if (!candidate) return [];
     return candidate.items.map((item) => ({
@@ -190,7 +198,7 @@ export default function TeacherAiEvaluationCandidatePanel({
         return;
       }
       setActionOk(
-        `一部採用しました（履歴 #${res.adoptionSequence}）。AI原文は staging に保持されます。`,
+        `一部採用しました（履歴 #${res.adoptionSequence}）。AIの原文はこの候補に保持されます。`,
       );
       setSelectedKeys(new Set());
       setSelectedBlocks(new Set());
@@ -200,6 +208,11 @@ export default function TeacherAiEvaluationCandidatePanel({
       });
       reload();
     });
+  };
+
+  const scrollToPanelTop = () => {
+    const el = document.getElementById(panelTopId);
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   if (!submissionId) {
@@ -213,18 +226,29 @@ export default function TeacherAiEvaluationCandidatePanel({
     );
   }
 
+  const warningCount =
+    (candidate?.versionWarnings.length ?? 0) +
+    (candidate?.piiWarnings.length ?? 0);
+  const unackedCount = candidate?.unackedWarningCount ?? 0;
+  const hasUncertaintyOrFollowUp = Boolean(
+    candidate?.uncertainty || (candidate?.followUpChecks.length ?? 0) > 0,
+  );
+
   return (
-    <section className="mb-5 rounded-xl border border-indigo-100 bg-indigo-50/40 px-3 py-3">
+    <section
+      id={panelTopId}
+      className="mb-5 scroll-mt-2 rounded-xl border border-indigo-100 bg-indigo-50/40 px-3 py-3"
+    >
       <div className="flex items-start justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold text-slate-900">AI評価候補</h3>
-          <p className="mt-0.5 text-[11px] text-slate-600">
+          <p className="mt-0.5 text-[11px] leading-snug text-slate-600">
             参考情報です。自動採用されません。教員が選択した項目だけ下書きへ反映できます。
           </p>
         </div>
         <button
           type="button"
-          className="min-h-9 text-xs text-indigo-800 underline"
+          className="min-h-11 shrink-0 px-1 text-xs text-indigo-800 underline"
           disabled={pending}
           onClick={reload}
         >
@@ -253,35 +277,19 @@ export default function TeacherAiEvaluationCandidatePanel({
           確認中の AI 評価候補はありません。取込後にここに表示されます。
         </p>
       ) : (
-        <div className="mt-3 space-y-3">
-          <dl className="grid gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] text-slate-700 sm:grid-cols-2">
+        <div className="mt-3 space-y-2.5">
+          {/* 優先サマリー（状態） */}
+          <dl className="grid gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 sm:grid-cols-2">
             <div>
-              <dt className="inline text-slate-500">staging：</dt>
-              <dd className="inline font-medium">{candidate.reviewStatus}</dd>
-            </div>
-            <div>
-              <dt className="inline text-slate-500">validation：</dt>
-              <dd className="inline font-medium">
-                {candidate.validationStatus}
+              <dt className="inline text-slate-500">状態：</dt>
+              <dd className="inline font-medium text-slate-900">
+                {aiReviewStatusLabel(candidate.reviewStatus)}
               </dd>
             </div>
             <div>
-              <dt className="inline text-slate-500">model：</dt>
-              <dd className="inline">
-                {candidate.sourceModel ?? "—"} /{" "}
-                {candidate.sourceProvider ?? "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="inline text-slate-500">prompt：</dt>
-              <dd className="inline">{candidate.promptVersion ?? "—"}</dd>
-            </div>
-            <div className="sm:col-span-2">
-              <dt className="inline text-slate-500">versions：</dt>
-              <dd className="inline">
-                policy {candidate.versions.compassPolicyVersion} / rubric{" "}
-                {candidate.versions.rubricVersion} / gold{" "}
-                {candidate.versions.goldStandardVersion}
+              <dt className="inline text-slate-500">検証結果：</dt>
+              <dd className="inline font-medium text-slate-900">
+                {aiValidationStatusLabel(candidate.validationStatus)}
               </dd>
             </div>
             <div>
@@ -289,9 +297,11 @@ export default function TeacherAiEvaluationCandidatePanel({
               <dd className="inline">{candidate.adoptionCount} 回</dd>
             </div>
             <div>
-              <dt className="inline text-slate-500">権限：</dt>
+              <dt className="inline text-slate-500">操作：</dt>
               <dd className="inline">
-                {actorRole === "teacher" ? "教員（採用可）" : "管理者（閲覧のみ）"}
+                {actorRole === "teacher"
+                  ? "教員（採用可）"
+                  : "管理者（閲覧のみ）"}
               </dd>
             </div>
           </dl>
@@ -304,133 +314,168 @@ export default function TeacherAiEvaluationCandidatePanel({
             </ul>
           ) : null}
 
-          <TeacherAiEvaluationWarningList
-            title="Version 警告"
-            warnings={candidate.versionWarnings}
-            canAcknowledge={canAck && !readOnly}
-            pending={pending}
-            onAcknowledge={onAck}
-            onAcknowledgeAll={() => onAckAll("version")}
-          />
-          <TeacherAiEvaluationWarningList
-            title="PII 警告"
-            warnings={candidate.piiWarnings}
-            canAcknowledge={canAck && !readOnly}
-            pending={pending}
-            onAcknowledge={onAck}
-            onAcknowledgeAll={() => onAckAll("pii")}
-          />
+          {/* 警告 */}
+          <TeacherAiEvaluationSection
+            id={`${panelDomId}-warnings`}
+            title="警告"
+            defaultOpen
+            badge={
+              warningCount === 0
+                ? "なし"
+                : unackedCount > 0
+                  ? `未確認 ${unackedCount}`
+                  : `確認済 ${warningCount}`
+            }
+          >
+            {warningCount === 0 ? (
+              <p className="text-xs text-slate-500">警告はありません。</p>
+            ) : (
+              <div className="space-y-3">
+                <TeacherAiEvaluationWarningList
+                  family="version"
+                  warnings={candidate.versionWarnings}
+                  canAcknowledge={canAck && !readOnly}
+                  pending={pending}
+                  onAcknowledge={onAck}
+                  onAcknowledgeAll={() => onAckAll("version")}
+                  compactEmpty
+                />
+                <TeacherAiEvaluationWarningList
+                  family="pii"
+                  warnings={candidate.piiWarnings}
+                  canAcknowledge={canAck && !readOnly}
+                  pending={pending}
+                  onAcknowledge={onAck}
+                  onAcknowledgeAll={() => onAckAll("pii")}
+                  compactEmpty
+                />
+              </div>
+            )}
+          </TeacherAiEvaluationSection>
 
-          {candidate.uncertainty ? (
-            <section className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
-              <h4 className="font-semibold text-slate-800">不確実性</h4>
-              <p className="mt-1">
-                信頼度: {candidate.uncertainty.overallConfidence ?? "—"}
-              </p>
-              {candidate.uncertainty.notes ? (
-                <p className="mt-1 whitespace-pre-wrap">
-                  {candidate.uncertainty.notes}
-                </p>
-              ) : null}
-            </section>
-          ) : null}
-
-          {candidate.followUpChecks.length > 0 ? (
-            <section className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
-              <h4 className="font-semibold text-slate-800">追加確認事項</h4>
-              <ul className="mt-1 space-y-1">
-                {candidate.followUpChecks.map((f, i) => (
-                  <li key={i}>
-                    <p className="font-medium">{f.question}</p>
-                    {f.reason ? (
-                      <p className="text-slate-500">{f.reason}</p>
+          {/* 不確実性・追加確認事項 */}
+          <TeacherAiEvaluationSection
+            id={`${panelDomId}-uncertainty`}
+            title="不確実性・追加確認事項"
+            defaultOpen={false}
+            badge={hasUncertaintyOrFollowUp ? null : "なし"}
+          >
+            {!hasUncertaintyOrFollowUp ? (
+              <p className="text-xs text-slate-500">該当する情報はありません。</p>
+            ) : (
+              <div className="space-y-3 text-xs text-slate-700">
+                {candidate.uncertainty ? (
+                  <div>
+                    <p className="font-medium text-slate-800">不確実性</p>
+                    <p className="mt-1">
+                      信頼度: {candidate.uncertainty.overallConfidence ?? "—"}
+                    </p>
+                    {candidate.uncertainty.notes ? (
+                      <p className="mt-1 whitespace-pre-wrap break-words">
+                        {candidate.uncertainty.notes}
+                      </p>
                     ) : null}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+                  </div>
+                ) : null}
+                {candidate.followUpChecks.length > 0 ? (
+                  <div>
+                    <p className="font-medium text-slate-800">追加確認事項</p>
+                    <ul className="mt-1 space-y-1.5">
+                      {candidate.followUpChecks.map((f, i) => (
+                        <li key={i}>
+                          <p className="font-medium break-words">{f.question}</p>
+                          {f.reason ? (
+                            <p className="break-words text-slate-500">
+                              {f.reason}
+                            </p>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </TeacherAiEvaluationSection>
 
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-slate-800">
-              ルーブリック項目（候補）
-            </h4>
-            {itemsWithTeacher.map((item) => (
-              <TeacherAiEvaluationItemCard
-                key={item.rubricKey}
-                item={item}
-                selected={selectedKeys.has(item.rubricKey)}
-                canSelect={
-                  !readOnly &&
-                  actorRole === "teacher" &&
-                  candidate.canAdopt
-                }
-                editedScore={editedScores[item.rubricKey] ?? null}
-                onToggle={(on) => {
-                  setSelectedKeys((prev) => {
-                    const next = new Set(prev);
-                    if (on) next.add(item.rubricKey);
-                    else next.delete(item.rubricKey);
-                    return next;
-                  });
-                }}
-                onScoreChange={(score) => {
-                  setEditedScores((prev) => ({
-                    ...prev,
-                    [item.rubricKey]: score,
-                  }));
-                }}
-              />
-            ))}
-          </div>
+          {/* ルーブリック評価候補 */}
+          <TeacherAiEvaluationSection
+            id={`${panelDomId}-rubric`}
+            title="ルーブリック評価候補"
+            defaultOpen
+            badge={`${itemsWithTeacher.length}項目`}
+          >
+            <div className="space-y-2">
+              {itemsWithTeacher.map((item) => (
+                <TeacherAiEvaluationItemCard
+                  key={item.rubricKey}
+                  item={item}
+                  selected={selectedKeys.has(item.rubricKey)}
+                  canSelect={
+                    !readOnly && actorRole === "teacher" && candidate.canAdopt
+                  }
+                  editedScore={editedScores[item.rubricKey] ?? null}
+                  onToggle={(on) => {
+                    setSelectedKeys((prev) => {
+                      const next = new Set(prev);
+                      if (on) next.add(item.rubricKey);
+                      else next.delete(item.rubricKey);
+                      return next;
+                    });
+                  }}
+                  onScoreChange={(score) => {
+                    setEditedScores((prev) => ({
+                      ...prev,
+                      [item.rubricKey]: score,
+                    }));
+                  }}
+                />
+              ))}
+            </div>
+          </TeacherAiEvaluationSection>
 
-          <section className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
-            <h4 className="font-semibold text-slate-800">
-              学生コメント案（4ブロック）
-            </h4>
-            <p className="mt-0.5 text-[11px] text-slate-500">
-              strengths / next_questions / gaps_or_alternatives
-              のみ下書きへ反映できます。overall_comment
-              は自動投入しません。supporting_information は表示のみです。
+          {/* 学生コメント案 */}
+          <TeacherAiEvaluationSection
+            id={`${panelDomId}-comments`}
+            title="学生コメント案"
+            defaultOpen={false}
+          >
+            <p className="text-[11px] leading-snug text-slate-500">
+              「良かった点」「次に考えてほしいこと」「不足情報・別の見方」のみ下書きへ反映できます。総合コメント（overall_comment）は自動反映しません。「根拠として確認した情報」は表示のみです。
             </p>
             {(
               [
-                ["strengths", "良かった点（strengths）", editedComments.strengths],
-                [
-                  "next_questions",
-                  "次に考えてほしいこと（next_questions）",
-                  editedComments.next_questions,
-                ],
-                [
-                  "gaps_or_alternatives",
-                  "不足・別の可能性（gaps_or_alternatives）",
-                  editedComments.gaps_or_alternatives,
-                ],
+                ["strengths", editedComments.strengths],
+                ["next_questions", editedComments.next_questions],
+                ["gaps_or_alternatives", editedComments.gaps_or_alternatives],
               ] as const
-            ).map(([key, label, value]) => (
-              <div key={key} className="mt-2">
-                <label className="flex items-center gap-2 font-medium text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={selectedBlocks.has(key)}
-                    disabled={
-                      readOnly ||
-                      actorRole !== "teacher" ||
-                      !candidate.canAdopt
-                    }
-                    onChange={(e) => {
-                      setSelectedBlocks((prev) => {
-                        const next = new Set(prev);
-                        if (e.target.checked) next.add(key);
-                        else next.delete(key);
-                        return next;
-                      });
-                    }}
-                  />
-                  {label}
+            ).map(([key, value]) => (
+              <div key={key} className="mt-2.5">
+                <label className="flex min-h-11 items-center gap-2.5 font-medium text-slate-800">
+                  <span className="flex min-h-11 min-w-11 items-center justify-center">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 accent-slate-800"
+                      checked={selectedBlocks.has(key)}
+                      disabled={
+                        readOnly ||
+                        actorRole !== "teacher" ||
+                        !candidate.canAdopt
+                      }
+                      onChange={(e) => {
+                        setSelectedBlocks((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(key);
+                          else next.delete(key);
+                          return next;
+                        });
+                      }}
+                    />
+                  </span>
+                  {AI_FEEDBACK_BLOCK_LABELS[key]}
                 </label>
                 <textarea
-                  className="mt-1 min-h-16 w-full rounded border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-50"
+                  className="mt-1 min-h-16 w-full break-words rounded border border-slate-300 px-2 py-1.5 text-xs leading-relaxed disabled:bg-slate-50"
                   value={value}
                   disabled={
                     readOnly ||
@@ -447,75 +492,153 @@ export default function TeacherAiEvaluationCandidatePanel({
               </div>
             ))}
             {candidate.feedbackDraft.supportingInformation.length > 0 ? (
-              <div className="mt-2 rounded bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600">
-                <p className="font-medium">supporting_information（表示のみ）</p>
-                <ul className="mt-1 list-disc pl-4">
+              <div className="mt-2.5 rounded bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600">
+                <p className="font-medium text-slate-700">
+                  {AI_FEEDBACK_BLOCK_LABELS.supporting_information}
+                  <span className="ml-1 font-normal text-slate-500">
+                    （表示のみ・採用対象外）
+                  </span>
+                </p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4">
                   {candidate.feedbackDraft.supportingInformation.map((s, i) => (
-                    <li key={i}>{s}</li>
+                    <li key={i} className="break-words">
+                      {s}
+                    </li>
                   ))}
                 </ul>
               </div>
             ) : null}
-          </section>
+          </TeacherAiEvaluationSection>
 
+          {/* 教員専用所見 */}
           {candidate.teacherObservation ? (
-            <section className="rounded-lg border border-violet-200 bg-violet-50/50 px-3 py-2 text-xs text-violet-950">
-              <h4 className="font-semibold">
-                teacher_observation（教員専用・返却欄へ自動投入しません）
-              </h4>
-              <p className="mt-1 whitespace-pre-wrap">
-                {candidate.teacherObservation.summary}
-              </p>
-              {candidate.teacherObservation.attentionPoints.length > 0 ? (
-                <ul className="mt-1 list-disc pl-4">
-                  {candidate.teacherObservation.attentionPoints.map((a, i) => (
-                    <li key={i}>{a}</li>
+            <TeacherAiEvaluationSection
+              id={`${panelDomId}-observation`}
+              title="教員専用所見"
+              defaultOpen={false}
+              badge="学生非表示・採用対象外"
+            >
+              <div className="space-y-2 text-xs text-violet-950">
+                <p className="rounded border border-violet-200 bg-violet-50 px-2 py-1.5 text-[11px] leading-snug">
+                  学生には表示されません。下書きへの採用対象外です（自動反映しません）。
+                </p>
+                <p className="whitespace-pre-wrap break-words">
+                  {candidate.teacherObservation.summary}
+                </p>
+                {candidate.teacherObservation.attentionPoints.length > 0 ? (
+                  <ul className="list-disc space-y-0.5 pl-4">
+                    {candidate.teacherObservation.attentionPoints.map(
+                      (a, i) => (
+                        <li key={i} className="break-words">
+                          {a}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                ) : null}
+                {candidate.teacherObservation.suggestedFocusForFeedback ? (
+                  <p className="break-words text-violet-800">
+                    フィードバックの焦点案:{" "}
+                    {candidate.teacherObservation.suggestedFocusForFeedback}
+                  </p>
+                ) : null}
+              </div>
+            </TeacherAiEvaluationSection>
+          ) : null}
+
+          {/* 技術情報 */}
+          <TeacherAiEvaluationSection
+            id={`${panelDomId}-tech`}
+            title="技術情報"
+            defaultOpen={false}
+          >
+            <dl className="grid gap-1.5 text-[11px] text-slate-600 sm:grid-cols-2">
+              <div className="break-all">
+                <dt className="inline text-slate-500">model / provider：</dt>
+                <dd className="inline">
+                  {candidate.sourceModel ?? "—"} /{" "}
+                  {candidate.sourceProvider ?? "—"}
+                </dd>
+              </div>
+              <div className="break-all">
+                <dt className="inline text-slate-500">prompt：</dt>
+                <dd className="inline">{candidate.promptVersion ?? "—"}</dd>
+              </div>
+              <div className="sm:col-span-2 break-all">
+                <dt className="inline text-slate-500">versions：</dt>
+                <dd className="inline">
+                  policy {candidate.versions.compassPolicyVersion} / rubric{" "}
+                  {candidate.versions.rubricVersion} / gold{" "}
+                  {candidate.versions.goldStandardVersion} / case{" "}
+                  {candidate.versions.caseVersion}
+                </dd>
+              </div>
+              <div className="sm:col-span-2 break-all">
+                <dt className="inline text-slate-500">schema：</dt>
+                <dd className="inline">
+                  package {candidate.versions.packageSchemaVersion} / result{" "}
+                  {candidate.versions.resultSchemaVersion} / export{" "}
+                  {candidate.versions.exportSchemaVersion}
+                </dd>
+              </div>
+              <div className="sm:col-span-2 break-all font-mono text-[10px]">
+                <dt className="inline font-sans text-slate-500">result hash：</dt>
+                <dd className="inline">{candidate.resultHash}</dd>
+              </div>
+              <div className="break-all font-mono text-[10px]">
+                <dt className="inline font-sans text-slate-500">staging id：</dt>
+                <dd className="inline">{candidate.stagingId}</dd>
+              </div>
+              <div className="break-all font-mono text-[10px]">
+                <dt className="inline font-sans text-slate-500">request id：</dt>
+                <dd className="inline">{candidate.requestId}</dd>
+              </div>
+            </dl>
+            {candidate.history.length > 0 ? (
+              <div className="mt-2 border-t border-slate-100 pt-2">
+                <p className="text-[11px] font-medium text-slate-600">
+                  候補履歴
+                </p>
+                <ul className="mt-1 space-y-0.5 text-[11px] text-slate-500">
+                  {candidate.history.map((h) => (
+                    <li key={h.id} className="break-all">
+                      {aiReviewStatusLabel(h.reviewStatus)} /{" "}
+                      {aiValidationStatusLabel(h.validationStatus)} /{" "}
+                      {h.importedAt.slice(0, 19)}
+                    </li>
                   ))}
                 </ul>
-              ) : null}
-              {candidate.teacherObservation.suggestedFocusForFeedback ? (
-                <p className="mt-1 text-violet-800">
-                  焦点案:{" "}
-                  {candidate.teacherObservation.suggestedFocusForFeedback}
-                </p>
-              ) : null}
-            </section>
-          ) : null}
+              </div>
+            ) : null}
+          </TeacherAiEvaluationSection>
 
-          {candidate.history.length > 1 ? (
-            <details className="text-[11px] text-slate-600">
-              <summary className="cursor-pointer font-medium">
-                候補履歴（adopted / rejected / superseded 等）
-              </summary>
-              <ul className="mt-1 space-y-0.5">
-                {candidate.history.map((h) => (
-                  <li key={h.id}>
-                    {h.reviewStatus} / {h.validationStatus} /{" "}
-                    {h.importedAt.slice(0, 19)}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
-
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button
-              type="button"
-              className="min-h-11 rounded-lg bg-indigo-800 px-3 text-sm font-medium text-white disabled:opacity-50"
-              disabled={
-                pending ||
-                readOnly ||
-                actorRole !== "teacher" ||
-                !candidate.canAdopt ||
-                (selectedKeys.size === 0 && selectedBlocks.size === 0)
-              }
-              onClick={onAdopt}
-            >
-              選択項目を下書きへ反映
-            </button>
-            <p className="text-[11px] text-slate-500">
-              overall_comment / teacher_observation / private_note
-              は反映しません。確認完了（adopted）は次 Sprint です。
+          {/* 採用アクション（親の固定フッターと重ねないため sticky にしない） */}
+          <div className="space-y-2 border-t border-indigo-100 pt-2.5 pb-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="min-h-11 rounded-lg bg-indigo-800 px-3 text-sm font-medium text-white disabled:opacity-50"
+                disabled={
+                  pending ||
+                  readOnly ||
+                  actorRole !== "teacher" ||
+                  !candidate.canAdopt ||
+                  (selectedKeys.size === 0 && selectedBlocks.size === 0)
+                }
+                onClick={onAdopt}
+              >
+                選択項目を下書きへ反映
+              </button>
+              <button
+                type="button"
+                className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700"
+                onClick={scrollToPanelTop}
+              >
+                上へ戻る
+              </button>
+            </div>
+            <p className="text-[11px] leading-snug text-slate-500">
+              総合コメント・教員専用所見は反映しません。確認完了（採用確定）は次のSprintです。
             </p>
           </div>
         </div>
