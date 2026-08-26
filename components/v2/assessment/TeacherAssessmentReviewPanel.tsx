@@ -18,6 +18,7 @@ import {
   saveAndCompleteTeacherAssessmentReviewAction,
   saveTeacherAssessmentReviewDraftAction,
 } from "@/app/v2/actions/assessmentReviewWrite";
+import TeacherAiEvaluationCandidatePanel from "@/components/v2/assessment/TeacherAiEvaluationCandidatePanel";
 import type { AssessmentReviewRow } from "@/lib/v2/assessment/assessmentReviewRepository";
 import { isAssessmentReviewCurrentlyReturned } from "@/lib/v2/assessment/assessmentReviewStatus";
 import {
@@ -833,6 +834,36 @@ export default function TeacherAssessmentReviewPanel({
     </p>
   ) : (
     <>
+      <TeacherAiEvaluationCandidatePanel
+        milestoneId={milestoneId}
+        studentId={studentId}
+        submissionId={candidate.submissionId}
+        reviewId={review?.id ?? null}
+        reviewUpdatedAt={baseUpdatedAt}
+        teacherScores={rubricScores}
+        readOnly={readOnly || currentlyReturned}
+        onAdopted={() => {
+          startTransition(async () => {
+            const res = await getTeacherAssessmentReviewAction({
+              milestoneId,
+              studentId,
+              submissionId: candidate.submissionId,
+            });
+            if (!res.ok) {
+              setSaveState({ kind: "error", message: res.message });
+              return;
+            }
+            applyReview(res.review, {
+              completedByDisplayName: res.completedByDisplayName,
+            });
+            setSaveState({
+              kind: "saved",
+              at: new Date().toISOString(),
+            });
+          });
+        }}
+      />
+
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-slate-700">評価項目</p>
         <button
