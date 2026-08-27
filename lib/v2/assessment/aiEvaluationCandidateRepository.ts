@@ -163,7 +163,7 @@ export async function getActiveAiEvaluationStagingForSubmission(
     return { ok: false, message: "AI評価候補を読み込めませんでした。" };
   }
   if (!data) return { ok: true, row: null };
-  return { ok: true, row: mapFull(data as Record<string, unknown>) };
+  return { ok: true, row: mapFull(data as unknown as Record<string, unknown>) };
 }
 
 export async function listAiEvaluationStagingHistoryForSubmission(
