@@ -263,6 +263,9 @@ export type BatchImportMemberResult = {
   message?: string;
   stagingId?: string;
   validationStatus?: string;
+  assessmentSubmissionId?: string;
+  assessmentMilestoneId?: string;
+  studentUserId?: string;
 };
 
 async function mapPool<T, R>(
@@ -528,6 +531,9 @@ export async function executeBatchImportZip(input: {
         ok: true,
         stagingId: imported.stagingId,
         validationStatus: imported.validationStatus,
+        assessmentSubmissionId: imported.assessmentSubmissionId,
+        assessmentMilestoneId: imported.assessmentMilestoneId,
+        studentUserId: imported.studentUserId,
       };
     },
   );

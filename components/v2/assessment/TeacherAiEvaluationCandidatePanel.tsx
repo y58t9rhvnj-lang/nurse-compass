@@ -56,7 +56,10 @@ export default function TeacherAiEvaluationCandidatePanel({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionOk, setActionOk] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  /** async Server Action 用。startTransition(async) だと pending が張り付くことがある */
+  const [busy, setBusy] = useState(false);
+  const [, startTransition] = useTransition();
+  const pending = busy;
 
   const [selectedKeys, setSelectedKeys] = useState<Set<AssessmentRubricKey>>(
     () => new Set(),
@@ -73,47 +76,50 @@ export default function TeacherAiEvaluationCandidatePanel({
     gaps_or_alternatives: string;
   }>({ strengths: "", next_questions: "", gaps_or_alternatives: "" });
 
-  const reload = useCallback(() => {
+  const loadCandidate = useCallback(async () => {
     if (!submissionId) {
       setCandidate(null);
       return;
     }
-    startTransition(async () => {
-      setLoadError(null);
-      const res = await getAiEvaluationCandidateForSubmissionAction({
-        submissionId,
-      });
-      if (!res.ok) {
-        setLoadError(res.message);
-        setCandidate(null);
-        return;
-      }
-      setActorRole(res.actorRole);
-      setCanAck(res.canAcknowledgeWarnings);
-      setCandidate(res.candidate);
-      if (res.candidate) {
-        const scores: Partial<Record<AssessmentRubricKey, number | null>> = {};
-        for (const item of res.candidate.items) {
-          scores[item.rubricKey] = item.score;
-        }
-        setEditedScores(scores);
-        setEditedComments({
-          strengths: feedbackBlockToReviewComment(
-            "strengths",
-            res.candidate.feedbackDraft,
-          ),
-          next_questions: feedbackBlockToReviewComment(
-            "next_questions",
-            res.candidate.feedbackDraft,
-          ),
-          gaps_or_alternatives: feedbackBlockToReviewComment(
-            "gaps_or_alternatives",
-            res.candidate.feedbackDraft,
-          ),
-        });
-      }
+    setLoadError(null);
+    const res = await getAiEvaluationCandidateForSubmissionAction({
+      submissionId,
     });
+    if (!res.ok) {
+      setLoadError(res.message);
+      setCandidate(null);
+      return;
+    }
+    setActorRole(res.actorRole);
+    setCanAck(res.canAcknowledgeWarnings);
+    setCandidate(res.candidate);
+    if (res.candidate) {
+      const scores: Partial<Record<AssessmentRubricKey, number | null>> = {};
+      for (const item of res.candidate.items) {
+        scores[item.rubricKey] = item.score;
+      }
+      setEditedScores(scores);
+      setEditedComments({
+        strengths: feedbackBlockToReviewComment(
+          "strengths",
+          res.candidate.feedbackDraft,
+        ),
+        next_questions: feedbackBlockToReviewComment(
+          "next_questions",
+          res.candidate.feedbackDraft,
+        ),
+        gaps_or_alternatives: feedbackBlockToReviewComment(
+          "gaps_or_alternatives",
+          res.candidate.feedbackDraft,
+        ),
+      });
+    }
   }, [submissionId]);
+
+  const reload = useCallback(() => {
+    setBusy(true);
+    void loadCandidate().finally(() => setBusy(false));
+  }, [loadCandidate]);
 
   useEffect(() => {
     reload();
@@ -132,22 +138,27 @@ export default function TeacherAiEvaluationCandidatePanel({
 
   const onAck = (w: AiCandidateWarningView) => {
     if (!candidate) return;
-    startTransition(async () => {
-      setActionError(null);
-      setActionOk(null);
-      const res = await acknowledgeAiEvaluationWarningAction({
-        stagingId: candidate.stagingId,
-        warningFamily: w.family,
-        warningCode: w.code,
-        warningPayloadHash: w.payloadHash,
-      });
-      if (!res.ok) {
-        setActionError(res.message);
-        return;
+    setBusy(true);
+    void (async () => {
+      try {
+        setActionError(null);
+        setActionOk(null);
+        const res = await acknowledgeAiEvaluationWarningAction({
+          stagingId: candidate.stagingId,
+          warningFamily: w.family,
+          warningCode: w.code,
+          warningPayloadHash: w.payloadHash,
+        });
+        if (!res.ok) {
+          setActionError(res.message);
+          return;
+        }
+        setActionOk("警告を確認しました。");
+        await loadCandidate();
+      } finally {
+        setBusy(false);
       }
-      setActionOk("警告を確認しました。");
-      reload();
-    });
+    })();
   };
 
   const onAckAll = (family: "version" | "pii") => {
@@ -156,58 +167,70 @@ export default function TeacherAiEvaluationCandidatePanel({
       family === "version" ? candidate.versionWarnings : candidate.piiWarnings;
     const unacked = list.filter((w) => !w.acknowledged);
     if (unacked.length === 0) return;
-    startTransition(async () => {
-      setActionError(null);
-      setActionOk(null);
-      const res = await acknowledgeAllAiEvaluationWarningsAction({
-        stagingId: candidate.stagingId,
-        warnings: unacked.map((w) => ({
-          warningFamily: w.family,
-          warningCode: w.code,
-          warningPayloadHash: w.payloadHash,
-        })),
-      });
-      if (!res.ok) {
-        setActionError(res.message);
-        return;
+    setBusy(true);
+    void (async () => {
+      try {
+        setActionError(null);
+        setActionOk(null);
+        const res = await acknowledgeAllAiEvaluationWarningsAction({
+          stagingId: candidate.stagingId,
+          warnings: unacked.map((w) => ({
+            warningFamily: w.family,
+            warningCode: w.code,
+            warningPayloadHash: w.payloadHash,
+          })),
+        });
+        if (!res.ok) {
+          setActionError(res.message);
+          return;
+        }
+        setActionOk(`${res.acknowledgedCount}件の警告を確認しました。`);
+        await loadCandidate();
+      } finally {
+        setBusy(false);
       }
-      setActionOk(`${res.acknowledgedCount}件の警告を確認しました。`);
-      reload();
-    });
+    })();
   };
 
   const onAdopt = () => {
     if (!candidate || !submissionId) return;
-    startTransition(async () => {
-      setActionError(null);
-      setActionOk(null);
-      const res = await adoptAiEvaluationCandidateAction({
-        stagingId: candidate.stagingId,
-        milestoneId,
-        studentId,
-        submissionId,
-        reviewId,
-        baseUpdatedAt: reviewUpdatedAt,
-        adoptedRubricKeys: [...selectedKeys],
-        adoptedCommentBlocks: [...selectedBlocks],
-        appliedRubricScores: editedScores,
-        appliedComments: editedComments,
-      });
-      if (!res.ok) {
-        setActionError(res.message);
-        return;
+    setBusy(true);
+    void (async () => {
+      try {
+        setActionError(null);
+        setActionOk(null);
+        const res = await adoptAiEvaluationCandidateAction({
+          stagingId: candidate.stagingId,
+          milestoneId,
+          studentId,
+          submissionId,
+          reviewId,
+          baseUpdatedAt: reviewUpdatedAt,
+          adoptedRubricKeys: [...selectedKeys],
+          adoptedCommentBlocks: [...selectedBlocks],
+          appliedRubricScores: editedScores,
+          appliedComments: editedComments,
+        });
+        if (!res.ok) {
+          setActionError(res.message);
+          return;
+        }
+        setActionOk(
+          `一部採用しました（履歴 #${res.adoptionSequence}）。AIの原文はこの候補に保持されます。`,
+        );
+        setSelectedKeys(new Set());
+        setSelectedBlocks(new Set());
+        startTransition(() => {
+          onAdopted({
+            reviewId: res.reviewId,
+            reviewUpdatedAt: res.reviewUpdatedAt,
+          });
+        });
+        await loadCandidate();
+      } finally {
+        setBusy(false);
       }
-      setActionOk(
-        `一部採用しました（履歴 #${res.adoptionSequence}）。AIの原文はこの候補に保持されます。`,
-      );
-      setSelectedKeys(new Set());
-      setSelectedBlocks(new Set());
-      onAdopted({
-        reviewId: res.reviewId,
-        reviewUpdatedAt: res.reviewUpdatedAt,
-      });
-      reload();
-    });
+    })();
   };
 
   const scrollToPanelTop = () => {

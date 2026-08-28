@@ -130,6 +130,9 @@ export type ImportAiEvaluationResult =
       reviewStatus: string;
       validationStatus: string;
       evaluationRequestId: string;
+      assessmentSubmissionId: string;
+      assessmentMilestoneId: string;
+      studentUserId: string;
       resultHash: string;
       supersededCount: number;
       auditLogged: boolean;
@@ -339,6 +342,9 @@ export async function importAiEvaluationResultAction(input: {
     reviewStatus: inserted.staging.reviewStatus,
     validationStatus: inserted.staging.validationStatus,
     evaluationRequestId: req.evaluationRequestId,
+    assessmentSubmissionId: req.assessmentSubmissionId,
+    assessmentMilestoneId: req.assessmentMilestoneId,
+    studentUserId: req.studentUserId,
     resultHash: validated.resultHash,
     supersededCount: inserted.supersededIds.length,
     auditLogged: auditImport.ok,

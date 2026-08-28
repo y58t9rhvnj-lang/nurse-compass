@@ -114,32 +114,36 @@ export default function TeacherAiBatchExportDialog({
           <div
             role="dialog"
             aria-modal="true"
-            className="w-full max-w-lg rounded-xl bg-white p-4 shadow-xl sm:p-5"
+            className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl"
           >
-            <h2 className="text-lg font-semibold text-slate-900">
-              一括 AI Package Export（Preview）
-            </h2>
-            {busy && !preview && !error ? (
-              <p className="mt-3 text-sm text-slate-600">確認中…</p>
-            ) : null}
-            {error ? (
-              <p className="mt-3 text-sm text-rose-700">{error}</p>
-            ) : null}
-            {preview ? (
-              <div className="mt-3 space-y-2 text-sm text-slate-800">
-                <p>対象（評価候補提出）: {preview.targetCount} 件</p>
-                <p>snapshotなし（スキップ）: {preview.skippedSnapshot} 件</p>
-                <p className="font-medium">
-                  生成予定 Package: {preview.generateCount} 件
-                </p>
-                <p className="text-xs text-amber-900">{preview.freeTextWarning}</p>
-                <p className="text-xs text-slate-500">
-                  ZIP には manifest.json・README.txt・packages/*.json
-                  （正式 AiEvaluationPackage）が含まれます。
-                </p>
-              </div>
-            ) : null}
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5">
+              <h2 className="text-lg font-semibold text-slate-900">
+                一括 AI Package Export（Preview）
+              </h2>
+              {busy && !preview && !error ? (
+                <p className="mt-3 text-sm text-slate-600">確認中…</p>
+              ) : null}
+              {error ? (
+                <p className="mt-3 break-words text-sm text-rose-700">{error}</p>
+              ) : null}
+              {preview ? (
+                <div className="mt-3 space-y-2 break-words text-sm text-slate-800">
+                  <p>対象（評価候補提出）: {preview.targetCount} 件</p>
+                  <p>snapshotなし（スキップ）: {preview.skippedSnapshot} 件</p>
+                  <p className="font-medium">
+                    生成予定 Package: {preview.generateCount} 件
+                  </p>
+                  <p className="text-xs text-amber-900">
+                    {preview.freeTextWarning}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    ZIP には manifest.json・README.txt・packages/*.json
+                    （正式 AiEvaluationPackage）が含まれます。
+                  </p>
+                </div>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-white p-4 sm:px-5">
               <button
                 type="button"
                 className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm"
@@ -154,7 +158,11 @@ export default function TeacherAiBatchExportDialog({
                 disabled={busy || !preview || preview.generateCount < 1}
                 onClick={onConfirm}
               >
-                {busy ? "生成中…" : "ZIPをダウンロード"}
+                {busy
+                  ? preview
+                    ? "生成中…"
+                    : "確認中…"
+                  : "ZIPをダウンロード"}
               </button>
             </div>
           </div>

@@ -376,6 +376,7 @@ export default function TeacherReviewStudentsClient({
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm text-slate-500">
             {visible.length} / {dedupeByStudentId(rows).length} 名表示
+            {selectedCount > 0 ? ` ・ 選択 ${selectedCount} 件` : ""}
           </p>
           <button
             type="button"

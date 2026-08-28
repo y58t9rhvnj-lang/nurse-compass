@@ -362,11 +362,12 @@ export function buildAiEvaluationCandidateReadModel(
   if (unackedWarningCount > 0) {
     adoptBlockedReasons.push("未確認の警告があります。");
   }
-  if (!input.review.exists) {
-    adoptBlockedReasons.push("評価下書きがまだありません。先に下書きを作成してください。");
-  } else if (input.review.status === "completed") {
+  // 下書き未作成でも採用可（adopt action が空の下書きを作成する）。
+  // Batch Import 直後はほぼ全学生が未作成のため、ここでブロックすると
+  // チェックボックスが disabled のまま反応しないように見える。
+  if (input.review.exists && input.review.status === "completed") {
     adoptBlockedReasons.push("確定済みの評価には採用できません。");
-  } else if (input.review.currentlyReturned) {
+  } else if (input.review.exists && input.review.currentlyReturned) {
     adoptBlockedReasons.push("返却中の評価には採用できません。");
   }
   if (input.actorRole !== "teacher") {
