@@ -42,6 +42,9 @@ yarn-error.log*
 # 例のみコミット（seed-users.example.json）。
 scripts/v2/*.local.*
 
+# ローカル E2E / 作業用一時ファイル
+/tmp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -28,6 +28,8 @@ import {
 } from "@/lib/v2/assessment/submissionScope";
 import TeacherAiExportDialog from "@/components/v2/assessment/TeacherAiExportDialog";
 import TeacherAiEvaluationImportDialog from "@/components/v2/assessment/TeacherAiEvaluationImportDialog";
+import TeacherAiBatchExportDialog from "@/components/v2/assessment/TeacherAiBatchExportDialog";
+import TeacherAiBatchImportDialog from "@/components/v2/assessment/TeacherAiBatchImportDialog";
 
 type FilterKey =
   | "all"
@@ -36,7 +38,10 @@ type FilterKey =
   | "late"
   | "pending"
   | "has_candidate"
-  | "no_candidate";
+  | "no_candidate"
+  | "ai_unevaluated"
+  | "not_returned"
+  | "exclude_evaluated";
 
 type SortKey = "name" | "submitted_at" | "count";
 
@@ -53,6 +58,9 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "pending", label: "教員確認待ち" },
   { key: "has_candidate", label: "評価対象あり" },
   { key: "no_candidate", label: "評価対象なし" },
+  { key: "ai_unevaluated", label: "AI未評価のみ" },
+  { key: "not_returned", label: "未返却のみ" },
+  { key: "exclude_evaluated", label: "評価済み除外" },
 ];
 
 function matchesFilter(
@@ -74,6 +82,16 @@ function matchesFilter(
       return row.hasCandidate;
     case "no_candidate":
       return !row.isUnsubmitted && !row.hasCandidate;
+    case "ai_unevaluated":
+      return row.hasCandidate && !row.hasActiveAiEvaluation;
+    case "not_returned":
+      return row.reviewSummary.status !== "returned";
+    case "exclude_evaluated":
+      return (
+        row.reviewSummary.status !== "completed" &&
+        row.reviewSummary.status !== "returned" &&
+        row.reviewSummary.status !== "return_revoked"
+      );
   }
 }
 
@@ -174,10 +192,18 @@ export default function TeacherReviewStudentsClient({
     return ids;
   }, [visible]);
 
+  /** 選択あり → その提出のみ。未選択 → null（マイルストーン評価対象すべて） */
+  const batchExportSubmissionIds = useMemo(() => {
+    const fromSelected = visible
+      .filter((r) => selected.has(r.student.id) && r.candidateSubmissionId)
+      .map((r) => r.candidateSubmissionId!);
+    if (fromSelected.length > 0) return fromSelected;
+    return undefined;
+  }, [visible, selected]);
+
   const selectedCount = [...selected].filter((id) => selectableIds.has(id)).length;
 
   const toggleSelect = (studentId: string, checked: boolean) => {
-    if (!selectableIds.has(studentId)) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (checked) next.add(studentId);
@@ -189,9 +215,9 @@ export default function TeacherReviewStudentsClient({
   const toggleSelectAllVisible = (checked: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      for (const id of selectableIds) {
-        if (checked) next.add(id);
-        else next.delete(id);
+      for (const row of visible) {
+        if (checked) next.add(row.student.id);
+        else next.delete(row.student.id);
       }
       return next;
     });
@@ -251,9 +277,9 @@ export default function TeacherReviewStudentsClient({
     });
   };
 
-  const allSelectableChecked =
-    selectableIds.size > 0 &&
-    [...selectableIds].every((id) => selected.has(id));
+  const allVisibleChecked =
+    visible.length > 0 && visible.every((r) => selected.has(r.student.id));
+  const someVisibleChecked = visible.some((r) => selected.has(r.student.id));
 
   const bulkFailByStudent = useMemo(() => {
     const map = new Map<string, string>();
@@ -296,7 +322,7 @@ export default function TeacherReviewStudentsClient({
             {milestone.unsubmittedStudentCount}名・評価対象{" "}
             {milestone.candidateStudentCount}名
           </p>
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap gap-2">
             <TeacherAiExportDialog
               mode={{
                 kind: "milestone",
@@ -305,6 +331,12 @@ export default function TeacherReviewStudentsClient({
               buttonLabel="AI解析用エクスポート（評価対象）"
             />
             <TeacherAiEvaluationImportDialog buttonLabel="AI評価結果を取込" />
+            <TeacherAiBatchExportDialog
+              milestoneId={milestone.milestoneId}
+              submissionIds={batchExportSubmissionIds}
+              buttonLabel="一括AI Package Export"
+            />
+            <TeacherAiBatchImportDialog buttonLabel="一括AI結果 Import" />
           </div>
         </div>
 
@@ -386,10 +418,16 @@ export default function TeacherReviewStudentsClient({
                 <input
                   type="checkbox"
                   className="h-4 w-4"
-                  checked={allSelectableChecked}
-                  disabled={selectableIds.size === 0}
+                  checked={allVisibleChecked}
+                  ref={(el) => {
+                    if (el) {
+                      el.indeterminate =
+                        someVisibleChecked && !allVisibleChecked;
+                    }
+                  }}
+                  disabled={visible.length === 0}
                   onChange={(e) => toggleSelectAllVisible(e.target.checked)}
-                  aria-label="表示中の確定可能な下書きをすべて選択"
+                  aria-label="表示中の学生をすべて選択"
                 />
               </th>
               <th className="bg-white px-3 py-3">学生</th>
@@ -402,7 +440,7 @@ export default function TeacherReviewStudentsClient({
           </thead>
           <tbody>
             {visible.map((row) => {
-              const canSelect = selectableIds.has(row.student.id);
+              const canBulkSelect = selectableIds.has(row.student.id);
               const failMsg = bulkFailByStudent.get(row.student.id);
               const rs = row.reviewSummary;
               return (
@@ -417,12 +455,17 @@ export default function TeacherReviewStudentsClient({
                     <input
                       type="checkbox"
                       className="h-4 w-4"
-                      disabled={!canSelect || pending}
+                      disabled={pending}
                       checked={selected.has(row.student.id)}
                       onChange={(e) =>
                         toggleSelect(row.student.id, e.target.checked)
                       }
-                      aria-label={`${row.student.displayName}の評価を選択`}
+                      aria-label={`${row.student.displayName}を選択`}
+                      title={
+                        canBulkSelect
+                          ? "一括確定・一括Export対象"
+                          : "一括Export対象（一括確定は下書き条件を満たす場合のみ）"
+                      }
                     />
                   </td>
                   <td

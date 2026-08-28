@@ -1,40 +1,27 @@
 "use server";
 
-import { createHash, randomUUID } from "crypto";
 import { isSupabaseConfigured } from "@/lib/v2/env";
-import { getServiceRoleKey, isServiceRoleConfigured } from "@/lib/v2/env.server";
 import { getCurrentProfile, type AppProfile } from "@/lib/v2/auth/currentUser";
 import { createServerSupabaseClient } from "@/lib/v2/supabase/serverClient";
-import { createAdminSupabaseClient } from "@/lib/v2/supabase/adminClient";
-import { patientIdForCaseId } from "@/lib/v2/notebook/caseId";
-import {
-  getTeacherMilestoneMeta,
-} from "@/lib/v2/assessment/teacherReviewRepository";
-import { parseAssessmentSnapshot } from "@/lib/v2/assessment/snapshotReadModel";
+import { getTeacherMilestoneMeta } from "@/lib/v2/assessment/teacherReviewRepository";
 import {
   AI_EXPORT_SCHEMA_VERSION,
   AI_EXPORT_FREE_TEXT_WARNING,
-  buildAiAnonymizedAssessmentRecord,
-  buildJsonExportDocument,
-  buildJsonlExportText,
-  createAiAnonymousIdMapper,
-  createAiTitleLabelMapper,
   summarizeIncludedArtifacts,
-  type AiAnonymizedAssessmentRecord,
 } from "@/lib/v2/assessment/aiExportAnonymize";
-import { prepareAiEvaluationPackageStudentSubmission } from "@/lib/v2/assessment/aiEvaluationPackageSubmission";
 import { writeAiExportAuditLog } from "@/lib/v2/assessment/aiExportAudit";
-import { insertAiEvaluationRequest } from "@/lib/v2/assessment/aiEvaluationRequestRepository";
-import { sha256HexOfCanonicalJson } from "@/lib/v2/assessment/aiEvaluationResultHash";
+import { AI_EVAL_PACKAGE_SCHEMA_VERSION } from "@/lib/v2/assessment/aiEvaluationVersions";
 import {
-  AI_EVAL_COMPASS_POLICY_VERSION,
-  AI_EVAL_PACKAGE_SCHEMA_VERSION,
-  AI_EVAL_REQUEST_TTL_DAYS,
-  AI_EVAL_RESULT_SCHEMA_VERSION,
-  AI_EVAL_RUBRIC_VERSION,
-  aiEvalCaseVersionsForPatientId,
-} from "@/lib/v2/assessment/aiEvaluationVersions";
-import type { AssessmentSubmissionScope } from "@/lib/v2/assessment/types";
+  buildAiExportRecordsFromRows,
+  loadCandidateSubmissionsForMilestone,
+  type BuiltAiExportRecord,
+} from "@/lib/v2/assessment/aiEvaluationExportCore";
+import { buildPackagesForExport } from "@/lib/v2/assessment/aiEvaluationPackageExport";
+import type {
+  AiExportDownloadResult,
+  AiExportPreviewItem,
+  AiExportPreviewResult,
+} from "@/lib/v2/assessment/aiEvaluationExportTypes";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type StaffContext =
@@ -50,7 +37,6 @@ async function requireTeacherContext(): Promise<StaffContext> {
     };
   }
   const profile = await getCurrentProfile();
-  // Sprint 5A: 教員のみ（admin も教員画面経由で可）
   if (
     !profile ||
     !profile.isActive ||
@@ -60,191 +46,6 @@ async function requireTeacherContext(): Promise<StaffContext> {
   }
   const supabase = await createServerSupabaseClient();
   return { ok: true, supabase, profile };
-}
-
-function getAiExportIdSecret(): string {
-  const pepper = process.env.AI_EXPORT_ID_PEPPER?.trim();
-  if (pepper) return pepper;
-  const sr = getServiceRoleKey();
-  if (sr) {
-    return createHash("sha256").update(`ai-export|${sr}`).digest("hex");
-  }
-  return "nurse-compass-ai-export-dev";
-}
-
-export type AiExportPreviewItem = {
-  submissionId: string;
-  submissionNumber: number;
-  timingStatus: string;
-  includedArtifacts: string[];
-  parseOk: boolean;
-};
-
-export type AiExportPreviewResult =
-  | {
-      ok: true;
-      milestoneId: string;
-      milestoneTitle: string;
-      cycleTitle: string;
-      /** 外部ファイル上の表記（課題N） */
-      exportCycleTitle: string;
-      /** 外部ファイル上の表記（評価時点N） */
-      exportMilestoneTitle: string;
-      freeTextWarning: string;
-      recordCount: number;
-      includedArtifacts: string[];
-      items: AiExportPreviewItem[];
-      schemaVersion: typeof AI_EXPORT_SCHEMA_VERSION;
-    }
-  | { ok: false; kind: string; message: string };
-
-type BuiltRecord = {
-  record: AiAnonymizedAssessmentRecord;
-  submissionId: string;
-  submissionNumber: number;
-  timingStatus: string;
-  assessmentCycleId: string;
-  assessmentMilestoneId: string;
-  studentUserId: string;
-  caseId: string;
-};
-
-async function loadCandidateSubmissionsForMilestone(
-  supabase: SupabaseClient,
-  organizationId: string,
-  milestoneId: string,
-): Promise<
-  | {
-      ok: true;
-      rows: Array<{
-        id: string;
-        assessmentCycleId: string;
-        assessmentMilestoneId: string;
-        caseId: string;
-        submissionNumber: number;
-        submittedAt: string;
-        timingStatus: string;
-        snapshot: unknown;
-        studentUserId: string;
-      }>;
-    }
-  | { ok: false; kind: string; message: string }
-> {
-  const { data: cands, error: cErr } = await supabase
-    .from("assessment_evaluation_candidates")
-    .select("submission_id")
-    .eq("organization_id", organizationId)
-    .eq("assessment_milestone_id", milestoneId);
-  if (cErr) {
-    return {
-      ok: false,
-      kind: "db_error",
-      message: "評価対象を読み込めませんでした。",
-    };
-  }
-  const ids = [
-    ...new Set(
-      ((cands ?? []) as Array<{ submission_id: string }>).map(
-        (c) => c.submission_id,
-      ),
-    ),
-  ];
-  if (ids.length === 0) {
-    return { ok: true, rows: [] };
-  }
-
-  const { data: subs, error: sErr } = await supabase
-    .from("assessment_submissions")
-    .select(
-      "id, assessment_cycle_id, assessment_milestone_id, case_id, submission_number, submitted_at, timing_status, snapshot, student_user_id",
-    )
-    .eq("organization_id", organizationId)
-    .eq("assessment_milestone_id", milestoneId)
-    .in("id", ids)
-    .eq("is_withdrawn", false)
-    .order("submission_number", { ascending: true });
-  if (sErr) {
-    return {
-      ok: false,
-      kind: "db_error",
-      message: "提出データを読み込めませんでした。",
-    };
-  }
-
-  return {
-    ok: true,
-    rows: ((subs ?? []) as Record<string, unknown>[]).map((s) => ({
-      id: String(s.id),
-      assessmentCycleId: String(s.assessment_cycle_id),
-      assessmentMilestoneId: String(s.assessment_milestone_id),
-      caseId: String(s.case_id),
-      submissionNumber: Number(s.submission_number),
-      submittedAt: String(s.submitted_at),
-      timingStatus: String(s.timing_status ?? "on_time"),
-      snapshot: s.snapshot,
-      studentUserId: String(s.student_user_id),
-    })),
-  };
-}
-
-function buildRecordsFromRows(
-  profileOrgId: string,
-  rows: Array<{
-    id: string;
-    assessmentCycleId: string;
-    assessmentMilestoneId: string;
-    caseId: string;
-    submissionNumber: number;
-    timingStatus: string;
-    snapshot: unknown;
-    studentUserId: string;
-  }>,
-  /** 課題の提出範囲。AI評価 package 向けに scope 外成果物を除外する */
-  submissionScope?: AssessmentSubmissionScope | null,
-): BuiltRecord[] {
-  const ids = createAiAnonymousIdMapper(
-    getAiExportIdSecret(),
-    profileOrgId,
-  );
-  const titles = createAiTitleLabelMapper();
-  const built: BuiltRecord[] = [];
-  for (const row of rows) {
-    const patientId = patientIdForCaseId(row.caseId) ?? "A";
-    const readModel = parseAssessmentSnapshot(row.snapshot, patientId);
-    if (!readModel.ok) continue;
-    // 匿名化アーカイブ形を構築したうえで、評価 package 用に絞り込み
-    // （evidence_links キーは残し中身は空、scope 外は除外）
-    const archiveRecord = buildAiAnonymizedAssessmentRecord({
-      ids,
-      titles,
-      sourceIds: {
-        caseId: row.caseId,
-        cycleId: row.assessmentCycleId,
-        milestoneId: row.assessmentMilestoneId,
-        submissionId: row.id,
-      },
-      readModel,
-      timingStatus: row.timingStatus,
-      submissionNumber: row.submissionNumber,
-    });
-    const scopeForPackage =
-      submissionScope ?? readModel.submissionScope ?? null;
-    const record = prepareAiEvaluationPackageStudentSubmission(
-      archiveRecord,
-      scopeForPackage,
-    );
-    built.push({
-      record,
-      submissionId: row.id,
-      submissionNumber: row.submissionNumber,
-      timingStatus: row.timingStatus,
-      assessmentCycleId: row.assessmentCycleId,
-      assessmentMilestoneId: row.assessmentMilestoneId,
-      studentUserId: row.studentUserId,
-      caseId: row.caseId,
-    });
-  }
-  return built;
 }
 
 /** マイルストーンの評価対象提出について、エクスポート前プレビュー */
@@ -273,7 +74,7 @@ export async function previewMilestoneAiExportAction(
   );
   if (!loaded.ok) return loaded;
 
-  const built = buildRecordsFromRows(
+  const { built } = buildAiExportRecordsFromRows(
     ctx.profile.organizationId,
     loaded.rows,
     meta.row.submissionScope,
@@ -298,6 +99,7 @@ export async function previewMilestoneAiExportAction(
     includedArtifacts: summarizeIncludedArtifacts(built.map((b) => b.record)),
     items,
     schemaVersion: AI_EXPORT_SCHEMA_VERSION,
+    packageSchemaVersion: AI_EVAL_PACKAGE_SCHEMA_VERSION,
   };
 }
 
@@ -334,7 +136,7 @@ export async function previewSubmissionAiExportAction(input: {
   }
 
   const row = full as Record<string, unknown>;
-  const built = buildRecordsFromRows(
+  const { built } = buildAiExportRecordsFromRows(
     ctx.profile.organizationId,
     [
       {
@@ -378,28 +180,20 @@ export async function previewSubmissionAiExportAction(input: {
       },
     ],
     schemaVersion: AI_EXPORT_SCHEMA_VERSION,
+    packageSchemaVersion: AI_EVAL_PACKAGE_SCHEMA_VERSION,
   };
 }
-
-export type AiExportDownloadResult =
-  | {
-      ok: true;
-      format: "json" | "jsonl";
-      filename: string;
-      contentType: string;
-      body: string;
-      recordCount: number;
-      includedArtifacts: string[];
-      auditLogged: boolean;
-    }
-  | { ok: false; kind: string; message: string };
 
 async function finishExport(input: {
   profile: AppProfile;
   milestoneId: string;
   milestoneTitle: string;
   format: "json" | "jsonl";
-  built: BuiltRecord[];
+  built: BuiltAiExportRecord[];
+  idSecret: string;
+  idMapper: ReturnType<
+    typeof import("@/lib/v2/assessment/aiExportAnonymize").createAiAnonymousIdMapper
+  >;
 }): Promise<AiExportDownloadResult> {
   if (input.built.length === 0) {
     return {
@@ -409,75 +203,50 @@ async function finishExport(input: {
     };
   }
 
-  const generatedAt = new Date();
-  const expiresAt = new Date(
-    generatedAt.getTime() + AI_EVAL_REQUEST_TTL_DAYS * 24 * 60 * 60 * 1000,
-  );
-  const generatedAtIso = generatedAt.toISOString();
-  const expiresAtIso = expiresAt.toISOString();
+  const { packages, evaluationRequestIds, generatedAtIso } =
+    await buildPackagesForExport({
+      profile: input.profile,
+      built: input.built,
+      idSecret: input.idSecret,
+      idMapper: input.idMapper,
+    });
 
-  // Sprint 5B: 提出ごとに evaluation_request を記録し、匿名 JSON に ID のみ載せる
-  if (isServiceRoleConfigured()) {
-    const admin = createAdminSupabaseClient();
-    for (const b of input.built) {
-      const evaluationRequestId = randomUUID();
-      const patientId = patientIdForCaseId(b.caseId) ?? "A";
-      const caseVersions = aiEvalCaseVersionsForPatientId(patientId);
-      const packageHash = sha256HexOfCanonicalJson({
-        schema_version: AI_EXPORT_SCHEMA_VERSION,
-        evaluation_request_id: evaluationRequestId,
-        anonymous_ids: b.record.anonymous_ids,
-        source_versions: b.record.source_versions,
-        included_artifacts: b.record.included_artifacts,
-      });
-      const inserted = await insertAiEvaluationRequest(admin, {
-        organizationId: input.profile.organizationId,
-        assessmentSubmissionId: b.submissionId,
-        assessmentCycleId: b.assessmentCycleId,
-        assessmentMilestoneId: b.assessmentMilestoneId,
-        studentUserId: b.studentUserId,
-        evaluationRequestId,
-        packageSchemaVersion: AI_EVAL_PACKAGE_SCHEMA_VERSION,
-        resultSchemaVersion: AI_EVAL_RESULT_SCHEMA_VERSION,
-        compassPolicyVersion: AI_EVAL_COMPASS_POLICY_VERSION,
-        rubricVersion: AI_EVAL_RUBRIC_VERSION,
-        goldStandardVersion: caseVersions.goldStandardVersion,
-        caseVersion: caseVersions.caseVersion,
-        exportSchemaVersion: AI_EXPORT_SCHEMA_VERSION,
-        packageHash,
-        anonymousSubmissionId: b.record.anonymous_ids.submission_id,
-        generatedAt: generatedAtIso,
-        generatedBy: input.profile.id,
-        expiresAt: expiresAtIso,
-      });
-      if (inserted.ok) {
-        b.record.evaluation_request_id = evaluationRequestId;
-      } else {
-        console.error(
-          "[assessmentAiExport] failed to record evaluation request",
-          inserted.kind,
-        );
-      }
-    }
+  if (packages.length === 0) {
+    return {
+      ok: false,
+      kind: "validation",
+      message:
+        "評価リクエストを記録できず、Package を生成できませんでした（service role を確認してください）。",
+    };
   }
 
-  const records = input.built.map((b) => b.record);
-  const exportedAt = generatedAtIso;
-  const includedArtifacts = summarizeIncludedArtifacts(records);
-  const body =
-    input.format === "jsonl"
-      ? buildJsonlExportText(records)
-      : JSON.stringify(
-          buildJsonExportDocument(records, exportedAt),
-          null,
-          2,
-        );
-
-  const stamp = exportedAt.slice(0, 10);
-  const filename =
-    input.format === "jsonl"
-      ? `ai-export-${stamp}-${records.length}.jsonl`
-      : `ai-export-${stamp}.json`;
+  const includedArtifacts = summarizeIncludedArtifacts(
+    input.built.map((b) => b.record),
+  );
+  const stamp = generatedAtIso.slice(0, 10);
+  let body: string;
+  let filename: string;
+  if (input.format === "jsonl") {
+    body = packages.map((p) => JSON.stringify(p)).join("\n") + "\n";
+    filename = `ai-eval-packages-${stamp}-${packages.length}.jsonl`;
+  } else if (packages.length === 1) {
+    body = JSON.stringify(packages[0], null, 2);
+    filename = `ai-eval-package-${stamp}.json`;
+  } else {
+    body = JSON.stringify(
+      {
+        schema_version: 1,
+        format: "ai_evaluation_packages",
+        package_schema_version: AI_EVAL_PACKAGE_SCHEMA_VERSION,
+        exported_at: generatedAtIso,
+        package_count: packages.length,
+        packages,
+      },
+      null,
+      2,
+    );
+    filename = `ai-eval-packages-${stamp}.json`;
+  }
 
   const audit = await writeAiExportAuditLog({
     organizationId: input.profile.organizationId,
@@ -486,14 +255,14 @@ async function finishExport(input: {
     actorRole: input.profile.role === "admin" ? "admin" : "teacher",
     milestoneId: input.milestoneId,
     format: input.format,
-    recordCount: records.length,
+    recordCount: packages.length,
     includedArtifacts,
-    summary: `AI匿名化エクスポート: ${input.milestoneTitle}（${records.length}件・${input.format}）`,
+    summary: `AI Evaluation Package エクスポート: ${input.milestoneTitle}（${packages.length}件・${input.format}）`,
     metadata: {
       schema_version: AI_EXPORT_SCHEMA_VERSION,
-      evaluation_requests_recorded: records.filter(
-        (r) => typeof r.evaluation_request_id === "string",
-      ).length,
+      package_schema_version: AI_EVAL_PACKAGE_SCHEMA_VERSION,
+      evaluation_requests_recorded: evaluationRequestIds.length,
+      export_kind: "ai_evaluation_package",
     },
   });
 
@@ -506,13 +275,13 @@ async function finishExport(input: {
         ? "application/x-ndjson; charset=utf-8"
         : "application/json; charset=utf-8",
     body,
-    recordCount: records.length,
+    recordCount: packages.length,
     includedArtifacts,
     auditLogged: audit.ok,
   };
 }
 
-/** マイルストーンの評価対象を JSON / JSONL でエクスポート */
+/** マイルストーンの評価対象を正式 Package（JSON / JSONL）でエクスポート */
 export async function exportMilestoneAiDataAction(input: {
   milestoneId: string;
   format: "json" | "jsonl";
@@ -539,7 +308,7 @@ export async function exportMilestoneAiDataAction(input: {
   );
   if (!loaded.ok) return loaded;
 
-  const built = buildRecordsFromRows(
+  const { built, idMapper, idSecret } = buildAiExportRecordsFromRows(
     ctx.profile.organizationId,
     loaded.rows,
     meta.row.submissionScope,
@@ -550,10 +319,12 @@ export async function exportMilestoneAiDataAction(input: {
     milestoneTitle: meta.row.title,
     format: input.format,
     built,
+    idMapper,
+    idSecret,
   });
 }
 
-/** 1提出を JSON でエクスポート（単件は json 固定、必要なら jsonl も可） */
+/** 1提出を正式 Package JSON でエクスポート */
 export async function exportSubmissionAiDataAction(input: {
   milestoneId: string;
   studentId: string;
@@ -591,7 +362,7 @@ export async function exportSubmissionAiDataAction(input: {
   }
 
   const row = full as Record<string, unknown>;
-  const built = buildRecordsFromRows(
+  const { built, idMapper, idSecret } = buildAiExportRecordsFromRows(
     ctx.profile.organizationId,
     [
       {
@@ -614,5 +385,7 @@ export async function exportSubmissionAiDataAction(input: {
     milestoneTitle: meta.row.title,
     format,
     built,
+    idMapper,
+    idSecret,
   });
 }

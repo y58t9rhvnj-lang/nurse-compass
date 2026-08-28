@@ -81,6 +81,8 @@ export type TeacherStudentSubmissionRow = {
   latestDeadlineAtAtSubmit: string | null;
   hasCandidate: boolean;
   candidateSubmissionId: string | null;
+  /** アクティブな AI 評価 staging（needs_review / partially_adopted）があるか */
+  hasActiveAiEvaluation: boolean;
   /** @deprecated 提出系の粗い状態。review 表示は reviewSummary を使う */
   evaluationState: "unevaluated" | "no_candidate" | "not_submitted";
   reviewSummary: TeacherStudentReviewSummary;
@@ -294,11 +296,28 @@ export async function listTeacherStudentSubmissionRows(
   if (reviewsRes.error) return { rows: [], error: reviewsRes.error };
 
   const candByStudent = new Map<string, string>();
+  const candidateSubmissionIds: string[] = [];
   for (const c of (cands ?? []) as Array<{
     submission_id: string;
     student_user_id: string;
   }>) {
     candByStudent.set(c.student_user_id, c.submission_id);
+    candidateSubmissionIds.push(c.submission_id);
+  }
+
+  const aiActiveBySubmission = new Set<string>();
+  if (candidateSubmissionIds.length > 0) {
+    const { data: aiRows } = await supabase
+      .from("assessment_ai_evaluation_staging")
+      .select("assessment_submission_id")
+      .eq("organization_id", organizationId)
+      .in("assessment_submission_id", candidateSubmissionIds)
+      .in("review_status", ["needs_review", "partially_adopted"]);
+    for (const r of (aiRows ?? []) as Array<{
+      assessment_submission_id: string;
+    }>) {
+      aiActiveBySubmission.add(r.assessment_submission_id);
+    }
   }
 
   /** candidate submission_id → review（1 submission = 最大1 review） */
@@ -445,6 +464,9 @@ export async function listTeacherStudentSubmissionRows(
         : null,
       hasCandidate,
       candidateSubmissionId: candidateId,
+      hasActiveAiEvaluation: candidateId
+        ? aiActiveBySubmission.has(candidateId)
+        : false,
       evaluationState,
       reviewSummary,
       isUnsubmitted,

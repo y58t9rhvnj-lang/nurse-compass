@@ -6,8 +6,8 @@ import {
   exportSubmissionAiDataAction,
   previewMilestoneAiExportAction,
   previewSubmissionAiExportAction,
-  type AiExportPreviewResult,
 } from "@/app/v2/actions/assessmentAiExport";
+import type { AiExportPreviewResult } from "@/lib/v2/assessment/aiEvaluationExportTypes";
 
 type Mode =
   | { kind: "milestone"; milestoneId: string }
