@@ -80,9 +80,13 @@ function rebuildIncludedArtifacts(
 
 /**
  * AI評価 package の student_submission 用に、匿名化レコードを絞り込む。
+ * - 既知キーのみ allowlist 構築（未知キー / related_diagram 等は strip）
  * - submissionScope 外の成果物を可能な範囲で除外
  * - form2_evidence_links（evidence_links）は常に空
  * - キー構造（evidence_links 含む）は維持
+ *
+ * snapshot に存在すること ≠ AI へ送ってよい。将来 related_diagram を追加しても、
+ * 本関数の allowlist と scope 対応を明示するまで AI へ出ない。
  */
 export function prepareAiEvaluationPackageStudentSubmission(
   record: AiAnonymizedAssessmentRecord,
@@ -121,7 +125,10 @@ export function prepareAiEvaluationPackageStudentSubmission(
     : null;
 
   const next: AiAnonymizedAssessmentRecord = {
-    ...record,
+    schema_version: record.schema_version,
+    export_kind: record.export_kind,
+    anonymous_ids: record.anonymous_ids,
+    meta: record.meta,
     form2,
     form3,
     information_cards,
@@ -129,8 +136,12 @@ export function prepareAiEvaluationPackageStudentSubmission(
     patient_understanding,
     // 評価根拠として使用しない。キーは維持し常に空。
     evidence_links: [],
+    source_versions: record.source_versions,
     included_artifacts: [],
   };
+  if (typeof record.evaluation_request_id === "string") {
+    next.evaluation_request_id = record.evaluation_request_id;
+  }
   next.included_artifacts = rebuildIncludedArtifacts(next);
   return next;
 }

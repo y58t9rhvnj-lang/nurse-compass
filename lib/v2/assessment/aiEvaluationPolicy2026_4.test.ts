@@ -241,7 +241,9 @@ test("患者理解が空の場合の評価文", () => {
 test("一つの情報から適切に考察できているケース", () => {
   const scope = scopeForAiEvaluationPackage("form2", form2Scope);
   const out = prepareAiEvaluationPackageStudentSubmission(baseRecord(), scope);
-  const reflection = out.field_reflections[0]?.reflection_text ?? "";
+  const reflection = String(
+    out.field_reflections[0]?.reflection_text ?? "",
+  );
   assert.match(reflection, /可能性/);
   assert.match(reflection, /幻聴|自己肯定感/);
   const examples = (

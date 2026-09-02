@@ -8,6 +8,8 @@ import {
 } from "./aiEvaluationResultHash";
 import {
   AI_EVAL_RUBRIC_VERSION,
+  isSupportedAiEvalPackageSchemaVersion,
+  isSupportedAiEvalResultSchemaVersion,
 } from "./aiEvaluationVersions";
 
 export type AiEvalIssue = {
@@ -201,10 +203,10 @@ function validateStructure(normalized: Record<string, unknown>): AiEvalIssue[] {
     return errors;
   }
 
-  // 初期版は対応 version = 1 のみ。配列定数への .includes() は使わない。
+  // supported 版は aiEvaluationVersions の helper を単一経路とする（magic number 禁止）。
   if (
     typeof meta.result_schema_version !== "number" ||
-    meta.result_schema_version !== 1
+    !isSupportedAiEvalResultSchemaVersion(meta.result_schema_version)
   ) {
     errors.push({
       code: "unsupported_result_schema",
@@ -214,7 +216,7 @@ function validateStructure(normalized: Record<string, unknown>): AiEvalIssue[] {
   }
   if (
     typeof meta.package_schema_version !== "number" ||
-    meta.package_schema_version !== 1
+    !isSupportedAiEvalPackageSchemaVersion(meta.package_schema_version)
   ) {
     errors.push({
       code: "unsupported_package_schema",

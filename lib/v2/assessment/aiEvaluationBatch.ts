@@ -30,9 +30,10 @@ import {
 } from "@/lib/v2/assessment/aiEvaluationExportCore";
 import { buildPackagesForExport } from "@/lib/v2/assessment/aiEvaluationPackageExport";
 import {
-  importAiEvaluationResultAction,
-  previewAiEvaluationImportAction,
-} from "@/app/v2/actions/assessmentAiEvaluationImport";
+  importAiEvaluationResult,
+  previewAiEvaluationImport,
+} from "@/lib/v2/assessment/aiEvaluationImportCore";
+import { createAdminSupabaseClient } from "@/lib/v2/supabase/adminClient";
 import { writeAiExportAuditLog } from "@/lib/v2/assessment/aiExportAudit";
 import { writeAiEvaluationAuditLog } from "@/lib/v2/assessment/aiEvaluationAudit";
 import { AI_EVAL_PACKAGE_SCHEMA_VERSION } from "@/lib/v2/assessment/aiEvaluationVersions";
@@ -415,6 +416,7 @@ export async function previewBatchImportZip(input: {
   let duplicateHint = 0;
 
   if (integrity.canExecute) {
+    const admin = createAdminSupabaseClient();
     for (const m of parsed.manifest.members) {
       if (targetList) {
         const gate = assertEvaluationRequestInTargetList(
@@ -447,7 +449,9 @@ export async function previewBatchImportZip(input: {
         error += 1;
         continue;
       }
-      const prev = await previewAiEvaluationImportAction({
+      const prev = await previewAiEvaluationImport({
+        admin,
+        organizationId: input.profile.organizationId,
         fileName: m.path,
         jsonText: text,
       });
@@ -567,6 +571,7 @@ export async function executeBatchImportZip(input: {
   const manifest: AiEvalBatchManifest = parsed.manifest;
   const batchId = manifest.batch_id;
   const role = input.profile.role === "admin" ? "admin" : "teacher";
+  const admin = createAdminSupabaseClient();
 
   let targetList: AiEvalFixedTargetList | null = null;
   const targetListText = entries.readText("target-list.json");
@@ -611,7 +616,14 @@ export async function executeBatchImportZip(input: {
           message: "ファイルを読めません。",
         } satisfies BatchImportMemberResult;
       }
-      const imported = await importAiEvaluationResultAction({
+      const imported = await importAiEvaluationResult({
+        admin,
+        actor: {
+          userId: input.profile.id,
+          loginId: input.profile.loginId,
+          organizationId: input.profile.organizationId,
+          role,
+        },
         fileName: m.path,
         jsonText: text,
       });
