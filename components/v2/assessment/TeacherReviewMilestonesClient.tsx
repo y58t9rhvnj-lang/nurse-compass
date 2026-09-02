@@ -24,9 +24,8 @@ export default function TeacherReviewMilestonesClient({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
-        現在、対象学生は組織内の有効学生全員で集計しています（
-        {activeStudentTotal}名）。
-        クラス・講義ごとの対象学生設定は今後追加予定です。
+        実学生 {milestones[0]?.realStudentCount ?? activeStudentTotal}名で提出状況を集計しています（
+        検証用アカウントは本番 AI 評価対象外。受入テストでは利用可能）。
       </div>
 
       {milestones.length === 0 ? (
@@ -48,8 +47,9 @@ export default function TeacherReviewMilestonesClient({
                 <th className="px-3 py-3 text-right">提出</th>
                 <th className="px-3 py-3 text-right">未提出</th>
                 <th className="px-3 py-3 text-right">期限後</th>
-                <th className="px-3 py-3 text-right">評価対象</th>
+                <th className="px-3 py-3 text-right">AI評価</th>
                 <th className="px-3 py-3 text-right">未評価</th>
+                <th className="px-3 py-3 text-right">検証用</th>
               </tr>
             </thead>
             <tbody>
@@ -103,6 +103,9 @@ export default function TeacherReviewMilestonesClient({
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-sky-800">
                     {m.unevaluatedStudentCount}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-slate-500">
+                    {m.verificationStudentCount}
                   </td>
                 </tr>
               ))}

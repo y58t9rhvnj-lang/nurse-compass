@@ -16,10 +16,21 @@ import {
 } from "@/lib/v2/assessment/aiExportAnonymize";
 import { prepareAiEvaluationPackageStudentSubmission } from "@/lib/v2/assessment/aiEvaluationPackageSubmission";
 import type { AssessmentSubmissionScope } from "@/lib/v2/assessment/types";
+import {
+  resolveScopeForAiEvaluationPackage,
+  type AiEvalScopePolicyWarning,
+} from "@/lib/v2/assessment/submissionScope";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isKnownVerificationStudentLoginId } from "@/lib/v2/assessment/aiEvaluationVerificationAccounts";
 
 export type BuiltAiExportRecord = {
   record: AiAnonymizedAssessmentRecord;
+  /** Package に適用した submission_scope（form2 強制補正後） */
+  packageScope: AssessmentSubmissionScope | null;
+  /** DB scope との差分・ポリシー警告（黙って隠さない） */
+  scopeWarnings: AiEvalScopePolicyWarning[];
+  scopeCorrected: boolean;
+  scopeCorrections: string[];
   submissionId: string;
   submissionNumber: number;
   timingStatus: string;
@@ -40,6 +51,11 @@ export function getAiExportIdSecret(): string {
   return "nurse-compass-ai-export-dev";
 }
 
+/**
+ * 本番 AI 評価候補の提出を読み込む。
+ * 優先: assessment_ai_evaluation_candidates（検証用アカウント除外）。
+ * 未適用環境向けフォールバック: assessment_evaluation_candidates + profiles.exclude_from_assessment。
+ */
 export async function loadCandidateSubmissionsForMilestone(
   supabase: SupabaseClient,
   organizationId: string,
@@ -61,24 +77,70 @@ export async function loadCandidateSubmissionsForMilestone(
     }
   | { ok: false; kind: string; message: string }
 > {
-  const { data: cands, error: cErr } = await supabase
-    .from("assessment_evaluation_candidates")
-    .select("submission_id")
+  let candRows: Array<{ submission_id: string; student_user_id?: string }> = [];
+
+  const aiView = await supabase
+    .from("assessment_ai_evaluation_candidates")
+    .select("submission_id, student_user_id")
     .eq("organization_id", organizationId)
     .eq("assessment_milestone_id", milestoneId);
-  if (cErr) {
-    return {
-      ok: false,
-      kind: "db_error",
-      message: "評価対象を読み込めませんでした。",
-    };
+
+  if (!aiView.error) {
+    candRows = (aiView.data ?? []) as typeof candRows;
+  } else {
+    const base = await supabase
+      .from("assessment_evaluation_candidates")
+      .select("submission_id, student_user_id")
+      .eq("organization_id", organizationId)
+      .eq("assessment_milestone_id", milestoneId);
+    if (base.error) {
+      return {
+        ok: false,
+        kind: "db_error",
+        message: "評価対象を読み込めませんでした。",
+      };
+    }
+    const raw = (base.data ?? []) as Array<{
+      submission_id: string;
+      student_user_id: string;
+    }>;
+    const studentIds = [...new Set(raw.map((r) => r.student_user_id))];
+    const excluded = new Set<string>();
+    if (studentIds.length > 0) {
+      const withFlag = await supabase
+        .from("profiles")
+        .select("id, exclude_from_assessment, login_id")
+        .eq("organization_id", organizationId)
+        .in("id", studentIds);
+      if (!withFlag.error) {
+        for (const p of (withFlag.data ?? []) as Array<{
+          id: string;
+          exclude_from_assessment?: boolean;
+          login_id?: string;
+        }>) {
+          if (p.exclude_from_assessment === true) excluded.add(p.id);
+        }
+      } else {
+        const legacy = await supabase
+          .from("profiles")
+          .select("id, login_id")
+          .eq("organization_id", organizationId)
+          .in("id", studentIds);
+        for (const p of (legacy.data ?? []) as Array<{
+          id: string;
+          login_id?: string;
+        }>) {
+          if (isKnownVerificationStudentLoginId(String(p.login_id ?? ""))) {
+            excluded.add(p.id);
+          }
+        }
+      }
+    }
+    candRows = raw.filter((r) => !excluded.has(r.student_user_id));
   }
+
   const ids = [
-    ...new Set(
-      ((cands ?? []) as Array<{ submission_id: string }>).map(
-        (c) => c.submission_id,
-      ),
-    ),
+    ...new Set(candRows.map((c) => c.submission_id).filter(Boolean)),
   ];
   if (ids.length === 0) {
     return { ok: true, rows: [] };
@@ -162,14 +224,33 @@ export function buildAiExportRecordsFromRows(
       timingStatus: row.timingStatus,
       submissionNumber: row.submissionNumber,
     });
-    const scopeForPackage =
-      submissionScope ?? readModel.submissionScope ?? null;
+    const resolved = resolveScopeForAiEvaluationPackage(
+      archiveRecord.meta.milestone_type,
+      submissionScope ?? readModel.submissionScope ?? null,
+    );
+    const scopeForPackage = resolved.packageScope;
+    if (resolved.warnings.length > 0) {
+      console.warn(
+        "[ai-eval-scope]",
+        row.id,
+        resolved.corrected ? "corrected" : "warn-only",
+        resolved.corrections,
+        resolved.warnings.map((w) => w.code),
+      );
+    } else if (!resolved.corrected && scopeForPackage) {
+      // DB と必須 scope が一致: 強制補正なし
+      console.info("[ai-eval-scope]", row.id, "no-correction");
+    }
     const record = prepareAiEvaluationPackageStudentSubmission(
       archiveRecord,
       scopeForPackage,
     );
     built.push({
       record,
+      packageScope: scopeForPackage,
+      scopeWarnings: resolved.warnings,
+      scopeCorrected: resolved.corrected,
+      scopeCorrections: resolved.corrections,
       submissionId: row.id,
       submissionNumber: row.submissionNumber,
       timingStatus: row.timingStatus,

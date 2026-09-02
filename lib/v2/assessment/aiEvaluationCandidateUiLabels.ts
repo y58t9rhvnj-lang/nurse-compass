@@ -186,8 +186,8 @@ export function aiCitationResolveDisplay(
 export const AI_CITATION_ADOPT_NOTE = CITATION_ADOPT_NOTE;
 
 export const AI_FEEDBACK_BLOCK_LABELS = {
-  strengths: "良かった点",
-  next_questions: "次に考えてほしいこと",
-  gaps_or_alternatives: "不足情報・別の見方",
-  supporting_information: "根拠として確認した情報",
+  strengths: "各項目で考えられている点",
+  next_questions: "患者理解を深めるために考えてほしいこと",
+  gaps_or_alternatives: "まだ十分関連づけられていない点",
+  supporting_information: "現時点で読み取れる患者像",
 } as const;

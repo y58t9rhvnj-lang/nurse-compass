@@ -25,6 +25,12 @@ import {
 import { getPatientAGoldStandardV1OrNull } from "@/lib/gold/patientA/goldStandardV1";
 import { PATIENT_A_CANONICAL_INFORMATION_CATALOG } from "@/lib/gold/patientA/canonicalInformationCatalog";
 import type { GoldStandardDocument } from "@/lib/gold/types";
+import type { AssessmentSubmissionScope } from "@/lib/v2/assessment/types";
+import {
+  buildStudentVisibleScopeDescription,
+  buildStudentVisibleScopeIncludes,
+  warnVisibleScopeMismatch,
+} from "@/lib/v2/assessment/submissionScope";
 
 export type AiEvaluationPackage = {
   metadata: Record<string, unknown>;
@@ -43,6 +49,8 @@ export type BuildAiEvaluationPackageInput = {
   generatedByRole: "teacher" | "admin";
   /** prepareAiEvaluationPackageStudentSubmission 済み（evaluation_request_id は除去する） */
   studentSubmission: AiAnonymizedAssessmentRecord;
+  /** Package 適用後の submission_scope（visible scope 動的生成用） */
+  packageScope?: AssessmentSubmissionScope | null;
   /** 症例 patientId（例: "A"）— gold / case_version 解決用 */
   patientId: string;
   /** 匿名 ID マッパー（gold catalog ID の匿名化に再利用） */
@@ -131,6 +139,7 @@ function buildCaseContextBlock(input: {
   goldDoc: GoldStandardDocument | null;
   secret: string;
   orgKey: string;
+  packageScope?: AssessmentSubmissionScope | null;
 }): Record<string, unknown> {
   const meta = input.studentSubmission.meta;
   const referencedIds = new Set<string>();
@@ -167,14 +176,8 @@ function buildCaseContextBlock(input: {
     },
     gold_referenced_information: goldReferenced,
     student_visible_scope: {
-      description:
-        "提出時点のスナップショットのうち、課題scopeに含まれる成果物と理解形成工程のみを評価に用いる。",
-      includes: [
-        "症例正本のうち学生公開範囲",
-        "Goldが参照する根拠情報のうち学生が収集し得た事実に対応するもの",
-        "提出スナップショット内の様式2・情報カード・フィールド振り返り・患者理解",
-        "課題scopeに含まれる場合の様式3",
-      ],
+      description: buildStudentVisibleScopeDescription(input.packageScope),
+      includes: buildStudentVisibleScopeIncludes(input.packageScope),
     },
     excluded_from_evaluation: [
       "教員のみが知る後日情報",
@@ -183,6 +186,8 @@ function buildCaseContextBlock(input: {
       "private_note",
       "student_notes",
       "form2_evidence_links",
+      "情報カード（様式2段階の評価対象外）",
+      "看護目標・看護計画・看護の方向性・具体的援助・観察項目・実施すべき看護",
       "保存回数・入力回数・編集履歴・autosave・作業時間・文章量そのもの",
       "カード数・リンク数の努力点加点",
     ],
@@ -228,7 +233,7 @@ export function buildAiEvaluationPackage(
         teacher_insight_included: false,
       };
 
-  return {
+  const pkg: AiEvaluationPackage = {
     metadata: {
       package_schema_version: AI_EVAL_PACKAGE_SCHEMA_VERSION,
       compass_policy_version: AI_EVAL_COMPASS_POLICY_VERSION,
@@ -251,11 +256,30 @@ export function buildAiEvaluationPackage(
       goldDoc,
       secret: input.idSecret,
       orgKey: input.organizationScopeKey,
+      packageScope: input.packageScope ?? null,
     }),
     student_submission: toPackageStudentSubmission(input.studentSubmission),
     evaluation_instructions: buildAiEvaluationInstructions(),
     output_schema_hint: buildAiEvaluationOutputSchemaHint(),
   };
+
+  const visibleIncludes = (
+    pkg.case_context as { student_visible_scope?: { includes?: string[] } }
+  ).student_visible_scope?.includes;
+  const visibleWarn = warnVisibleScopeMismatch(
+    input.packageScope ?? null,
+    visibleIncludes,
+  );
+  if (visibleWarn) {
+    console.warn(
+      "[ai-eval-scope]",
+      input.evaluationRequestId,
+      visibleWarn.code,
+      visibleWarn.message,
+    );
+  }
+
+  return pkg;
 }
 
 /** Package の必須ルートキー（軽量チェック） */

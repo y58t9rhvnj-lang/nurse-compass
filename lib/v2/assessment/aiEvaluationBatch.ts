@@ -24,6 +24,7 @@ import {
 } from "@/lib/v2/assessment/aiEvaluationBatchZip";
 import {
   buildAiExportRecordsFromRows,
+  getAiExportIdSecret,
   loadCandidateSubmissionsForMilestone,
   type BuiltAiExportRecord,
 } from "@/lib/v2/assessment/aiEvaluationExportCore";
@@ -35,6 +36,12 @@ import {
 import { writeAiExportAuditLog } from "@/lib/v2/assessment/aiExportAudit";
 import { writeAiEvaluationAuditLog } from "@/lib/v2/assessment/aiEvaluationAudit";
 import { AI_EVAL_PACKAGE_SCHEMA_VERSION } from "@/lib/v2/assessment/aiEvaluationVersions";
+import {
+  assertEvaluationRequestInTargetList,
+  buildAiEvalFixedTargetList,
+  parseAiEvalFixedTargetList,
+  type AiEvalFixedTargetList,
+} from "@/lib/v2/assessment/aiEvaluationTargetList";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssessmentSubmissionScope } from "@/lib/v2/assessment/types";
 
@@ -59,6 +66,8 @@ export type BatchExportResult = {
   /** base64 ZIP */
   bodyBase64: string;
   packageCount: number;
+  /** 固定対象リスト件数（Export / LLM / Import 共通） */
+  targetListCount: number;
   auditLogged: boolean;
 };
 
@@ -147,7 +156,7 @@ export async function executeBatchExport(input: {
     };
   }
 
-  const { packages, evaluationRequestIds, generatedAtIso } =
+  const { packages, evaluationRequestIds, exportedBuilt, generatedAtIso } =
     await buildPackagesForExport({
       profile: input.profile,
       built,
@@ -162,6 +171,28 @@ export async function executeBatchExport(input: {
         "Package を生成できませんでした（service role / evaluation request を確認してください）。",
     };
   }
+
+  const evalBySubmission = new Map<string, string>();
+  for (let i = 0; i < exportedBuilt.length; i++) {
+    const reqId = evaluationRequestIds[i];
+    const row = exportedBuilt[i];
+    if (reqId && row) evalBySubmission.set(row.submissionId, reqId);
+  }
+  const targetList: AiEvalFixedTargetList = buildAiEvalFixedTargetList({
+    milestoneId: input.milestoneId,
+    generatedAt: generatedAtIso,
+    idSecret: idSecret || getAiExportIdSecret(),
+    organizationId: input.profile.organizationId,
+    selected: exportedBuilt.map((b) => ({
+      submissionId: b.submissionId,
+      studentUserId: b.studentUserId,
+      milestoneId: b.assessmentMilestoneId,
+      submittedAt: "",
+      selectionReason: "eligible_real_student_submission" as const,
+    })),
+    evaluationRequestIdsBySubmissionId: evalBySubmission,
+    exclusions: {},
+  });
 
   const batchId = randomUUID();
   const role = input.profile.role === "admin" ? "admin" : "teacher";
@@ -179,6 +210,7 @@ export async function executeBatchExport(input: {
 
   const files: Record<string, string> = {
     "manifest.json": JSON.stringify(manifest, null, 2),
+    "target-list.json": JSON.stringify(targetList, null, 2),
     "README.txt": AI_EVAL_BATCH_EXPORT_README,
   };
   for (let i = 0; i < packages.length; i++) {
@@ -205,6 +237,12 @@ export async function executeBatchExport(input: {
       export_kind: "ai_evaluation_package_batch_zip",
       package_schema_version: AI_EVAL_PACKAGE_SCHEMA_VERSION,
       member_count: packages.length,
+      target_list_count: targetList.target_count,
+      scope_correction_count: built.filter((b) => b.scopeCorrected).length,
+      scope_no_correction_count: built.filter((b) => !b.scopeCorrected).length,
+      scope_warning_codes: [
+        ...new Set(built.flatMap((b) => b.scopeWarnings.map((w) => w.code))),
+      ],
     },
   });
 
@@ -216,6 +254,7 @@ export async function executeBatchExport(input: {
       contentType: "application/zip",
       bodyBase64: uint8ToBase64(zipBytes),
       packageCount: packages.length,
+      targetListCount: targetList.target_count,
       auditLogged: audit.ok,
     },
   };
@@ -345,6 +384,28 @@ export async function previewBatchImportZip(input: {
     expectedKind: "ai_evaluation_import_batch",
   });
 
+  let targetList: AiEvalFixedTargetList | null = null;
+  const targetListText = entries.readText("target-list.json");
+  if (targetListText) {
+    try {
+      const parsedList = parseAiEvalFixedTargetList(JSON.parse(targetListText));
+      if (!parsedList.ok) {
+        return {
+          ok: false,
+          kind: "invalid_target_list",
+          message: parsedList.message,
+        };
+      }
+      targetList = parsedList.list;
+    } catch {
+      return {
+        ok: false,
+        kind: "invalid_target_list",
+        message: "target-list.json の JSON が不正です。",
+      };
+    }
+  }
+
   const members: BatchImportMemberPreview[] = [];
   let valid = 0;
   let warning = 0;
@@ -355,6 +416,24 @@ export async function previewBatchImportZip(input: {
 
   if (integrity.canExecute) {
     for (const m of parsed.manifest.members) {
+      if (targetList) {
+        const gate = assertEvaluationRequestInTargetList(
+          targetList,
+          m.evaluation_request_id,
+        );
+        if (!gate.ok) {
+          members.push({
+            evaluationRequestId: m.evaluation_request_id,
+            path: m.path,
+            validationStatus: "error",
+            requestFound: false,
+            requestExpired: false,
+            message: gate.message,
+          });
+          error += 1;
+          continue;
+        }
+      }
       const text = entries.readText(m.path);
       if (!text) {
         members.push({
@@ -403,11 +482,22 @@ export async function previewBatchImportZip(input: {
     }
   }
 
+  const canExecuteWithTargetList =
+    integrity.canExecute &&
+    (!targetList ||
+      parsed.manifest.members.every(
+        (m) =>
+          assertEvaluationRequestInTargetList(
+            targetList,
+            m.evaluation_request_id,
+          ).ok,
+      ));
+
   return {
     ok: true,
     preview: {
       batchId: parsed.manifest.batch_id,
-      canExecute: integrity.canExecute,
+      canExecute: canExecuteWithTargetList,
       manifestCount: integrity.manifestCount,
       fileCount: integrity.fileCount,
       evaluationRequestIds: integrity.evaluationRequestIds,
@@ -478,10 +568,39 @@ export async function executeBatchImportZip(input: {
   const batchId = manifest.batch_id;
   const role = input.profile.role === "admin" ? "admin" : "teacher";
 
+  let targetList: AiEvalFixedTargetList | null = null;
+  const targetListText = entries.readText("target-list.json");
+  if (targetListText) {
+    const parsedList = parseAiEvalFixedTargetList(JSON.parse(targetListText));
+    if (!parsedList.ok) {
+      return {
+        ok: false,
+        kind: "invalid_target_list",
+        message: parsedList.message,
+      };
+    }
+    targetList = parsedList.list;
+  }
+
   const results = await mapPool(
     manifest.members,
     AI_EVAL_BATCH_IMPORT_CONCURRENCY,
     async (m) => {
+      if (targetList) {
+        const gate = assertEvaluationRequestInTargetList(
+          targetList,
+          m.evaluation_request_id,
+        );
+        if (!gate.ok) {
+          return {
+            evaluationRequestId: m.evaluation_request_id,
+            path: m.path,
+            ok: false,
+            kind: gate.kind,
+            message: gate.message,
+          } satisfies BatchImportMemberResult;
+        }
+      }
       const text = entries.readText(m.path);
       if (!text) {
         return {

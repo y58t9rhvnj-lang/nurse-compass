@@ -424,7 +424,8 @@
         "citation_rules",
         "output_separation",
         "persistence_rules",
-        "language"
+        "language",
+        "evaluation_stage"
       ],
       "properties": {
         "do_not_require_verbatim_gold_match": { "type": "boolean", "const": true },
@@ -502,6 +503,36 @@
               "items": { "type": "string", "minLength": 1 }
             }
           }
+        },
+        "evaluation_stage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "focus",
+            "primary",
+            "secondary",
+            "empty_patient_understanding",
+            "student_feedback_draft_order",
+            "gold_usage",
+            "examples_of_adequate_thinking"
+          ],
+          "properties": {
+            "focus": { "type": "string", "minLength": 1 },
+            "primary": { "type": "string", "minLength": 1 },
+            "secondary": { "type": "string", "minLength": 1 },
+            "empty_patient_understanding": { "type": "string", "minLength": 1 },
+            "student_feedback_draft_order": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "gold_usage": { "type": "string", "minLength": 1 },
+            "examples_of_adequate_thinking": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
         }
       }
     },
@@ -518,6 +549,10 @@
           "type": "array",
           "minItems": 1,
           "items": { "type": "string", "minLength": 1 }
+        },
+        "student_feedback_draft_semantics": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
         }
       }
     }

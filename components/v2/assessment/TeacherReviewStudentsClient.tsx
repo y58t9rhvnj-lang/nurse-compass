@@ -317,10 +317,14 @@ export default function TeacherReviewStudentsClient({
             {statusLabel(milestone.status)}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">
-            提出期限：{formatAssessmentDateTimeJa(milestone.deadlineAt)} ・ 提出{" "}
+            提出期限：{formatAssessmentDateTimeJa(milestone.deadlineAt)} ・ 実学生{" "}
+            {milestone.realStudentCount}名・提出{" "}
             {milestone.submittedStudentCount}名・未提出{" "}
-            {milestone.unsubmittedStudentCount}名・評価対象{" "}
-            {milestone.candidateStudentCount}名
+            {milestone.unsubmittedStudentCount}名・AI評価対象{" "}
+            {milestone.candidateStudentCount}件
+            {milestone.verificationStudentCount > 0
+              ? `・検証用 ${milestone.verificationStudentCount}ID（本番対象外）`
+              : ""}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <TeacherAiExportDialog

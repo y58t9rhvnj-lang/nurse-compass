@@ -464,7 +464,7 @@ export default function TeacherAiEvaluationCandidatePanel({
             defaultOpen={false}
           >
             <p className="text-[11px] leading-snug text-slate-500">
-              「良かった点」「次に考えてほしいこと」「不足情報・別の見方」のみ下書きへ反映できます。総合コメント（overall_comment）は自動反映しません。「根拠として確認した情報」は表示のみです。
+              「各項目で考えられている点」「患者理解を深めるために考えてほしいこと」「まだ十分関連づけられていない点」のみ下書きへ反映できます。総合コメントは自動反映しません。「現時点で読み取れる患者像」は表示のみです。
             </p>
             {(
               [

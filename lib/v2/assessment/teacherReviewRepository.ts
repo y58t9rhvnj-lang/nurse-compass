@@ -11,6 +11,7 @@ import {
 } from "./assessmentRubric";
 import { parseSubmissionScope } from "./submissionScope";
 import { extractDeadlineAtAtSubmitFromSnapshot } from "./teacherReviewTimingDisplay";
+import { isKnownVerificationStudentLoginId } from "./aiEvaluationVerificationAccounts";
 import type {
   AssessmentEvaluationType,
   AssessmentLateReviewStatus,
@@ -33,11 +34,16 @@ export type TeacherReviewMilestoneSummary = {
   status: AssessmentMilestoneStatus;
   sequenceNumber: number;
   submissionScope: AssessmentSubmissionScope;
+  /** 実学生数（exclude_from_assessment=false） */
+  realStudentCount: number;
   submittedStudentCount: number;
   unsubmittedStudentCount: number;
   lateStudentCount: number;
+  /** 本番 AI 評価対象（検証用除外） */
   candidateStudentCount: number;
   unevaluatedStudentCount: number;
+  /** 検証用学生アカウント数（本番対象外） */
+  verificationStudentCount: number;
 };
 
 export type TeacherStudentProfile = {
@@ -45,6 +51,8 @@ export type TeacherStudentProfile = {
   displayName: string;
   loginId: string;
   studentNumber: string | null;
+  /** 本番 AI 評価から除外（検証用）。ログイン・受入テストは可能 */
+  excludeFromAssessment: boolean;
 };
 
 /** 現在の evaluation candidate に紐づく review 表示状態 */
@@ -123,12 +131,35 @@ export async function listActiveStudentsInOrg(
 ): Promise<{ rows: TeacherStudentProfile[]; error: PgErr }> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, login_id, student_number")
+    .select("id, display_name, login_id, student_number, exclude_from_assessment")
     .eq("organization_id", organizationId)
     .eq("role", "student")
     .eq("is_active", true)
     .order("display_name", { ascending: true });
-  if (error) return { rows: [], error };
+  if (error) {
+    // 列未適用環境向けフォールバック
+    const fallback = await supabase
+      .from("profiles")
+      .select("id, display_name, login_id, student_number")
+      .eq("organization_id", organizationId)
+      .eq("role", "student")
+      .eq("is_active", true)
+      .order("display_name", { ascending: true });
+    if (fallback.error) return { rows: [], error: fallback.error };
+    return {
+      rows: ((fallback.data ?? []) as Record<string, unknown>[]).map((r) => ({
+        id: String(r.id),
+        displayName: String(r.display_name ?? ""),
+        loginId: String(r.login_id ?? ""),
+        studentNumber:
+          typeof r.student_number === "string" ? r.student_number : null,
+        excludeFromAssessment: isKnownVerificationStudentLoginId(
+          String(r.login_id ?? ""),
+        ),
+      })),
+      error: null,
+    };
+  }
   return {
     rows: ((data ?? []) as Record<string, unknown>[]).map((r) => ({
       id: String(r.id),
@@ -136,6 +167,7 @@ export async function listActiveStudentsInOrg(
       loginId: String(r.login_id ?? ""),
       studentNumber:
         typeof r.student_number === "string" ? r.student_number : null,
+      excludeFromAssessment: r.exclude_from_assessment === true,
     })),
     error: null,
   };
@@ -156,8 +188,12 @@ export async function listTeacherReviewMilestoneSummaries(
 
   const students = await listActiveStudentsInOrg(supabase, organizationId);
   if (students.error) return { rows: [], error: students.error };
-  const studentTotal = students.rows.length;
-  const studentIds = new Set(students.rows.map((s) => s.id));
+  const realStudents = students.rows.filter((s) => !s.excludeFromAssessment);
+  const verificationStudentCount = students.rows.filter(
+    (s) => s.excludeFromAssessment,
+  ).length;
+  const realStudentIds = new Set(realStudents.map((s) => s.id));
+  const realStudentTotal = realStudents.length;
 
   const milestoneRows = (milestones ?? []) as Record<string, unknown>[];
   const milestoneIds = milestoneRows.map((m) => String(m.id));
@@ -173,12 +209,17 @@ export async function listTeacherReviewMilestoneSummaries(
   }> = [];
 
   if (milestoneIds.length > 0) {
-    const [{ data: subs }, { data: cands }] = await Promise.all([
+    const [{ data: subs }, aiCands, baseCands] = await Promise.all([
       supabase
         .from("assessment_submissions")
         .select("assessment_milestone_id, student_user_id, timing_status")
         .eq("organization_id", organizationId)
         .eq("is_withdrawn", false)
+        .in("assessment_milestone_id", milestoneIds),
+      supabase
+        .from("assessment_ai_evaluation_candidates")
+        .select("assessment_milestone_id, student_user_id")
+        .eq("organization_id", organizationId)
         .in("assessment_milestone_id", milestoneIds),
       supabase
         .from("assessment_evaluation_candidates")
@@ -187,7 +228,17 @@ export async function listTeacherReviewMilestoneSummaries(
         .in("assessment_milestone_id", milestoneIds),
     ]);
     submissions = (subs ?? []) as typeof submissions;
-    candidates = (cands ?? []) as typeof candidates;
+    if (!aiCands.error) {
+      candidates = (aiCands.data ?? []) as typeof candidates;
+    } else {
+      // VIEW 未適用時: 基底候補から検証用を除外
+      const excluded = new Set(
+        students.rows.filter((s) => s.excludeFromAssessment).map((s) => s.id),
+      );
+      candidates = ((baseCands.data ?? []) as typeof candidates).filter(
+        (c) => !excluded.has(c.student_user_id),
+      );
+    }
   }
 
   const rows: TeacherReviewMilestoneSummary[] = milestoneRows.map((m) => {
@@ -197,7 +248,7 @@ export async function listTeacherReviewMilestoneSummaries(
     const lateStudents = new Set<string>();
     for (const s of submissions) {
       if (s.assessment_milestone_id !== mid) continue;
-      if (!studentIds.has(s.student_user_id)) continue;
+      if (!realStudentIds.has(s.student_user_id)) continue;
       subStudents.add(s.student_user_id);
       if (s.timing_status === "late") lateStudents.add(s.student_user_id);
     }
@@ -205,7 +256,7 @@ export async function listTeacherReviewMilestoneSummaries(
       candidates
         .filter((c) => c.assessment_milestone_id === mid)
         .map((c) => c.student_user_id)
-        .filter((id) => studentIds.has(id)),
+        .filter((id) => realStudentIds.has(id)),
     );
     const submitted = subStudents.size;
     const candidateCount = candStudents.size;
@@ -222,11 +273,13 @@ export async function listTeacherReviewMilestoneSummaries(
       status: m.status as AssessmentMilestoneStatus,
       sequenceNumber: Number(m.sequence_number),
       submissionScope: parseSubmissionScope(m.submission_scope),
+      realStudentCount: realStudentTotal,
       submittedStudentCount: submitted,
-      unsubmittedStudentCount: Math.max(0, studentTotal - submitted),
+      unsubmittedStudentCount: Math.max(0, realStudentTotal - submitted),
       lateStudentCount: lateStudents.size,
       candidateStudentCount: candidateCount,
       unevaluatedStudentCount: candidateCount,
+      verificationStudentCount,
     };
   });
 
@@ -268,7 +321,8 @@ export async function listTeacherStudentSubmissionRows(
 
   const [
     { data: subs, error: sErr },
-    { data: cands, error: cErr },
+    aiCands,
+    baseCands,
     reviewsRes,
   ] = await Promise.all([
     supabase
@@ -281,6 +335,11 @@ export async function listTeacherStudentSubmissionRows(
       .eq("is_withdrawn", false)
       .order("submitted_at", { ascending: false }),
     supabase
+      .from("assessment_ai_evaluation_candidates")
+      .select("submission_id, student_user_id")
+      .eq("organization_id", organizationId)
+      .eq("assessment_milestone_id", milestoneId),
+    supabase
       .from("assessment_evaluation_candidates")
       .select("submission_id, student_user_id")
       .eq("organization_id", organizationId)
@@ -292,15 +351,25 @@ export async function listTeacherStudentSubmissionRows(
     ),
   ]);
   if (sErr) return { rows: [], error: sErr };
-  if (cErr) return { rows: [], error: cErr };
   if (reviewsRes.error) return { rows: [], error: reviewsRes.error };
+
+  let cands: Array<{ submission_id: string; student_user_id: string }> = [];
+  if (!aiCands.error) {
+    cands = (aiCands.data ?? []) as typeof cands;
+  } else if (!baseCands.error) {
+    const excluded = new Set(
+      students.rows.filter((s) => s.excludeFromAssessment).map((s) => s.id),
+    );
+    cands = ((baseCands.data ?? []) as typeof cands).filter(
+      (c) => !excluded.has(c.student_user_id),
+    );
+  } else {
+    return { rows: [], error: baseCands.error ?? aiCands.error };
+  }
 
   const candByStudent = new Map<string, string>();
   const candidateSubmissionIds: string[] = [];
-  for (const c of (cands ?? []) as Array<{
-    submission_id: string;
-    student_user_id: string;
-  }>) {
+  for (const c of cands) {
     candByStudent.set(c.student_user_id, c.submission_id);
     candidateSubmissionIds.push(c.submission_id);
   }
@@ -485,12 +554,38 @@ export async function getTeacherStudentProfile(
 ): Promise<{ row: TeacherStudentProfile | null; error: PgErr }> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, login_id, student_number, role, organization_id")
+    .select(
+      "id, display_name, login_id, student_number, role, organization_id, exclude_from_assessment",
+    )
     .eq("id", studentId)
     .eq("organization_id", organizationId)
     .eq("role", "student")
     .maybeSingle();
-  if (error) return { row: null, error };
+  if (error) {
+    const fallback = await supabase
+      .from("profiles")
+      .select("id, display_name, login_id, student_number, role, organization_id")
+      .eq("id", studentId)
+      .eq("organization_id", organizationId)
+      .eq("role", "student")
+      .maybeSingle();
+    if (fallback.error) return { row: null, error: fallback.error };
+    if (!fallback.data) return { row: null, error: null };
+    const r = fallback.data as Record<string, unknown>;
+    return {
+      row: {
+        id: String(r.id),
+        displayName: String(r.display_name ?? ""),
+        loginId: String(r.login_id ?? ""),
+        studentNumber:
+          typeof r.student_number === "string" ? r.student_number : null,
+        excludeFromAssessment: isKnownVerificationStudentLoginId(
+          String(r.login_id ?? ""),
+        ),
+      },
+      error: null,
+    };
+  }
   if (!data) return { row: null, error: null };
   const r = data as Record<string, unknown>;
   return {
@@ -500,6 +595,7 @@ export async function getTeacherStudentProfile(
       loginId: String(r.login_id ?? ""),
       studentNumber:
         typeof r.student_number === "string" ? r.student_number : null,
+      excludeFromAssessment: r.exclude_from_assessment === true,
     },
     error: null,
   };

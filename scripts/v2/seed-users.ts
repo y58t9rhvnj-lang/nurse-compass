@@ -40,6 +40,8 @@ type SeedRecord = {
   role: SeedRole;
   studentNumber?: string;
   className?: string;
+  /** 本番 AI 評価候補から除外（検証用）。省略時 false */
+  excludeFromAssessment?: boolean;
 };
 
 const ACADEMIC_YEAR = 2026;
@@ -160,6 +162,10 @@ async function main() {
         organization_id: organizationId,
         academic_year: ACADEMIC_YEAR,
         is_active: true,
+        exclude_from_assessment:
+          rec.excludeFromAssessment === true ||
+          loginId === "student01" ||
+          loginId === "student02",
       },
       { onConflict: "id" },
     );

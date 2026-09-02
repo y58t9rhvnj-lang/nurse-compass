@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { prepareAiEvaluationPackageStudentSubmission } from "./aiEvaluationPackageSubmission";
 import type { AiAnonymizedAssessmentRecord } from "./aiExportAnonymize";
 import type { AssessmentSubmissionScope } from "./types";
+import { scopeForAiEvaluationPackage } from "./submissionScope";
 
 const base: AiAnonymizedAssessmentRecord = {
   schema_version: 1,
@@ -25,7 +26,14 @@ const base: AiAnonymizedAssessmentRecord = {
     cycle_title: "課題1",
     milestone_title: "評価時点1",
   },
-  included_artifacts: ["様式2", "様式3", "情報カード", "Evidenceリンク", "フィールド振り返り", "患者理解"],
+  included_artifacts: [
+    "様式2",
+    "様式3",
+    "情報カード",
+    "Evidenceリンク",
+    "フィールド振り返り",
+    "患者理解",
+  ],
   form2: { version: 1 },
   form3: {
     schemaVersion: 2,
@@ -39,7 +47,11 @@ const base: AiAnonymizedAssessmentRecord = {
   },
   information_cards: [{ id: "card_a", content: "a" }],
   evidence_links: [
-    { id: "lnk_1", form2_field_key: "history.currentCondition", evidence_id: "card_a" },
+    {
+      id: "lnk_1",
+      form2_field_key: "history.currentCondition",
+      evidence_id: "card_a",
+    },
   ],
   field_reflections: [
     {
@@ -73,7 +85,40 @@ ok("evidence_links always emptied", () => {
   assert.ok(!out.included_artifacts.includes("Evidenceリンク"));
 });
 
-ok("form2-only scope drops form3 and patient_understanding", () => {
+ok("form2-only scope keeps patient_understanding when enabled", () => {
+  const scope: AssessmentSubmissionScope = {
+    includeForm2: true,
+    includeForm3: false,
+    includeInformationCards: true,
+    includeEvidenceLinks: true,
+    includeFieldReflections: true,
+    includePatientUnderstanding: true,
+  };
+  const out = prepareAiEvaluationPackageStudentSubmission(base, scope);
+  assert.ok(out.form2);
+  assert.equal(out.form3, null);
+  assert.ok(out.patient_understanding);
+  assert.equal(out.field_reflections.length, 1);
+  assert.ok(out.included_artifacts.includes("患者理解"));
+});
+
+ok("form2 AI scope drops information_cards and keeps PU", () => {
+  const dbScope: AssessmentSubmissionScope = {
+    includeForm2: true,
+    includeForm3: false,
+    includeInformationCards: true,
+    includeEvidenceLinks: true,
+    includeFieldReflections: true,
+    includePatientUnderstanding: false,
+  };
+  const scope = scopeForAiEvaluationPackage("form2", dbScope);
+  const out = prepareAiEvaluationPackageStudentSubmission(base, scope);
+  assert.equal(out.information_cards.length, 0);
+  assert.ok(out.patient_understanding);
+  assert.ok(!out.included_artifacts.includes("情報カード"));
+});
+
+ok("explicit scope can still drop patient_understanding", () => {
   const scope: AssessmentSubmissionScope = {
     includeForm2: true,
     includeForm3: false,
@@ -83,16 +128,8 @@ ok("form2-only scope drops form3 and patient_understanding", () => {
     includePatientUnderstanding: false,
   };
   const out = prepareAiEvaluationPackageStudentSubmission(base, scope);
-  assert.ok(out.form2);
-  assert.equal(out.form3, null);
   assert.equal(out.patient_understanding, null);
-  assert.equal(out.field_reflections.length, 1);
-  assert.equal(out.information_cards.length, 1);
-  assert.deepEqual(out.included_artifacts, [
-    "様式2",
-    "情報カード",
-    "フィールド振り返り",
-  ]);
+  assert.ok(!out.included_artifacts.includes("患者理解"));
 });
 
 ok("selected form3 patterns filter cards", () => {

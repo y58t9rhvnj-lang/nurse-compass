@@ -26,5 +26,23 @@
     "role": "student",
     "studentNumber": "2026-0002",
     "className": "3年A組"
+  },
+  {
+    "loginId": "student01",
+    "password": "CHANGE-ME-verify-student-01",
+    "displayName": "検証 学生01",
+    "role": "student",
+    "studentNumber": "VERIFY-01",
+    "className": "検証クラス",
+    "excludeFromAssessment": true
+  },
+  {
+    "loginId": "student02",
+    "password": "CHANGE-ME-verify-student-02",
+    "displayName": "検証 学生02",
+    "role": "student",
+    "studentNumber": "VERIFY-02",
+    "className": "検証クラス",
+    "excludeFromAssessment": true
   }
 ]

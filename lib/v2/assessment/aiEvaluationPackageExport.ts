@@ -34,6 +34,7 @@ export async function buildPackagesForExport(input: {
 }): Promise<{
   packages: AiEvaluationPackage[];
   evaluationRequestIds: string[];
+  exportedBuilt: BuiltAiExportRecord[];
   generatedAtIso: string;
 }> {
   const generatedAt = new Date();
@@ -45,9 +46,15 @@ export async function buildPackagesForExport(input: {
   const role = input.profile.role === "admin" ? "admin" : "teacher";
   const packages: AiEvaluationPackage[] = [];
   const evaluationRequestIds: string[] = [];
+  const exportedBuilt: BuiltAiExportRecord[] = [];
 
   if (!isServiceRoleConfigured()) {
-    return { packages: [], evaluationRequestIds: [], generatedAtIso };
+    return {
+      packages: [],
+      evaluationRequestIds: [],
+      exportedBuilt: [],
+      generatedAtIso,
+    };
   }
   const admin = createAdminSupabaseClient();
 
@@ -95,6 +102,7 @@ export async function buildPackagesForExport(input: {
       generatedAt: generatedAtIso,
       generatedByRole: role,
       studentSubmission: b.record,
+      packageScope: b.packageScope,
       patientId: b.patientId,
       idMapper: input.idMapper,
       idSecret: input.idSecret,
@@ -102,7 +110,8 @@ export async function buildPackagesForExport(input: {
     });
     packages.push(pkg);
     evaluationRequestIds.push(evaluationRequestId);
+    exportedBuilt.push(b);
   }
 
-  return { packages, evaluationRequestIds, generatedAtIso };
+  return { packages, evaluationRequestIds, exportedBuilt, generatedAtIso };
 }

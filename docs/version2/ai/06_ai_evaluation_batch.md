@@ -39,8 +39,14 @@ manifest と実ファイルが一致しない場合、**Preview で実行不可*
 | `lib/v2/assessment/aiEvaluationBatch.ts` | Batch Preview / Export / Import |
 | `app/v2/actions/assessmentAiEvaluationBatch.ts` | Server Actions |
 
+## 運用
+
+- 正式評価前に `compass_policy_version` / `rubric_version` が現行定数と一致する Package で Export すること
+- policy 更新後（例: 2026.3 → **2026.4**）は、対象コホートを **再Export** してから外部 AI 評価を行う（旧 ZIP は旧原則のまま）
+
 ## テスト
 
 ```bash
 npx tsx lib/v2/assessment/aiEvaluationBatch.smoke.ts
+npx tsx lib/v2/assessment/aiEvaluationPolicy2026_4.test.ts
 ```

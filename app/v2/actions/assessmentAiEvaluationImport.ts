@@ -214,6 +214,25 @@ export async function importAiEvaluationResultAction(input: {
   }
 
   const req = got.row;
+
+  const { data: studentProfile } = await admin
+    .from("profiles")
+    .select("exclude_from_assessment, role, is_active")
+    .eq("id", req.studentUserId)
+    .maybeSingle();
+  if (
+    studentProfile &&
+    (studentProfile as { exclude_from_assessment?: boolean })
+      .exclude_from_assessment === true
+  ) {
+    return {
+      ok: false,
+      kind: "verification_account_excluded",
+      message:
+        "検証用アカウントの評価結果は本番 Import staging に取り込めません。",
+    };
+  }
+
   const importedAt = new Date().toISOString();
   const supersedeActive = validated.reviewStatus === "needs_review";
 

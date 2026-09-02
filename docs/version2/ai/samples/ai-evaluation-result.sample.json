@@ -3,8 +3,8 @@
     "result_schema_version": 1,
     "evaluation_request_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
     "package_schema_version": 1,
-    "compass_policy_version": "2026.2",
-    "rubric_version": "1",
+    "compass_policy_version": "2026.4",
+    "rubric_version": "3",
     "gold_standard_version": "patient-a/1",
     "case_version": "patient-a/1",
     "export_schema_version": 1,
@@ -17,7 +17,7 @@
       "rubric_key": "information_gathering",
       "score": 3,
       "level_label": "概ね到達",
-      "rationale": "情報カードと様式2に、OT辞退・SST参加・夜間幻聴など活動と症状に関する情報が確認できます。件数そのものではなく、必要な観察が提出内に含まれているかを見ています。",
+      "rationale": "様式2と情報カードに、主訴・現病・活動の様子など、考察の材料となる情報が含まれています。件数や記載量での加点はしていません。",
       "citations": [
         {
           "field_path": "student_submission.information_cards",
@@ -35,7 +35,7 @@
       "rubric_key": "relating_information",
       "score": 2,
       "level_label": "一部到達",
-      "rationale": "様式2の現病と振り返りで症状に触れていますが、参加できている活動との条件差や生活・治療との内容的な関連づけは十分には読み取れません。",
+      "rationale": "振り返りで症状に触れ、活動の対比不足にも言及していますが、症状・治療・生活・本人の思いを内容的に関連づけようとする記述はまだ限定的です。",
       "citations": [
         {
           "field_path": "student_submission.form2.history.currentCondition"
@@ -51,7 +51,7 @@
       "rubric_key": "interpretation_analysis",
       "score": 2,
       "level_label": "一部到達",
-      "rationale": "患者理解に『意欲が低く活動が難しい』という解釈が見られます。振り返りでは対比不足への言及があり、情報から導いた意味づけは一部あります。これは不正解判定ではなく、解釈の幅の確認が必要という意味です。",
+      "rationale": "患者理解に『意欲が低く活動が難しい』という意味づけが見られます。振り返りでは対比不足への言及があり、情報から可能性を考えようとする姿勢は一部あります。深いアセスメント完成度は求めていません。",
       "citations": [
         {
           "field_path": "student_submission.field_reflections",
@@ -68,7 +68,7 @@
       "rubric_key": "clarity_of_evidence",
       "score": 3,
       "level_label": "概ね到達",
-      "rationale": "情報カードの観察内容と様式2・振り返りを突き合わせると、判断を支える情報は一部説明可能です。リンク有無やリンク数は評価していません。",
+      "rationale": "考察の手がかりとなる観察（OT辞退とSST参加、夜間幻聴と日中疲労）が提出内にあり、根拠のない断定までは読み取れません。リンク有無や記載量は評価していません。",
       "citations": [
         {
           "field_path": "student_submission.information_cards",
@@ -87,7 +87,7 @@
       "rubric_key": "awareness_of_gaps",
       "score": 3,
       "level_label": "概ね到達",
-      "rationale": "振り返りで『参加できている活動との対比は十分でない』と述べており、不足への気づきがあります。一方、睡眠状況など未収集項目の明示は限定的です。",
+      "rationale": "振り返りで『参加できている活動との対比は十分でない』と述べており、不確実性への気づきがあります。記載量ではなく考える姿勢を見ています。",
       "citations": [
         {
           "field_path": "student_submission.field_reflections",
@@ -103,7 +103,7 @@
       "rubric_key": "patient_understanding",
       "score": 2,
       "level_label": "一部到達",
-      "rationale": "患者理解は病名と意欲低下に寄っています。提出時点の情報からは、条件によって力が変化する可能性など、別の妥当な理解もあり得ます。Goldと同じ文章である必要はありません。",
+      "rationale": "患者理解は病名と意欲低下に寄っています。症状・治療・生活・本人の思いが一つの患者像として概ね統合されているとは言い切れませんが、記述はあるため『できていない』とは断定していません。",
       "citations": [
         {
           "field_path": "student_submission.patient_understanding.overview_text",
@@ -119,7 +119,7 @@
       "rubric_key": "overall_integration",
       "score": 3,
       "level_label": "概ね到達",
-      "rationale": "情報カード・振り返り・様式2・患者理解は大枠で一貫していますが、解釈と不足情報の扱いが全体として十分に統合されているとは言い切れません。成果物のみが整い工程が欠ける場合や、工程が成果に反映されない場合は、より低く評価します。",
+      "rationale": "各項目の情報・振り返りと患者理解は大枠で一貫していますが、活動の両義性（辞退と参加）や生活・思いまで含めた統合はまだ途上です。看護計画・援助は評価対象外です。",
       "citations": [
         {
           "field_path": "student_submission.information_cards",
@@ -140,36 +140,36 @@
   ],
   "student_feedback_draft": {
     "strengths": [
-      "情報カードと様式2に、OTの辞退とSSTへの参加など活動に関する観察を残せている点が読み取れます。",
-      "振り返りで、参加できている活動との対比が十分でないことに自ら触れています。"
+      "様式2の現病や情報カードから、夜間の幻聴と日中の疲労、OT辞退とSST参加など、情報の意味を考えようとする材料を残せています。",
+      "振り返りで、参加できている活動との対比が十分でないことに自ら触れており、可能性を保ちながら考える姿勢が読み取れます。"
     ],
     "supporting_information": [
-      "『OTを辞退することがある。SSTには参加できている。』という記録は、活動が一様ではない可能性を考える手がかりになります。",
-      "様式2の現病記述と振り返りの内容は、症状への注目という点でつながっています。"
-    ],
-    "next_questions": [
-      "辞退した日と参加できた日で、前夜の睡眠や当日の体調・活動内容に違いはありましたか。",
-      "『意欲が低い』以外に、疲労・安心感・活動の種類などで説明できる可能性はあるでしょうか。"
+      "提出からは、症状（幻聴・疲労）と活動のむら、退院後の生活への不安が、意欲低下を軸にした患者像としてつながって見えます。",
+      "一方で治療や生活条件との関連までは、まだ一つの患者像として十分にはまとまっていません。"
     ],
     "gaps_or_alternatives": [
-      "提出からは、OT辞退日前夜の睡眠状況は確認できません。推測で補わず、確認が必要です。",
-      "病名と意欲低下だけで理解を固定せず、条件によって力が変化する人、という別の妥当な理解もあり得ます。"
+      "OT辞退とSST参加の両方が残っているのに、患者理解では意欲低下へ寄りやすく、条件によって力が変わる可能性との関連づけは十分ではありません。",
+      "主訴の『退院後の生活への不安』と、日中の疲労・夜間の症状をどう一つの物語として結ぶかは、まだ途中に見えます。"
     ],
-    "overall_tone_check": "正解／不正解表現なし。代筆なし。非断定。努力点加点なし。"
+    "next_questions": [
+      "辞退できた日と参加できた日で、本人にとって何が違っていた可能性があるか、情報同士をどう結んで考えられそうでしょうか。",
+      "『意欲が低い』以外に、疲労・安心感・活動の種類などから、同じ情報をどう意味づけ直せる可能性があるでしょうか。"
+    ],
+    "overall_tone_check": "教育的・非断定。提出根拠のみ。Gold未使用。代筆なし。"
   },
   "teacher_observation": {
-    "summary": "情報収集は一定ある一方、意欲低下への単一解釈が強く、条件差・不足情報の扱いが評価の焦点になりそうです。AI草案であり確定ではありません。",
+    "summary": "各項目で情報から考えようとする手がかりはある一方、患者像は意欲低下に寄り、活動の両義性や生活・思いとの統合が焦点になりそうです。AI草案であり確定ではありません。",
     "attention_points": [
       "振り返りと患者理解の解釈が、情報カードの両義性（辞退と参加）を十分に反映していない可能性",
       "患者理解が病名起点に寄っている可能性",
-      "Gold文章一致は求めないこと",
-      "evidence_linksやカード数は評価根拠にしないこと"
+      "Goldは教員比較のみ。学生FB草案には使わないこと",
+      "evidence_linksや記載量は評価根拠にしないこと"
     ],
-    "suggested_focus_for_feedback": "参加／辞退の条件差と、不足情報を次の問いに変える支援"
+    "suggested_focus_for_feedback": "条件によって力が変わる可能性と、症状・生活・思いの関連づけを考える支援"
   },
   "uncertainty": {
     "overall_confidence": "medium",
-    "notes": "自由記述が短く、関連づけの意図を過大に読むリスクがあります。欠落情報は補完していません。教員による原文確認を推奨します。",
+    "notes": "自由記述が短く、考察の意図を過大に読むリスクがあります。欠落情報は補完していません。教員による原文確認を推奨します。",
     "affected_rubric_keys": [
       "relating_information",
       "interpretation_analysis",
@@ -180,18 +180,30 @@
     {
       "question": "学生は夜間幻聴と日中疲労のつながりを、口頭や別ノートで検討していないか。",
       "reason": "提出スナップショットだけでは、授業内の口頭推論は確認できないため。student_notesは評価対象外。",
-      "related_rubric_keys": ["relating_information", "awareness_of_gaps"]
+      "related_rubric_keys": [
+        "relating_information",
+        "awareness_of_gaps"
+      ]
     },
     {
       "question": "情報カード・振り返り・様式2の対応意図を、内容のつながりとして学生に確認するか。",
       "reason": "form2_evidence_linksは評価根拠に使わないため、内容的な整合の確認が必要。",
-      "related_rubric_keys": ["clarity_of_evidence", "overall_integration"]
+      "related_rubric_keys": [
+        "clarity_of_evidence",
+        "overall_integration"
+      ]
     }
   ],
   "staging_hint": {
     "persist_to": "future_ai_evaluation_staging",
-    "must_not_write_to": ["assessment_reviews"],
-    "teacher_actions_expected": ["adopt", "edit", "reject"],
+    "must_not_write_to": [
+      "assessment_reviews"
+    ],
+    "teacher_actions_expected": [
+      "adopt",
+      "edit",
+      "reject"
+    ],
     "auto_apply_forbidden": true
   }
 }

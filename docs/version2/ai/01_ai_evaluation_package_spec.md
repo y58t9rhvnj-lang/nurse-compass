@@ -2,7 +2,7 @@
 
 Status: **仕様固定**  
 Scope: 文書・JSON Schema・サンプル、および Sprint 5A package 向け整形。提出 snapshot 構造・migration・staging・reviews は変更しない。  
-`package_schema_version`: **1**（キー構造維持。意味・例・policy は `compass_policy_version` **2026.2** で追跡）
+`package_schema_version`: **1**（キー構造維持。意味・例・policy は `compass_policy_version` **2026.4** / `rubric_version` **3** で追跡）
 
 ---
 
@@ -77,8 +77,8 @@ ai_evaluation_package
 | フィールド | 型 | 説明 |
 |------------|-----|------|
 | `package_schema_version` | integer | 初期値 **1** |
-| `compass_policy_version` | string | 例: `"2026.2"` |
-| `rubric_version` | string | 例: `"1"`（Sprint 4B 固定ルーブリック） |
+| `compass_policy_version` | string | 例: `"2026.4"` |
+| `rubric_version` | string | 例: `"3"`（7 key 固定・focus は3段階教育原則対応） |
 | `gold_standard_version` | string | 安定 case key。例: `"patient-a/1"` |
 | `case_version` | string | 症例正本版。例: `"patient-a/1"` |
 | `export_schema_version` | integer | Sprint 5A `AI_EXPORT_SCHEMA_VERSION`（現状 1） |
@@ -112,15 +112,15 @@ Sprint 4B `assessmentRubric.ts` と対応。
 | `items[]` | 7 項目。各 `key` / `label` / `focus`（評価観点） |
 | `pass_criteria` | 初期版は **`null`**。将来学校・課題単位の拡張用スロット |
 
-項目 key（固定）と主な評価根拠（`02_ai_evaluation_policy.md` §7）:
+項目 key（固定）。「患者理解を深める」3段階は**教育原則**であり、追加 key ではない（`02_ai_evaluation_policy.md` §7）:
 
-1. `information_gathering` — `information_cards` + `form2`
-2. `relating_information` — `form2` + `field_reflections`
-3. `interpretation_analysis` — `field_reflections` + `patient_understanding`
-4. `clarity_of_evidence` — `information_cards` / `form2` / `field_reflections`（**`evidence_links` 不使用**）
-5. `awareness_of_gaps` — `field_reflections` + `patient_understanding`
-6. `patient_understanding` — `form2` + `patient_understanding`
-7. `overall_integration` — 上記工程〜成果物の一貫性
+1. `information_gathering` — 段階1の材料（`form2`。情報カードは様式2段階では対象外）
+2. `relating_information` — 段階1→2（`form2` + `field_reflections`）
+3. `interpretation_analysis` — 段階1（`field_reflections`）
+4. `clarity_of_evidence` — 段階1（`form2` / `field_reflections`。**`evidence_links` 不使用**）
+5. `awareness_of_gaps` — 段階3（`field_reflections` + `patient_understanding`）
+6. `patient_understanding` — 段階2（`form2` + `patient_understanding`）
+7. `overall_integration` — 段階3（上記の一貫性・深化）
 
 段階ラベル: 到達していない / 一部到達 / 概ね到達 / 十分到達 / 高い水準で到達
 
@@ -184,7 +184,8 @@ Sprint 5A の `AiAnonymizedAssessmentRecord` を **1 件だけ** 含む（AI 評
 | 指示 | 内容 |
 |------|------|
 | 別解 | Gold との文章一致を求めない。妥当な別解を認める |
-| つながり | 情報カード→振り返り→様式2→患者理解の内容的つながりを評価する |
+| 教育原則 | 「患者理解を深める」3段階は教育原則。`evaluation_stage.focus` と `compass_policy` に記述し、`tertiary` キーは追加しない |
+| つながり | form2 → field_reflections → patient_understanding の内容的つながりを評価する（情報カードは様式2段階では対象外） |
 | 推測禁止 | 情報不足を推測で補完しない。根拠不足時は能力断定せず「評価可能な根拠が不足」 |
 | 区別 | 事実・推論・評価を区別する |
 | 不確実性 | 不確実な評価は明示する |
@@ -268,16 +269,16 @@ ai_evaluation_result
 
 学生返却候補。**教員が採用・修正した場合のみ**返却対象になり得る。AI 結果の自動返却は禁止。
 
-必須構造（4 ブロック）:
+必須構造（4 ブロック。キーは固定、意味は `compass_policy_version` 2026.4）:
 
-1. `strengths` — 学生が捉えられていること
-2. `supporting_information` — その判断を支える情報
-3. `next_questions` — 次に考えてほしい問い
-4. `gaps_or_alternatives` — 不足情報または別の可能性
+1. `strengths` — 段階1: 各情報の意味・可能性を考えられている点
+2. `supporting_information` — 段階2: 概ね読み取れる患者像（学生返却候補としては採用UI非対象でも可）
+3. `gaps_or_alternatives` — 段階3: 不足・別可能性・未更新の見方
+4. `next_questions` — 段階3の継続: 患者理解を深めるために考えてほしいこと（観察項目・看護の答えではなく考える観点）
 
 任意: `overall_tone_check`（自己点検メモ。学生非表示想定）
 
-**含めない:** `private_note`、内部 ID、Gold 文章の丸写し、完成アセスメントの代筆。
+**含めない:** `private_note`、内部 ID、Gold 文章の丸写し、完成アセスメントの代筆、看護目標・看護計画・看護の方向性・具体的援助・観察項目・実施すべき看護。
 
 ### 6.4 `teacher_observation`（必須）
 
