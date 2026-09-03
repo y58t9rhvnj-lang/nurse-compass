@@ -17,12 +17,12 @@ import {
 import { insertAiEvaluationRequest } from "@/lib/v2/assessment/aiEvaluationRequestRepository";
 import { sha256HexOfCanonicalJson } from "@/lib/v2/assessment/aiEvaluationResultHash";
 import {
-  AI_EVAL_COMPASS_POLICY_VERSION,
   AI_EVAL_PACKAGE_SCHEMA_VERSION,
   AI_EVAL_REQUEST_TTL_DAYS,
   AI_EVAL_RESULT_SCHEMA_VERSION,
   AI_EVAL_RUBRIC_VERSION,
   aiEvalCaseVersionsForPatientId,
+  resolveAiEvalCompassPolicyVersion,
 } from "@/lib/v2/assessment/aiEvaluationVersions";
 import type { BuiltAiExportRecord } from "@/lib/v2/assessment/aiEvaluationExportCore";
 
@@ -61,6 +61,12 @@ export async function buildPackagesForExport(input: {
   for (const b of input.built) {
     const evaluationRequestId = randomUUID();
     const caseVersions = aiEvalCaseVersionsForPatientId(b.patientId);
+    const milestoneType =
+      typeof b.record.meta?.milestone_type === "string"
+        ? b.record.meta.milestone_type
+        : null;
+    const compassPolicyVersion =
+      resolveAiEvalCompassPolicyVersion(milestoneType);
     const packageHash = sha256HexOfCanonicalJson({
       schema_version: AI_EXPORT_SCHEMA_VERSION,
       evaluation_request_id: evaluationRequestId,
@@ -78,7 +84,7 @@ export async function buildPackagesForExport(input: {
       evaluationRequestId,
       packageSchemaVersion: AI_EVAL_PACKAGE_SCHEMA_VERSION,
       resultSchemaVersion: AI_EVAL_RESULT_SCHEMA_VERSION,
-      compassPolicyVersion: AI_EVAL_COMPASS_POLICY_VERSION,
+      compassPolicyVersion,
       rubricVersion: AI_EVAL_RUBRIC_VERSION,
       goldStandardVersion: caseVersions.goldStandardVersion,
       caseVersion: caseVersions.caseVersion,

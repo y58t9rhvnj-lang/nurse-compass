@@ -10,18 +10,12 @@ import {
   AI_EXPORT_SCHEMA_VERSION,
 } from "@/lib/v2/assessment/aiExportAnonymize";
 import {
-  AI_EVAL_COMPASS_POLICY_VERSION,
   AI_EVAL_PACKAGE_SCHEMA_VERSION,
   AI_EVAL_RUBRIC_VERSION,
   aiEvalCaseVersionsForPatientId,
 } from "@/lib/v2/assessment/aiEvaluationVersions";
-import {
-  AI_EVAL_GOLD_DECLARATION,
-  buildAiEvaluationCompassPolicy,
-  buildAiEvaluationInstructions,
-  buildAiEvaluationOutputSchemaHint,
-  buildAiEvaluationRubricBlock,
-} from "@/lib/v2/assessment/aiEvaluationPackageStaticContent";
+import { AI_EVAL_GOLD_DECLARATION } from "@/lib/v2/assessment/aiEvaluationPackageStaticContent";
+import { resolveAiEvaluationStaticContent } from "@/lib/v2/assessment/aiEvaluationPackageStaticContentResolve";
 import { getPatientAGoldStandardV1OrNull } from "@/lib/gold/patientA/goldStandardV1";
 import { PATIENT_A_CANONICAL_INFORMATION_CATALOG } from "@/lib/gold/patientA/canonicalInformationCatalog";
 import type { GoldStandardDocument } from "@/lib/gold/types";
@@ -31,6 +25,50 @@ import {
   buildStudentVisibleScopeIncludes,
   warnVisibleScopeMismatch,
 } from "@/lib/v2/assessment/submissionScope";
+import { isForm3AiEvalMilestone } from "@/lib/v2/assessment/aiEvaluationVersions";
+
+/**
+ * Form2（2026.4）case_context.excluded_from_evaluation。
+ * 文言変更禁止（Human Review / S3.1 回帰の正本）。
+ */
+export const FORM2_AI_EVAL_EXCLUDED_FROM_EVALUATION: readonly string[] = [
+  "教員のみが知る後日情報",
+  "非公開カルテ拡張",
+  "Teacher Insight",
+  "private_note",
+  "student_notes",
+  "form2_evidence_links",
+  "情報カード（様式2段階の評価対象外）",
+  "看護目標・看護計画・看護の方向性・具体的援助・観察項目・実施すべき看護",
+  "保存回数・入力回数・編集履歴・autosave・作業時間・文章量そのもの",
+  "カード数・リンク数の努力点加点",
+];
+
+/**
+ * Form3（2026.5）case_context.excluded_from_evaluation。
+ * Form3内 Cards は補助証拠として評価に使える。学生の看護への展開は評価対象。
+ * （AIが看護計画・援助一覧を完成させる禁止は evaluation_instructions / prohibitions 側）
+ */
+export const FORM3_AI_EVAL_EXCLUDED_FROM_EVALUATION: readonly string[] = [
+  "教員のみが知る後日情報",
+  "非公開カルテ拡張",
+  "Teacher Insight",
+  "private_note",
+  "student_notes",
+  "本評価scopeに含まれていない様式2・フィールド振り返り・患者理解",
+  "ノートブック横断の情報カード（Form3内のinformationCards・assessmentCardsはFinalの補助証拠として用いてよい）",
+  "evidence_links（評価根拠に用いない）",
+  "文章量・専門用語数・カード枚数・看護行為数そのもの",
+  "保存回数・入力回数・編集履歴・autosave・作業時間",
+];
+
+export function resolveAiEvalExcludedFromEvaluation(
+  milestoneType: string | null | undefined,
+): readonly string[] {
+  return isForm3AiEvalMilestone(milestoneType)
+    ? FORM3_AI_EVAL_EXCLUDED_FROM_EVALUATION
+    : FORM2_AI_EVAL_EXCLUDED_FROM_EVALUATION;
+}
 
 export type AiEvaluationPackage = {
   metadata: Record<string, unknown>;
@@ -140,6 +178,7 @@ function buildCaseContextBlock(input: {
   secret: string;
   orgKey: string;
   packageScope?: AssessmentSubmissionScope | null;
+  milestoneType: string | null;
 }): Record<string, unknown> {
   const meta = input.studentSubmission.meta;
   const referencedIds = new Set<string>();
@@ -180,16 +219,7 @@ function buildCaseContextBlock(input: {
       includes: buildStudentVisibleScopeIncludes(input.packageScope),
     },
     excluded_from_evaluation: [
-      "教員のみが知る後日情報",
-      "非公開カルテ拡張",
-      "Teacher Insight",
-      "private_note",
-      "student_notes",
-      "form2_evidence_links",
-      "情報カード（様式2段階の評価対象外）",
-      "看護目標・看護計画・看護の方向性・具体的援助・観察項目・実施すべき看護",
-      "保存回数・入力回数・編集履歴・autosave・作業時間・文章量そのもの",
-      "カード数・リンク数の努力点加点",
+      ...resolveAiEvalExcludedFromEvaluation(input.milestoneType),
     ],
   };
 }
@@ -233,10 +263,20 @@ export function buildAiEvaluationPackage(
         teacher_insight_included: false,
       };
 
+  const milestoneType =
+    typeof input.studentSubmission.meta?.milestone_type === "string"
+      ? input.studentSubmission.meta.milestone_type
+      : null;
+  const packageScope = input.packageScope ?? null;
+  const staticContent = resolveAiEvaluationStaticContent(
+    milestoneType,
+    packageScope,
+  );
+
   const pkg: AiEvaluationPackage = {
     metadata: {
       package_schema_version: AI_EVAL_PACKAGE_SCHEMA_VERSION,
-      compass_policy_version: AI_EVAL_COMPASS_POLICY_VERSION,
+      compass_policy_version: staticContent.compassPolicyVersion,
       rubric_version: AI_EVAL_RUBRIC_VERSION,
       gold_standard_version: versions.goldStandardVersion,
       case_version: versions.caseVersion,
@@ -246,8 +286,8 @@ export function buildAiEvaluationPackage(
       generated_by_role: input.generatedByRole,
       locale: "ja-JP",
     },
-    compass_policy: buildAiEvaluationCompassPolicy(),
-    rubric: buildAiEvaluationRubricBlock(),
+    compass_policy: staticContent.compass_policy,
+    rubric: staticContent.rubric,
     gold_standard,
     case_context: buildCaseContextBlock({
       caseKey: versions.caseKey,
@@ -256,11 +296,12 @@ export function buildAiEvaluationPackage(
       goldDoc,
       secret: input.idSecret,
       orgKey: input.organizationScopeKey,
-      packageScope: input.packageScope ?? null,
+      packageScope,
+      milestoneType,
     }),
     student_submission: toPackageStudentSubmission(input.studentSubmission),
-    evaluation_instructions: buildAiEvaluationInstructions(),
-    output_schema_hint: buildAiEvaluationOutputSchemaHint(),
+    evaluation_instructions: staticContent.evaluation_instructions,
+    output_schema_hint: staticContent.output_schema_hint,
   };
 
   const visibleIncludes = (

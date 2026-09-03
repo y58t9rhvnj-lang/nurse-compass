@@ -25,19 +25,29 @@ export function defaultScopeForType(
         includePatientUnderstanding: true,
       };
     case "form3_progress":
+      // Form3 AI / 課題デフォルト: Form3 のみ。Form2 系は無条件に混ぜない（明示 opt-in 可）。
       return {
-        includeForm2: true,
+        includeForm2: false,
         includeForm3: true,
         form3Scope: {
           mode: "selected_patterns",
           patternIds,
         },
-        includeInformationCards: true,
-        includeEvidenceLinks: true,
-        includeFieldReflections: true,
+        includeInformationCards: false,
+        includeEvidenceLinks: false,
+        includeFieldReflections: false,
         includePatientUnderstanding: false,
       };
     case "form3_complete":
+      return {
+        includeForm2: false,
+        includeForm3: true,
+        form3Scope: { mode: "all_patterns" },
+        includeInformationCards: false,
+        includeEvidenceLinks: false,
+        includeFieldReflections: false,
+        includePatientUnderstanding: false,
+      };
     case "final":
       return {
         includeForm2: true,
@@ -162,14 +172,40 @@ export const FORM2_AI_EVAL_REQUIRED_SCOPE: AssessmentSubmissionScope = {
   includePatientUnderstanding: true,
 };
 
+/**
+ * AI評価 Package 用: 様式3段階の必須 / デフォルト scope（policy 2026.5 / 07・08）。
+ * - includeForm3 = 必須 ON
+ * - Form2 / reflections / PU / notebook cards / evidence = デフォルト OFF（required ではない）
+ * - form3Scope はマイルストーン DB 設定を保持（ここには含めない）
+ * Final=主 / Form3 内 Cards=補助は policy（StaticContent）で表現。scope サブフラグは増やさない。
+ */
+export const FORM3_AI_EVAL_REQUIRED_SCOPE: AssessmentSubmissionScope = {
+  includeForm2: false,
+  includeForm3: true,
+  includeInformationCards: false,
+  includeEvidenceLinks: false,
+  includeFieldReflections: false,
+  includePatientUnderstanding: false,
+};
+
 export type AiEvalScopePolicyWarning = {
   code:
     | "db_scope_policy_mismatch"
     | "visible_scope_mismatch"
     | "patient_understanding_out_of_scope"
-    | "information_cards_in_scope_against_policy";
+    | "information_cards_in_scope_against_policy"
+    | "form3_form2_opt_in"
+    | "form3_patient_understanding_opt_in";
   message: string;
 };
+
+function isForm3AiEvalMilestoneType(
+  milestoneType: string | null | undefined,
+): boolean {
+  return (
+    milestoneType === "form3_progress" || milestoneType === "form3_complete"
+  );
+}
 
 export type AiEvalScopeCorrectionResult = {
   packageScope: AssessmentSubmissionScope | null;
@@ -206,6 +242,90 @@ export function scopeForAiEvaluationPackage(
   return resolveScopeForAiEvaluationPackage(milestoneType, scope).packageScope;
 }
 
+function resolveForm3ScopeForAiEvaluationPackage(
+  scope: AssessmentSubmissionScope,
+): AiEvalScopeCorrectionResult {
+  const required = FORM3_AI_EVAL_REQUIRED_SCOPE;
+  const warnings: AiEvalScopePolicyWarning[] = [];
+  const corrections: string[] = [];
+
+  // 必須: Form3 ON。notebook 横断カード・evidence は AI では常に OFF。
+  // Form2 / reflections / PU は required では OFF。DB で true なら明示 opt-in として保持。
+  const includeForm2 = Boolean(scope.includeForm2);
+  const includeFieldReflections = Boolean(scope.includeFieldReflections);
+  const includePatientUnderstanding = Boolean(scope.includePatientUnderstanding);
+
+  const packageScope: AssessmentSubmissionScope = {
+    ...scope,
+    includeForm3: true,
+    includeForm2,
+    includeFieldReflections,
+    includePatientUnderstanding,
+    includeInformationCards: false,
+    includeEvidenceLinks: false,
+    // form3Scope は ...scope 経由で保持（pattern filter は S3）
+  };
+
+  if (!scope.includeForm3) {
+    corrections.push("includeForm3");
+  }
+  if (scope.includeInformationCards) {
+    corrections.push("includeInformationCards");
+    warnings.push({
+      code: "information_cards_in_scope_against_policy",
+      message:
+        "Form3 AI評価ではノートブック横断の情報カードは対象外です（Form3 内 Cards は includeForm3 経由で補助証拠として残ります）。Package 生成時に includeInformationCards を OFF に補正します。",
+    });
+  }
+  if (scope.includeEvidenceLinks) {
+    corrections.push("includeEvidenceLinks");
+  }
+  if (includeForm2) {
+    warnings.push({
+      code: "form3_form2_opt_in",
+      message:
+        "Form3 AI評価で様式2が scope ON です（デフォルト外の明示 opt-in）。無条件混入ではなく、教員設定として Package に含めます。",
+    });
+  }
+  if (includePatientUnderstanding) {
+    warnings.push({
+      code: "form3_patient_understanding_opt_in",
+      message:
+        "Form3 AI評価で患者理解が scope ON です（デフォルト外の明示 opt-in）。主評価は Form3 Final のままです。",
+    });
+  }
+
+  const alignedWithRequiredDefaults =
+    packageScope.includeForm3 === required.includeForm3 &&
+    packageScope.includeForm2 === required.includeForm2 &&
+    packageScope.includeFieldReflections === required.includeFieldReflections &&
+    packageScope.includePatientUnderstanding ===
+      required.includePatientUnderstanding &&
+    packageScope.includeInformationCards === required.includeInformationCards &&
+    packageScope.includeEvidenceLinks === required.includeEvidenceLinks;
+
+  if (!alignedWithRequiredDefaults || corrections.length > 0) {
+    if (
+      !scope.includeForm3 ||
+      scope.includeInformationCards ||
+      scope.includeEvidenceLinks
+    ) {
+      warnings.push({
+        code: "db_scope_policy_mismatch",
+        message:
+          "DB の submission_scope が様式3 AI評価ポリシー必須 scope と一致しません。Package 生成時に防御的補正を適用します。",
+      });
+    }
+  }
+
+  return {
+    packageScope,
+    corrected: corrections.length > 0,
+    corrections,
+    warnings,
+  };
+}
+
 export function resolveScopeForAiEvaluationPackage(
   milestoneType: string | null | undefined,
   scope: AssessmentSubmissionScope | null | undefined,
@@ -219,7 +339,12 @@ export function resolveScopeForAiEvaluationPackage(
     };
   }
 
+  if (isForm3AiEvalMilestoneType(milestoneType)) {
+    return resolveForm3ScopeForAiEvaluationPackage(scope);
+  }
+
   if (milestoneType !== "form2") {
+    // final / custom / 未知: 従来どおり DB scope を通し、PU OFF 時のみ従来警告。
     const warnings: AiEvalScopePolicyWarning[] = [];
     if (!scope.includePatientUnderstanding) {
       warnings.push({
@@ -353,6 +478,15 @@ export function buildStudentVisibleScopeDescription(
     !scope.includeInformationCards;
   if (isForm2Stage) {
     return "提出時点のスナップショットのうち、様式2・フィールド振り返り・患者理解のみを評価に用いる。情報カード・看護計画・援助は評価しない。";
+  }
+  const isForm3Stage =
+    scope &&
+    scope.includeForm3 &&
+    !scope.includeForm2 &&
+    !scope.includeFieldReflections &&
+    !scope.includeInformationCards;
+  if (isForm3Stage) {
+    return "提出時点のスナップショットのうち、様式3（Finalを主評価・Cardsを補助証拠）を評価に用いる。ノートブック横断カード・evidence_links は用いない。";
   }
   return "提出時点のスナップショットのうち、課題scopeに含まれる成果物と理解形成工程のみを評価に用いる。様式2段階では看護計画・援助は評価しない。";
 }

@@ -73,6 +73,10 @@ export function aiWarningCodeLabel(
       return "事例の版が異なります";
     case "export_schema_version_mismatch":
       return "出力スキーマの版が異なります";
+    case "form3_form2_opt_in":
+      return "様式3評価に様式2が含まれています（明示設定）";
+    case "form3_patient_understanding_opt_in":
+      return "様式3評価に患者理解が含まれています（明示設定）";
     default:
       return code;
   }
