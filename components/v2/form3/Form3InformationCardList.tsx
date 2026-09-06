@@ -9,6 +9,7 @@ import ConfirmDialog from "@/components/collection/ConfirmDialog";
 import Form3InformationDialog, {
   type Form3InformationDialogValues,
 } from "@/components/v2/form3/Form3InformationDialog";
+import { FORM3_PHASE_B_INFORMATION_HELPER } from "@/components/v2/form3/form3PhaseBEducationCopy";
 import {
   lockForm3RightPaneScroll,
   unlockForm3RightPaneScroll,
@@ -101,6 +102,10 @@ export default function Form3InformationCardList({
           情報を追加
         </button>
       </div>
+
+      <p className="border-b border-[#EFEFF4] px-4 py-2 text-[12px] leading-relaxed text-[#6E6E73] sm:px-5">
+        {FORM3_PHASE_B_INFORMATION_HELPER}
+      </p>
 
       <div className="px-4 py-3 sm:px-5 sm:py-4">
         {empty ? (

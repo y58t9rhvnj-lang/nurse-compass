@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import type { Form3MissingItem } from "@/lib/form3/v2/collectForm3Missing";
 import type { Form3PatternKey } from "@/lib/form3/form3Types";
+import { FORM3_PHASE_B_SUBMIT_CONFIRM_BODY } from "@/components/v2/form3/form3PhaseBEducationCopy";
 
 export type Form3SubmitConfirmDialogProps = {
   open: boolean;
@@ -84,7 +85,7 @@ export default function Form3SubmitConfirmDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <p className="text-[14px] leading-relaxed text-[#3A3A3C]">
-            情報や解釈・分析が未入力の Pattern があります。患者さんの状態によっては、情報がない場合もあります。内容を確認したうえで、このまま提出できます。
+            {FORM3_PHASE_B_SUBMIT_CONFIRM_BODY}
           </p>
 
           <p className="mt-3 text-[13px] text-[#6E6E73]">

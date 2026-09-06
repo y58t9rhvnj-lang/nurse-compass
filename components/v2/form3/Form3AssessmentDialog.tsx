@@ -9,6 +9,11 @@ import {
   lockForm3RightPaneScroll,
   unlockForm3RightPaneScroll,
 } from "@/components/v2/form3/form3RightPaneScroll";
+import {
+  FORM3_PHASE_B_ASSESSMENT_DIALOG_HELPER,
+  FORM3_PHASE_B_ASSESSMENT_PLACEHOLDER,
+  FORM3_PHASE_B_ASSESSMENT_PROMPTS,
+} from "@/components/v2/form3/form3PhaseBEducationCopy";
 import type { Form3InformationCardV2 } from "@/lib/form3/v2/form3V2Types";
 
 export type Form3AssessmentDialogValues = {
@@ -141,7 +146,7 @@ export default function Form3AssessmentDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-5 py-4">
           <p className="text-[12px] leading-relaxed text-[#8E8E93]">
-            Assessment は解釈です。看護問題名や援助計画ではありません。根拠の本文はコピーしません。
+            {FORM3_PHASE_B_ASSESSMENT_DIALOG_HELPER}
           </p>
 
           <fieldset className="mt-4 m-0 border-0 p-0">
@@ -199,13 +204,23 @@ export default function Form3AssessmentDialog({
             <span className="text-[13px] font-semibold text-[#1D1D1F]">
               解釈・分析の内容
             </span>
+            <ul className="mt-2 space-y-1 rounded-2xl bg-[#F7F8FA] px-3.5 py-2.5">
+              {FORM3_PHASE_B_ASSESSMENT_PROMPTS.map((prompt) => (
+                <li
+                  key={prompt}
+                  className="text-[12px] leading-snug text-[#667085]"
+                >
+                  {prompt}
+                </li>
+              ))}
+            </ul>
             <textarea
               className={[
-                "mt-2 min-h-[12rem] w-full resize-y rounded-2xl border-0 bg-[#F2F2F7] px-4 py-3 text-[16px] leading-relaxed text-[#1D1D1F] outline-none",
+                "mt-2.5 min-h-[12rem] w-full resize-y rounded-2xl border-0 bg-[#F2F2F7] px-4 py-3 text-[16px] leading-relaxed text-[#1D1D1F] outline-none",
                 "focus:ring-2 focus:ring-[#1E88E5]/40",
                 contentInvalid ? "ring-2 ring-[#FF3B30]/50" : "",
               ].join(" ")}
-              placeholder="選択した情報を根拠として、患者さんの状態や必要な看護について考えたことを記入してください。"
+              placeholder={FORM3_PHASE_B_ASSESSMENT_PLACEHOLDER}
               value={interpretation}
               onChange={(e) => setInterpretation(e.target.value)}
               aria-invalid={contentInvalid}

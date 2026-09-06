@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import Form3AssessmentCardList from "@/components/v2/form3/Form3AssessmentCardList";
 import Form3InformationCardList from "@/components/v2/form3/Form3InformationCardList";
+import Form3PhaseBEducationGuide from "@/components/v2/form3/Form3PhaseBEducationGuide";
 import Form3PhaseBPatternPickerSheet from "@/components/v2/form3/Form3PhaseBPatternPickerSheet";
 import Form3PhaseBPatternTabBar, {
   form3PhaseBPatternTabLabel,
@@ -644,6 +645,7 @@ export default function Form3PhaseBWorkspace({
                 aria-labelledby={`form3-phase-b-pattern-tab-${selectedPatternKey}`}
               >
                 <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 pb-10 pt-4 sm:px-6">
+                  <Form3PhaseBEducationGuide />
                   {unclassifiedAssessCount > 0 ? (
                     <p className="text-[13px] text-[#8E8E93]">
                       パターン未設定のアセスメントが {unclassifiedAssessCount}{" "}

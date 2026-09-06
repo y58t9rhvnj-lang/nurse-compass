@@ -9,6 +9,7 @@ import ConfirmDialog from "@/components/collection/ConfirmDialog";
 import Form3AssessmentDialog, {
   type Form3AssessmentDialogValues,
 } from "@/components/v2/form3/Form3AssessmentDialog";
+import { FORM3_PHASE_B_ASSESSMENT_HELPER } from "@/components/v2/form3/form3PhaseBEducationCopy";
 import {
   lockForm3RightPaneScroll,
   unlockForm3RightPaneScroll,
@@ -104,6 +105,10 @@ export default function Form3AssessmentCardList({
           解釈・分析を追加
         </button>
       </div>
+
+      <p className="border-b border-[#EFEFF4] px-4 py-2 text-[12px] leading-relaxed text-[#6E6E73] sm:px-5">
+        {FORM3_PHASE_B_ASSESSMENT_HELPER}
+      </p>
 
       <div className="px-4 py-3 sm:px-5 sm:py-4">
         {empty ? (
