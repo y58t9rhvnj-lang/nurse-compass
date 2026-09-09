@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   bulkCompleteTeacherAssessmentReviewsAction,
   type BulkCompleteItemResult,
@@ -19,7 +19,10 @@ import {
   reviewDisplayStatusLabel,
   studentIdLabel,
 } from "@/lib/v2/assessment/teacherReviewLabels";
-import { saveTeacherReviewOrder } from "@/lib/v2/assessment/teacherReviewOrderStorage";
+import {
+  loadTeacherReviewOrderPayload,
+  saveTeacherReviewOrder,
+} from "@/lib/v2/assessment/teacherReviewOrderStorage";
 import { teacherTimingJudgmentLabel } from "@/lib/v2/assessment/teacherReviewTimingDisplay";
 import {
   evaluationTypeLabel,
@@ -135,13 +138,49 @@ function dedupeByStudentId(
   return out;
 }
 
+function isFilterKey(v: string | null): v is FilterKey {
+  return (
+    v === "all" ||
+    v === "unsubmitted" ||
+    v === "submitted" ||
+    v === "late" ||
+    v === "pending" ||
+    v === "has_candidate" ||
+    v === "no_candidate" ||
+    v === "ai_unevaluated" ||
+    v === "not_returned" ||
+    v === "exclude_evaluated"
+  );
+}
+
+function isSortKey(v: string | null): v is SortKey {
+  return v === "name" || v === "submitted_at" || v === "count";
+}
+
 export default function TeacherReviewStudentsClient({
   milestone,
   rows: initialRows,
 }: Props) {
   const router = useRouter();
-  const [filter, setFilter] = useState<FilterKey>("all");
-  const [sort, setSort] = useState<SortKey>("name");
+  const searchParams = useSearchParams();
+  const [filter, setFilter] = useState<FilterKey>(() => {
+    const fromUrl = searchParams.get("filter");
+    if (isFilterKey(fromUrl)) return fromUrl;
+    if (typeof window !== "undefined") {
+      const stored = loadTeacherReviewOrderPayload(milestone.milestoneId);
+      if (stored && isFilterKey(stored.filter)) return stored.filter;
+    }
+    return "all";
+  });
+  const [sort, setSort] = useState<SortKey>(() => {
+    const fromUrl = searchParams.get("sort");
+    if (isSortKey(fromUrl)) return fromUrl;
+    if (typeof window !== "undefined") {
+      const stored = loadTeacherReviewOrderPayload(milestone.milestoneId);
+      if (stored && isSortKey(stored.sort)) return stored.sort;
+    }
+    return "name";
+  });
   const [rows, setRows] = useState(() => dedupeByStudentId(initialRows));
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkResults, setBulkResults] = useState<BulkCompleteItemResult[] | null>(
@@ -159,11 +198,20 @@ export default function TeacherReviewStudentsClient({
     return sorted;
   }, [rows, filter, sort]);
 
-  const orderedStudentIds = useMemo(() => {
-    const sorted = dedupeByStudentId([...rows]);
-    sorted.sort((a, b) => compareRows(a, b, sort));
-    return sorted.map((r) => r.student.id);
-  }, [rows, sort]);
+  /** 前後ナビは一覧で見ている（filter+sort 後の）順序と一致させる */
+  const orderedStudentIds = useMemo(
+    () => visible.map((r) => r.student.id),
+    [visible],
+  );
+
+  const syncListQuery = (nextFilter: FilterKey, nextSort: SortKey) => {
+    const params = new URLSearchParams();
+    if (nextFilter !== "all") params.set("filter", nextFilter);
+    if (nextSort !== "name") params.set("sort", nextSort);
+    const q = params.toString();
+    const path = `/v2/teacher/reviews/${milestone.milestoneId}`;
+    router.replace(q ? `${path}?${q}` : path, { scroll: false });
+  };
 
   const persistOrderAndOpen = (studentId: string) => {
     saveTeacherReviewOrder({
@@ -172,9 +220,12 @@ export default function TeacherReviewStudentsClient({
       filter,
       sort,
     });
-    router.push(
-      `/v2/teacher/reviews/${milestone.milestoneId}/${studentId}`,
-    );
+    const params = new URLSearchParams();
+    if (filter !== "all") params.set("filter", filter);
+    if (sort !== "name") params.set("sort", sort);
+    const q = params.toString();
+    const base = `/v2/teacher/reviews/${milestone.milestoneId}/${studentId}`;
+    router.push(q ? `${base}?${q}` : base);
   };
 
   const selectableIds = useMemo(() => {
@@ -358,7 +409,10 @@ export default function TeacherReviewStudentsClient({
                   ? "bg-slate-900 text-white"
                   : "border border-slate-300 bg-white text-slate-700"
               }`}
-              onClick={() => setFilter(f.key)}
+              onClick={() => {
+                setFilter(f.key);
+                syncListQuery(f.key, sort);
+              }}
             >
               {f.label}
             </button>
@@ -368,7 +422,11 @@ export default function TeacherReviewStudentsClient({
             <select
               className="min-h-11 rounded-lg border border-slate-300 bg-white px-3"
               value={sort}
-              onChange={(e) => setSort(e.target.value as SortKey)}
+              onChange={(e) => {
+                const next = e.target.value as SortKey;
+                setSort(next);
+                syncListQuery(filter, next);
+              }}
             >
               <option value="name">学生名順</option>
               <option value="submitted_at">最新提出日時順</option>

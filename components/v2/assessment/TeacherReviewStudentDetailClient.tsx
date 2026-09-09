@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -24,6 +24,7 @@ import {
 } from "@/lib/v2/assessment/teacherReviewLabels";
 import {
   loadTeacherReviewOrder,
+  loadTeacherReviewOrderPayload,
 } from "@/lib/v2/assessment/teacherReviewOrderStorage";
 import {
   buildTeacherTimingDisplayLines,
@@ -127,7 +128,24 @@ export default function TeacherReviewStudentDetailClient({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const listHref = `/v2/teacher/reviews/${milestoneId}`;
+
+  const listHref = useMemo(() => {
+    const params = new URLSearchParams();
+    const filterFromUrl = searchParams.get("filter");
+    const sortFromUrl = searchParams.get("sort");
+    const stored =
+      typeof window !== "undefined"
+        ? loadTeacherReviewOrderPayload(milestoneId)
+        : null;
+    const filter = filterFromUrl ?? stored?.filter ?? null;
+    const sort = sortFromUrl ?? stored?.sort ?? null;
+    if (filter && filter !== "all") params.set("filter", filter);
+    if (sort && sort !== "name") params.set("sort", sort);
+    const q = params.toString();
+    return q
+      ? `/v2/teacher/reviews/${milestoneId}?${q}`
+      : `/v2/teacher/reviews/${milestoneId}`;
+  }, [milestoneId, searchParams]);
 
   const [studentId, setStudentId] = useState(initialStudentId);
   const [tab, setTab] = useState<TabKey>("overview");
@@ -145,7 +163,7 @@ export default function TeacherReviewStudentDetailClient({
   );
   const [readModel, setReadModel] = useState(initial.readModel);
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(
     () => searchParams.get("review") === "open",
   );
@@ -183,6 +201,7 @@ export default function TeacherReviewStudentDetailClient({
   );
 
   // sessionStorage 順序（失敗時は一覧再取得で名前順）
+  // studentId 変更のたびに再取得し直さない（前後移動で順序を維持）
   useEffect(() => {
     const fromStorage = loadTeacherReviewOrder(milestoneId, studentId);
     if (fromStorage) {
@@ -193,7 +212,9 @@ export default function TeacherReviewStudentDetailClient({
     (async () => {
       const res = await listTeacherStudentSubmissionRowsAction(milestoneId);
       if (cancelled || !res.ok) {
-        setStudentIdsOrdered([studentId]);
+        setStudentIdsOrdered((prev) =>
+          prev.includes(studentId) ? prev : [studentId],
+        );
         return;
       }
       const ids = [...res.rows]
@@ -206,7 +227,16 @@ export default function TeacherReviewStudentDetailClient({
     return () => {
       cancelled = true;
     };
-  }, [milestoneId, studentId]);
+    // intentionally only milestoneId: order is shared across students in the same review session
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [milestoneId]);
+
+  // 直リンクで現在学生が一覧順に無い場合のみ、フォールバックで先頭に足す
+  useEffect(() => {
+    setStudentIdsOrdered((prev) =>
+      prev.includes(studentId) ? prev : [studentId, ...prev],
+    );
+  }, [studentId]);
 
   // URL の review=open と同期
   useEffect(() => {
@@ -231,11 +261,18 @@ export default function TeacherReviewStudentDetailClient({
   const syncReviewOpenQuery = useCallback(
     (open: boolean, targetStudentId: string, mode: "push" | "replace") => {
       const path = `/v2/teacher/reviews/${milestoneId}/${targetStudentId}`;
-      const url = open ? `${path}?review=open` : path;
+      const params = new URLSearchParams();
+      const filter = searchParams.get("filter");
+      const sort = searchParams.get("sort");
+      if (filter) params.set("filter", filter);
+      if (sort) params.set("sort", sort);
+      if (open) params.set("review", "open");
+      const q = params.toString();
+      const url = q ? `${path}?${q}` : path;
       if (mode === "push") router.push(url, { scroll: false });
       else router.replace(url, { scroll: false });
     },
-    [milestoneId, router],
+    [milestoneId, router, searchParams],
   );
 
   const applyDetail = useCallback(
@@ -258,38 +295,49 @@ export default function TeacherReviewStudentDetailClient({
 
   const loadStudentDetail = useCallback(
     (nextStudentId: string) => {
-      startTransition(async () => {
+      // startTransition(async) は pending が張り付くことがあるため使わない
+      void (async () => {
+        setLoadingDetail(true);
         setError(null);
-        const res = await getTeacherStudentSubmissionDetailAction({
-          milestoneId,
-          studentId: nextStudentId,
-        });
-        if (!res.ok) {
-          setError("学生データを読み込めませんでした。");
-          return;
+        try {
+          const res = await getTeacherStudentSubmissionDetailAction({
+            milestoneId,
+            studentId: nextStudentId,
+          });
+          if (!res.ok) {
+            setError("学生データを読み込めませんでした。");
+            return;
+          }
+          setStudentId(nextStudentId);
+          applyDetail(res);
+        } finally {
+          setLoadingDetail(false);
         }
-        setStudentId(nextStudentId);
-        applyDetail(res);
-      });
+      })();
     },
     [applyDetail, milestoneId],
   );
 
   const loadSubmission = useCallback(
     (submissionId: string) => {
-      startTransition(async () => {
+      void (async () => {
+        setLoadingDetail(true);
         setError(null);
-        const res = await getTeacherStudentSubmissionDetailAction({
-          milestoneId,
-          studentId,
-          submissionId,
-        });
-        if (!res.ok) {
-          setError("提出データを読み込めませんでした。");
-          return;
+        try {
+          const res = await getTeacherStudentSubmissionDetailAction({
+            milestoneId,
+            studentId,
+            submissionId,
+          });
+          if (!res.ok) {
+            setError("提出データを読み込めませんでした。");
+            return;
+          }
+          applyDetail(res);
+        } finally {
+          setLoadingDetail(false);
         }
-        applyDetail(res);
-      });
+      })();
     },
     [applyDetail, milestoneId, studentId],
   );
@@ -309,19 +357,24 @@ export default function TeacherReviewStudentDetailClient({
   };
 
   const reloadCurrentStudent = useCallback(() => {
-    startTransition(async () => {
+    void (async () => {
+      setLoadingDetail(true);
       setError(null);
-      const res = await getTeacherStudentSubmissionDetailAction({
-        milestoneId,
-        studentId,
-        submissionId: viewingSubmissionId,
-      });
-      if (!res.ok) {
-        setError("学生データを読み込めませんでした。");
-        return;
+      try {
+        const res = await getTeacherStudentSubmissionDetailAction({
+          milestoneId,
+          studentId,
+          submissionId: viewingSubmissionId,
+        });
+        if (!res.ok) {
+          setError("学生データを読み込めませんでした。");
+          return;
+        }
+        applyDetail(res);
+      } finally {
+        setLoadingDetail(false);
       }
-      applyDetail(res);
-    });
+    })();
   }, [applyDetail, milestoneId, studentId, viewingSubmissionId]);
 
   const onLateReviewDone = useCallback(
@@ -351,13 +404,20 @@ export default function TeacherReviewStudentDetailClient({
   );
 
   const onListLinkClick = (e: MouseEvent) => {
-    if (!reviewDirty) return;
     e.preventDefault();
-    if (!reviewOpen) {
+    // 評価パネル open 中は z-index 貫通させず、パネル側の listNav 経路へ寄せる
+    // （dirty 確認・dialog 中の二重要求ロックはパネル内で処理）
+    if (reviewOpen) {
+      setListNavRequestId((n) => n + 1);
+      return;
+    }
+    if (reviewDirty) {
       setReviewOpen(true);
       syncReviewOpenQuery(true, studentId, "replace");
+      setListNavRequestId((n) => n + 1);
+      return;
     }
-    setListNavRequestId((n) => n + 1);
+    router.push(listHref);
   };
 
   const candidateTimingText = candidate
@@ -549,7 +609,7 @@ export default function TeacherReviewStudentDetailClient({
               {error}
             </p>
           ) : null}
-          {pending ? (
+          {loadingDetail ? (
             <p className="text-sm text-slate-500">読み込み中…</p>
           ) : null}
 

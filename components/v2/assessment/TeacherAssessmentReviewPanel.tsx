@@ -439,7 +439,8 @@ export default function TeacherAssessmentReviewPanel({
       return;
     }
     const gen = ++fetchGenRef.current;
-    startTransition(async () => {
+    // startTransition(async) は pending が張り付き前後ナビを常時 disabled にする
+    void (async () => {
       setLoadError(null);
       const res = await getTeacherAssessmentReviewAction({
         milestoneId,
@@ -455,7 +456,7 @@ export default function TeacherAssessmentReviewPanel({
         completedByDisplayName: res.completedByDisplayName,
       });
       setSaveState({ kind: "idle" });
-    });
+    })();
   }, [
     applyReview,
     candidateSubmissionId,
@@ -476,12 +477,21 @@ export default function TeacherAssessmentReviewPanel({
   }, [open, studentId]);
 
   const requestClose = useCallback(() => {
+    if (pendingNav != null || revokeDialogOpen || saveState.kind === "saving") {
+      return;
+    }
     if (dirty) {
       setPendingNav({ kind: "close" });
       return;
     }
     onOpenChange(false);
-  }, [dirty, onOpenChange]);
+  }, [
+    dirty,
+    onOpenChange,
+    pendingNav,
+    revokeDialogOpen,
+    saveState.kind,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -524,23 +534,31 @@ export default function TeacherAssessmentReviewPanel({
   const saveDraftAsync = async (): Promise<boolean> => {
     if (!candidate || readOnly) return false;
     setSaveState({ kind: "saving" });
-    const res = await saveTeacherAssessmentReviewDraftAction(payload());
-    if (!res.ok) {
-      setSaveState(
-        res.kind === "conflict"
-          ? { kind: "conflict", message: res.message }
-          : { kind: "error", message: res.message },
-      );
+    try {
+      const res = await saveTeacherAssessmentReviewDraftAction(payload());
+      if (!res.ok) {
+        setSaveState(
+          res.kind === "conflict"
+            ? { kind: "conflict", message: res.message }
+            : { kind: "error", message: res.message },
+        );
+        return false;
+      }
+      commitReviewFromAction(res.review, {
+        completedByDisplayName: completedByName,
+      });
+      setSaveState({
+        kind: "saved",
+        at: formatAssessmentDateTimeJa(res.review.updatedAt),
+      });
+      return true;
+    } catch {
+      setSaveState({
+        kind: "error",
+        message: "下書きの保存に失敗しました。もう一度お試しください。",
+      });
       return false;
     }
-    commitReviewFromAction(res.review, {
-      completedByDisplayName: completedByName,
-    });
-    setSaveState({
-      kind: "saved",
-      at: formatAssessmentDateTimeJa(res.review.updatedAt),
-    });
-    return true;
   };
 
   const onSaveDraft = () => {
@@ -571,35 +589,42 @@ export default function TeacherAssessmentReviewPanel({
     if (!ok) return;
     setSaveState({ kind: "saving" });
     startTransition(async () => {
-      const res = review?.id
-        ? await completeTeacherAssessmentReviewAction({
-            ...payload(),
-            reviewId: review.id,
-            baseUpdatedAt: baseUpdatedAt!,
-          })
-        : await saveAndCompleteTeacherAssessmentReviewAction(payload());
-      if (!res.ok) {
-        setSaveState(
-          res.kind === "conflict"
-            ? { kind: "conflict", message: res.message }
-            : { kind: "error", message: res.message },
-        );
-        return;
+      try {
+        const res = review?.id
+          ? await completeTeacherAssessmentReviewAction({
+              ...payload(),
+              reviewId: review.id,
+              baseUpdatedAt: baseUpdatedAt!,
+            })
+          : await saveAndCompleteTeacherAssessmentReviewAction(payload());
+        if (!res.ok) {
+          setSaveState(
+            res.kind === "conflict"
+              ? { kind: "conflict", message: res.message }
+              : { kind: "error", message: res.message },
+          );
+          return;
+        }
+        commitReviewFromAction(res.review);
+        setSaveState({
+          kind: "saved",
+          at: formatAssessmentDateTimeJa(res.review.updatedAt),
+        });
+        // 確定者名のみ補完（applyReview はしない）
+        const gen = fetchGenRef.current;
+        const named = await getTeacherAssessmentReviewAction({
+          milestoneId,
+          studentId,
+          submissionId: candidate.submissionId,
+        });
+        if (gen !== fetchGenRef.current || !named.ok) return;
+        setCompletedByName(named.completedByDisplayName);
+      } catch {
+        setSaveState({
+          kind: "error",
+          message: "評価の確定に失敗しました。もう一度お試しください。",
+        });
       }
-      commitReviewFromAction(res.review);
-      setSaveState({
-        kind: "saved",
-        at: formatAssessmentDateTimeJa(res.review.updatedAt),
-      });
-      // 確定者名のみ補完（applyReview はしない）
-      const gen = fetchGenRef.current;
-      const named = await getTeacherAssessmentReviewAction({
-        milestoneId,
-        studentId,
-        submissionId: candidate.submissionId,
-      });
-      if (gen !== fetchGenRef.current || !named.ok) return;
-      setCompletedByName(named.completedByDisplayName);
     });
   };
 
@@ -621,26 +646,33 @@ export default function TeacherAssessmentReviewPanel({
     if (!ok) return;
     setSaveState({ kind: "saving" });
     startTransition(async () => {
-      const res = await reopenTeacherAssessmentReviewAction({
-        milestoneId,
-        studentId,
-        submissionId: candidate.submissionId,
-        reviewId: review.id,
-        baseUpdatedAt: baseUpdatedAt!,
-      });
-      if (!res.ok) {
-        setSaveState(
-          res.kind === "conflict"
-            ? { kind: "conflict", message: res.message }
-            : { kind: "error", message: res.message },
-        );
-        return;
+      try {
+        const res = await reopenTeacherAssessmentReviewAction({
+          milestoneId,
+          studentId,
+          submissionId: candidate.submissionId,
+          reviewId: review.id,
+          baseUpdatedAt: baseUpdatedAt!,
+        });
+        if (!res.ok) {
+          setSaveState(
+            res.kind === "conflict"
+              ? { kind: "conflict", message: res.message }
+              : { kind: "error", message: res.message },
+          );
+          return;
+        }
+        // Action 戻り値を正本。stale get を無効化し、reload しない
+        commitReviewFromAction(res.review, {
+          completedByDisplayName: completedByName,
+        });
+        setSaveState({ kind: "idle" });
+      } catch {
+        setSaveState({
+          kind: "error",
+          message: "下書きへの戻しに失敗しました。もう一度お試しください。",
+        });
       }
-      // Action 戻り値を正本。stale get を無効化し、reload しない
-      commitReviewFromAction(res.review, {
-        completedByDisplayName: completedByName,
-      });
-      setSaveState({ kind: "idle" });
     });
   };
 
@@ -660,28 +692,35 @@ export default function TeacherAssessmentReviewPanel({
     if (!ok) return;
     setSaveState({ kind: "saving" });
     startTransition(async () => {
-      const res = await returnTeacherAssessmentReviewAction({
-        milestoneId,
-        studentId,
-        submissionId: candidate.submissionId,
-        reviewId: review.id,
-        baseUpdatedAt: baseUpdatedAt!,
-      });
-      if (!res.ok) {
-        setSaveState(
-          res.kind === "conflict"
-            ? { kind: "conflict", message: res.message }
-            : { kind: "error", message: res.message },
-        );
-        return;
+      try {
+        const res = await returnTeacherAssessmentReviewAction({
+          milestoneId,
+          studentId,
+          submissionId: candidate.submissionId,
+          reviewId: review.id,
+          baseUpdatedAt: baseUpdatedAt!,
+        });
+        if (!res.ok) {
+          setSaveState(
+            res.kind === "conflict"
+              ? { kind: "conflict", message: res.message }
+              : { kind: "error", message: res.message },
+          );
+          return;
+        }
+        commitReviewFromAction(res.review, {
+          completedByDisplayName: completedByName,
+        });
+        setSaveState({
+          kind: "saved",
+          at: formatAssessmentDateTimeJa(res.review.updatedAt),
+        });
+      } catch {
+        setSaveState({
+          kind: "error",
+          message: "学生への返却に失敗しました。もう一度お試しください。",
+        });
       }
-      commitReviewFromAction(res.review, {
-        completedByDisplayName: completedByName,
-      });
-      setSaveState({
-        kind: "saved",
-        at: formatAssessmentDateTimeJa(res.review.updatedAt),
-      });
     });
   };
 
@@ -704,28 +743,35 @@ export default function TeacherAssessmentReviewPanel({
     }
     setSaveState({ kind: "saving" });
     startTransition(async () => {
-      const res = await revokeReturnedAssessmentReviewAction({
-        milestoneId,
-        studentId,
-        submissionId: candidate.submissionId,
-        reviewId: review.id,
-        baseUpdatedAt: baseUpdatedAt!,
-        reason,
-      });
-      if (!res.ok) {
-        setSaveState(
-          res.kind === "conflict"
-            ? { kind: "conflict", message: res.message }
-            : { kind: "error", message: res.message },
-        );
-        return;
+      try {
+        const res = await revokeReturnedAssessmentReviewAction({
+          milestoneId,
+          studentId,
+          submissionId: candidate.submissionId,
+          reviewId: review.id,
+          baseUpdatedAt: baseUpdatedAt!,
+          reason,
+        });
+        if (!res.ok) {
+          setSaveState(
+            res.kind === "conflict"
+              ? { kind: "conflict", message: res.message }
+              : { kind: "error", message: res.message },
+          );
+          return;
+        }
+        commitReviewFromAction(res.review, {
+          completedByDisplayName: completedByName,
+        });
+        setRevokeDialogOpen(false);
+        setRevokeReason("");
+        setSaveState({ kind: "idle" });
+      } catch {
+        setSaveState({
+          kind: "error",
+          message: "返却の取消に失敗しました。もう一度お試しください。",
+        });
       }
-      commitReviewFromAction(res.review, {
-        completedByDisplayName: completedByName,
-      });
-      setRevokeDialogOpen(false);
-      setRevokeReason("");
-      setSaveState({ kind: "idle" });
     });
   };
 
@@ -742,7 +788,12 @@ export default function TeacherAssessmentReviewPanel({
     onNavigateStudent(nav.studentId);
   };
 
+  /** 確認中のナビ要求は1件に固定（差し替え禁止） */
+  const navBlocked =
+    pendingNav != null || revokeDialogOpen || saveState.kind === "saving";
+
   const requestNav = (nav: PendingNav) => {
+    if (navBlocked) return;
     if (dirty) {
       setPendingNav(nav);
       return;
@@ -752,12 +803,14 @@ export default function TeacherAssessmentReviewPanel({
 
   useEffect(() => {
     if (listNavRequestId <= 0) return;
+    // dirty / revoke 確認中はページ側「一覧へ戻る」からの二重要求を無視
+    if (pendingNav != null || revokeDialogOpen) return;
     if (dirty) {
       setPendingNav({ kind: "list" });
       return;
     }
     onNavigateList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- signal only
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- signal only; lock via pendingNav/revoke
   }, [listNavRequestId]);
 
   const onConfirmSaveAndGo = () => {
@@ -1249,22 +1302,33 @@ export default function TeacherAssessmentReviewPanel({
             <div className="flex flex-nowrap items-center gap-1.5">
               <button
                 type="button"
-                className="flex h-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 px-2.5 text-sm font-medium text-slate-800"
+                className="flex h-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 px-2.5 text-sm font-medium text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={navBlocked}
                 onClick={requestClose}
               >
                 閉じる
               </button>
               <button
                 type="button"
+                aria-label="学生提出一覧へ戻る"
+                className="flex h-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 px-2.5 text-sm font-medium text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={navBlocked}
+                onClick={() => requestNav({ kind: "list" })}
+              >
+                一覧
+              </button>
+              <button
+                type="button"
                 aria-label="前の学生"
-                disabled={!prevStudentId || pending}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 text-base font-semibold text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!prevStudentId || navBlocked}
+                className="flex h-11 shrink-0 items-center justify-center gap-0.5 rounded-lg border border-slate-300 px-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={() => {
                   if (!prevStudentId) return;
                   requestNav({ kind: "student", studentId: prevStudentId });
                 }}
               >
-                ←
+                <span aria-hidden>←</span>
+                <span className="hidden sm:inline">前</span>
               </button>
               <div className="min-w-0 flex-1 px-1 text-center">
                 <p className="truncate text-sm font-semibold text-slate-900">
@@ -1279,14 +1343,15 @@ export default function TeacherAssessmentReviewPanel({
               <button
                 type="button"
                 aria-label="次の学生"
-                disabled={!nextStudentId || pending}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 text-base font-semibold text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!nextStudentId || navBlocked}
+                className="flex h-11 shrink-0 items-center justify-center gap-0.5 rounded-lg border border-slate-300 px-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={() => {
                   if (!nextStudentId) return;
                   requestNav({ kind: "student", studentId: nextStudentId });
                 }}
               >
-                →
+                <span className="hidden sm:inline">次</span>
+                <span aria-hidden>→</span>
               </button>
             </div>
 

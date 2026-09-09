@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/v2/auth/currentUser";
 import { createServerSupabaseClient } from "@/lib/v2/supabase/serverClient";
@@ -86,7 +87,13 @@ export default async function TeacherReviewMilestonePage({ params }: Props) {
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden bg-slate-50">
-      <TeacherReviewStudentsClient milestone={m} rows={listed.rows} />
+      <Suspense
+        fallback={
+          <div className="p-4 text-sm text-slate-500">読み込み中…</div>
+        }
+      >
+        <TeacherReviewStudentsClient milestone={m} rows={listed.rows} />
+      </Suspense>
     </main>
   );
 }

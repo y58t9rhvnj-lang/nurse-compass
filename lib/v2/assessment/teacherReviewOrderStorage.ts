@@ -41,10 +41,9 @@ export function saveTeacherReviewOrder(
   }
 }
 
-export function loadTeacherReviewOrder(
+export function loadTeacherReviewOrderPayload(
   milestoneId: string,
-  currentStudentId: string,
-): string[] | null {
+): TeacherReviewOrderPayload | null {
   if (typeof window === "undefined") return null;
   let raw: string | null = null;
   try {
@@ -88,11 +87,31 @@ export function loadTeacherReviewOrder(
     return null;
   }
   const ids = o.studentIds.filter((id): id is string => typeof id === "string");
-  if (ids.length === 0 || !ids.includes(currentStudentId)) {
+  if (ids.length === 0) {
     clearTeacherReviewOrder(milestoneId);
     return null;
   }
-  return ids;
+  return {
+    version: TEACHER_REVIEW_ORDER_VERSION,
+    milestoneId,
+    studentIds: ids,
+    filter: typeof o.filter === "string" ? o.filter : "all",
+    sort: typeof o.sort === "string" ? o.sort : "name",
+    savedAt: o.savedAt,
+  };
+}
+
+export function loadTeacherReviewOrder(
+  milestoneId: string,
+  currentStudentId: string,
+): string[] | null {
+  const payload = loadTeacherReviewOrderPayload(milestoneId);
+  if (!payload) return null;
+  if (!payload.studentIds.includes(currentStudentId)) {
+    // 現在学生が一覧順に含まれない場合は順序を破棄しない（別経路直リンク）
+    return null;
+  }
+  return payload.studentIds;
 }
 
 export function clearTeacherReviewOrder(milestoneId: string): void {

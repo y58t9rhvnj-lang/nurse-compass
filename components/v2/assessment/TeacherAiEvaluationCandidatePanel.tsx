@@ -93,6 +93,8 @@ export default function TeacherAiEvaluationCandidatePanel({
     setActorRole(res.actorRole);
     setCanAck(res.canAcknowledgeWarnings);
     setCandidate(res.candidate);
+    setSelectedKeys(new Set());
+    setSelectedBlocks(new Set());
     if (res.candidate) {
       const scores: Partial<Record<AssessmentRubricKey, number | null>> = {};
       for (const item of res.candidate.items) {
@@ -135,6 +137,22 @@ export default function TeacherAiEvaluationCandidatePanel({
           : item.teacherScore,
     }));
   }, [candidate, teacherScores]);
+
+  const canSelectItems =
+    Boolean(candidate?.canAdopt) && !readOnly && actorRole === "teacher";
+
+  const selectAllAdoptable = () => {
+    if (!candidate || !canSelectItems) return;
+    setSelectedKeys(new Set(candidate.items.map((item) => item.rubricKey)));
+    setSelectedBlocks(
+      new Set(["strengths", "next_questions", "gaps_or_alternatives"]),
+    );
+  };
+
+  const clearAllSelections = () => {
+    setSelectedKeys(new Set());
+    setSelectedBlocks(new Set());
+  };
 
   const onAck = (w: AiCandidateWarningView) => {
     if (!candidate) return;
@@ -428,6 +446,29 @@ export default function TeacherAiEvaluationCandidatePanel({
             defaultOpen
             badge={`${itemsWithTeacher.length}項目`}
           >
+            {canSelectItems ? (
+              <div className="mb-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="min-h-11 rounded-lg border border-indigo-300 bg-white px-3 text-sm font-medium text-indigo-900"
+                  disabled={pending}
+                  onClick={selectAllAdoptable}
+                >
+                  すべて選択
+                </button>
+                <button
+                  type="button"
+                  className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700"
+                  disabled={
+                    pending ||
+                    (selectedKeys.size === 0 && selectedBlocks.size === 0)
+                  }
+                  onClick={clearAllSelections}
+                >
+                  すべて解除
+                </button>
+              </div>
+            ) : null}
             <div className="space-y-2">
               {itemsWithTeacher.map((item) => (
                 <TeacherAiEvaluationItemCard
@@ -637,6 +678,29 @@ export default function TeacherAiEvaluationCandidatePanel({
 
           {/* 採用アクション（親の固定フッターと重ねないため sticky にしない） */}
           <div className="space-y-2 border-t border-indigo-100 pt-2.5 pb-1">
+            {canSelectItems ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="min-h-11 rounded-lg border border-indigo-300 bg-white px-3 text-sm font-medium text-indigo-900"
+                  disabled={pending}
+                  onClick={selectAllAdoptable}
+                >
+                  すべて選択
+                </button>
+                <button
+                  type="button"
+                  className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700"
+                  disabled={
+                    pending ||
+                    (selectedKeys.size === 0 && selectedBlocks.size === 0)
+                  }
+                  onClick={clearAllSelections}
+                >
+                  すべて解除
+                </button>
+              </div>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -661,7 +725,7 @@ export default function TeacherAiEvaluationCandidatePanel({
               </button>
             </div>
             <p className="text-[11px] leading-snug text-slate-500">
-              総合コメント・教員専用所見は反映しません。確認完了（採用確定）は次のSprintです。
+              「すべて選択」はチェックを付けるだけです。採用・確定・返却は行いません。総合コメント・教員専用所見は反映しません。
             </p>
           </div>
         </div>
