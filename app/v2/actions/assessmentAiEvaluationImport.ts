@@ -8,17 +8,13 @@ import { createAdminSupabaseClient } from "@/lib/v2/supabase/adminClient";
 import {
   importAiEvaluationResult,
   previewAiEvaluationImport,
-  type AiEvaluationImportPreview,
   type ImportAiEvaluationResult,
   type PreviewAiEvaluationImportResult,
 } from "@/lib/v2/assessment/aiEvaluationImportCore";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type {
-  AiEvaluationImportPreview,
-  ImportAiEvaluationResult,
-  PreviewAiEvaluationImportResult,
-};
+// Do not `export type` from "use server" files: Next/Turbopack may register
+// type-only names as server references → ReferenceError at module evaluation.
 
 type StaffContext =
   | { ok: true; supabase: SupabaseClient; profile: AppProfile }

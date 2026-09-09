@@ -4,8 +4,8 @@ import { useState, useTransition } from "react";
 import {
   importAiEvaluationResultAction,
   previewAiEvaluationImportAction,
-  type AiEvaluationImportPreview,
 } from "@/app/v2/actions/assessmentAiEvaluationImport";
+import type { AiEvaluationImportPreview } from "@/lib/v2/assessment/aiEvaluationImportValidation";
 
 type Props = {
   buttonLabel?: string;
