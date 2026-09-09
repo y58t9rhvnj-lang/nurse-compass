@@ -244,9 +244,11 @@ export default function TeacherReviewStudentDetailClient({
     setReviewOpen(wantOpen);
   }, [searchParams]);
 
-  // サーバーから渡された studentId が変わった場合（直接 URL 移動）
+  // URL（サーバー props）の studentId が変わったときだけ初期データを同期する。
+  // 注意: local の studentId を dependency に入れると、前後ナビで
+  // loadStudentDetail が先に studentId を更新した直後に、まだ古い
+  // initialStudentId へ戻してしまい「押せるが切り替わらない」になる。
   useEffect(() => {
-    if (initialStudentId === studentId) return;
     setStudentId(initialStudentId);
     setMilestone(initial.milestone);
     setStudent(initial.student);
@@ -256,7 +258,10 @@ export default function TeacherReviewStudentDetailClient({
     setIsViewingCandidate(initial.isViewingCandidate);
     setReadModel(initial.readModel);
     setTab("overview");
-  }, [initialStudentId, initial, studentId]);
+    setError(null);
+    // initial は initialStudentId と同じ render の値を使う
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- route studentId only
+  }, [initialStudentId]);
 
   const syncReviewOpenQuery = useCallback(
     (open: boolean, targetStudentId: string, mode: "push" | "replace") => {
@@ -348,7 +353,9 @@ export default function TeacherReviewStudentDetailClient({
   };
 
   const onNavigateStudent = (nextId: string) => {
-    syncReviewOpenQuery(true, nextId, "replace");
+    if (!nextId || nextId === studentId) return;
+    // 未dirty時は確認なしで即遷移。URL更新は push、表示は client fetch で先行更新。
+    syncReviewOpenQuery(true, nextId, "push");
     loadStudentDetail(nextId);
   };
 
