@@ -5,6 +5,10 @@ import {
   listTeacherAssessmentReviewsForMilestone,
 } from "./assessmentReviewRepository";
 import {
+  logAssessmentDiag,
+  supabaseErrFields,
+} from "./assessmentDiagnostics";
+import {
   ASSESSMENT_RUBRIC_KEYS,
   canCompleteAssessmentReview,
   countRubricScores,
@@ -177,6 +181,11 @@ export async function listTeacherReviewMilestoneSummaries(
   supabase: SupabaseClient,
   organizationId: string,
 ): Promise<{ rows: TeacherReviewMilestoneSummary[]; error: PgErr }> {
+  logAssessmentDiag({
+    op: "listTeacherReviewMilestones",
+    phase: "start",
+    organizationId,
+  });
   const { data: milestones, error: mErr } = await supabase
     .from("assessment_milestones")
     .select(
@@ -184,10 +193,26 @@ export async function listTeacherReviewMilestoneSummaries(
     )
     .eq("organization_id", organizationId)
     .order("deadline_at", { ascending: true });
-  if (mErr) return { rows: [], error: mErr };
+  if (mErr) {
+    logAssessmentDiag({
+      op: "listTeacherReviewMilestones.milestones",
+      phase: "fail",
+      organizationId,
+      ...supabaseErrFields(mErr),
+    });
+    return { rows: [], error: mErr };
+  }
 
   const students = await listActiveStudentsInOrg(supabase, organizationId);
-  if (students.error) return { rows: [], error: students.error };
+  if (students.error) {
+    logAssessmentDiag({
+      op: "listTeacherReviewMilestones.students",
+      phase: "fail",
+      organizationId,
+      ...supabaseErrFields(students.error),
+    });
+    return { rows: [], error: students.error };
+  }
   const realStudents = students.rows.filter((s) => !s.excludeFromAssessment);
   const verificationStudentCount = students.rows.filter(
     (s) => s.excludeFromAssessment,
@@ -209,7 +234,7 @@ export async function listTeacherReviewMilestoneSummaries(
   }> = [];
 
   if (milestoneIds.length > 0) {
-    const [{ data: subs }, aiCands, baseCands] = await Promise.all([
+    const [{ data: subs, error: subErr }, aiCands, baseCands] = await Promise.all([
       supabase
         .from("assessment_submissions")
         .select("assessment_milestone_id, student_user_id, timing_status")
@@ -227,14 +252,43 @@ export async function listTeacherReviewMilestoneSummaries(
         .eq("organization_id", organizationId)
         .in("assessment_milestone_id", milestoneIds),
     ]);
+    if (subErr) {
+      logAssessmentDiag({
+        op: "listTeacherReviewMilestones.submissions",
+        phase: "fail",
+        organizationId,
+        ...supabaseErrFields(subErr),
+      });
+    }
     submissions = (subs ?? []) as typeof submissions;
     if (!aiCands.error) {
       candidates = (aiCands.data ?? []) as typeof candidates;
+      logAssessmentDiag({
+        op: "listTeacherReviewMilestones.aiCandidates",
+        phase: "success",
+        organizationId,
+        detail: `count=${candidates.length}`,
+      });
     } else {
+      logAssessmentDiag({
+        op: "listTeacherReviewMilestones.aiCandidates",
+        phase: "fail",
+        organizationId,
+        ...supabaseErrFields(aiCands.error),
+        detail: "fallback_to_base_candidates",
+      });
       // VIEW 未適用時: 基底候補から検証用を除外
       const excluded = new Set(
         students.rows.filter((s) => s.excludeFromAssessment).map((s) => s.id),
       );
+      if (baseCands.error) {
+        logAssessmentDiag({
+          op: "listTeacherReviewMilestones.baseCandidates",
+          phase: "fail",
+          organizationId,
+          ...supabaseErrFields(baseCands.error),
+        });
+      }
       candidates = ((baseCands.data ?? []) as typeof candidates).filter(
         (c) => !excluded.has(c.student_user_id),
       );
@@ -289,6 +343,12 @@ export async function listTeacherReviewMilestoneSummaries(
     return a.sequenceNumber - b.sequenceNumber;
   });
 
+  logAssessmentDiag({
+    op: "listTeacherReviewMilestones",
+    phase: "success",
+    organizationId,
+    detail: `milestoneCount=${rows.length}`,
+  });
   return { rows, error: null };
 }
 
@@ -316,8 +376,23 @@ export async function listTeacherStudentSubmissionRows(
   organizationId: string,
   milestoneId: string,
 ): Promise<{ rows: TeacherStudentSubmissionRow[]; error: PgErr }> {
+  logAssessmentDiag({
+    op: "listTeacherStudentSubmissionRows",
+    phase: "start",
+    organizationId,
+    milestoneId,
+  });
   const students = await listActiveStudentsInOrg(supabase, organizationId);
-  if (students.error) return { rows: [], error: students.error };
+  if (students.error) {
+    logAssessmentDiag({
+      op: "listTeacherStudentSubmissionRows.students",
+      phase: "fail",
+      organizationId,
+      milestoneId,
+      ...supabaseErrFields(students.error),
+    });
+    return { rows: [], error: students.error };
+  }
 
   const [
     { data: subs, error: sErr },
@@ -350,13 +425,46 @@ export async function listTeacherStudentSubmissionRows(
       milestoneId,
     ),
   ]);
-  if (sErr) return { rows: [], error: sErr };
-  if (reviewsRes.error) return { rows: [], error: reviewsRes.error };
+  if (sErr) {
+    logAssessmentDiag({
+      op: "listTeacherStudentSubmissionRows.submissions",
+      phase: "fail",
+      organizationId,
+      milestoneId,
+      ...supabaseErrFields(sErr),
+    });
+    return { rows: [], error: sErr };
+  }
+  if (reviewsRes.error) {
+    logAssessmentDiag({
+      op: "listTeacherStudentSubmissionRows.reviews",
+      phase: "fail",
+      organizationId,
+      milestoneId,
+      ...supabaseErrFields(reviewsRes.error),
+    });
+    return { rows: [], error: reviewsRes.error };
+  }
 
   let cands: Array<{ submission_id: string; student_user_id: string }> = [];
   if (!aiCands.error) {
     cands = (aiCands.data ?? []) as typeof cands;
+    logAssessmentDiag({
+      op: "listTeacherStudentSubmissionRows.aiCandidates",
+      phase: "success",
+      organizationId,
+      milestoneId,
+      detail: `count=${cands.length}`,
+    });
   } else if (!baseCands.error) {
+    logAssessmentDiag({
+      op: "listTeacherStudentSubmissionRows.aiCandidates",
+      phase: "fail",
+      organizationId,
+      milestoneId,
+      ...supabaseErrFields(aiCands.error),
+      detail: "fallback_to_base_candidates",
+    });
     const excluded = new Set(
       students.rows.filter((s) => s.excludeFromAssessment).map((s) => s.id),
     );
@@ -364,6 +472,13 @@ export async function listTeacherStudentSubmissionRows(
       (c) => !excluded.has(c.student_user_id),
     );
   } else {
+    logAssessmentDiag({
+      op: "listTeacherStudentSubmissionRows.candidates",
+      phase: "fail",
+      organizationId,
+      milestoneId,
+      ...supabaseErrFields(baseCands.error ?? aiCands.error),
+    });
     return { rows: [], error: baseCands.error ?? aiCands.error };
   }
 
@@ -544,6 +659,13 @@ export async function listTeacherStudentSubmissionRows(
     };
   });
 
+  logAssessmentDiag({
+    op: "listTeacherStudentSubmissionRows",
+    phase: "success",
+    organizationId,
+    milestoneId,
+    detail: `rowCount=${rows.length}`,
+  });
   return { rows, error: null };
 }
 
@@ -611,6 +733,13 @@ export async function listTeacherStudentSubmissionHistory(
   candidateSubmissionId: string | null;
   error: PgErr;
 }> {
+  logAssessmentDiag({
+    op: "listTeacherStudentSubmissionHistory",
+    phase: "start",
+    organizationId,
+    milestoneId,
+    hasStudentRef: true,
+  });
   const [{ data: subs, error: sErr }, { data: cand, error: cErr }, reviewsRes] =
     await Promise.all([
       supabase
@@ -636,9 +765,37 @@ export async function listTeacherStudentSubmissionHistory(
         milestoneId,
       ),
     ]);
-  if (sErr) return { items: [], candidateSubmissionId: null, error: sErr };
-  if (cErr) return { items: [], candidateSubmissionId: null, error: cErr };
+  if (sErr) {
+    logAssessmentDiag({
+      op: "listTeacherStudentSubmissionHistory.submissions",
+      phase: "fail",
+      organizationId,
+      milestoneId,
+      hasStudentRef: true,
+      ...supabaseErrFields(sErr),
+    });
+    return { items: [], candidateSubmissionId: null, error: sErr };
+  }
+  if (cErr) {
+    logAssessmentDiag({
+      op: "listTeacherStudentSubmissionHistory.candidates",
+      phase: "fail",
+      organizationId,
+      milestoneId,
+      hasStudentRef: true,
+      ...supabaseErrFields(cErr),
+    });
+    return { items: [], candidateSubmissionId: null, error: cErr };
+  }
   if (reviewsRes.error) {
+    logAssessmentDiag({
+      op: "listTeacherStudentSubmissionHistory.reviews",
+      phase: "fail",
+      organizationId,
+      milestoneId,
+      hasStudentRef: true,
+      ...supabaseErrFields(reviewsRes.error),
+    });
     return { items: [], candidateSubmissionId: null, error: reviewsRes.error };
   }
 
@@ -689,6 +846,14 @@ export async function listTeacherStudentSubmissionHistory(
     };
   });
 
+  logAssessmentDiag({
+    op: "listTeacherStudentSubmissionHistory",
+    phase: "success",
+    organizationId,
+    milestoneId,
+    hasStudentRef: true,
+    detail: `itemCount=${items.length};hasCandidate=${Boolean(candidateSubmissionId)}`,
+  });
   return { items, candidateSubmissionId, error: null };
 }
 
@@ -703,6 +868,13 @@ export async function getTeacherSubmissionById(
   candidateSubmissionId: string | null;
   error: PgErr;
 }> {
+  logAssessmentDiag({
+    op: "getTeacherSubmissionById",
+    phase: "start",
+    organizationId,
+    milestoneId,
+    hasStudentRef: true,
+  });
   const history = await listTeacherStudentSubmissionHistory(
     supabase,
     organizationId,
@@ -710,10 +882,27 @@ export async function getTeacherSubmissionById(
     studentId,
   );
   if (history.error) {
+    logAssessmentDiag({
+      op: "getTeacherSubmissionById",
+      phase: "fail",
+      organizationId,
+      milestoneId,
+      hasStudentRef: true,
+      ...supabaseErrFields(history.error),
+    });
     return { item: null, candidateSubmissionId: null, error: history.error };
   }
+  const item = history.items.find((i) => i.id === submissionId) ?? null;
+  logAssessmentDiag({
+    op: "getTeacherSubmissionById",
+    phase: "success",
+    organizationId,
+    milestoneId,
+    hasStudentRef: true,
+    detail: `found=${Boolean(item)};hasSnapshot=${item?.snapshot != null}`,
+  });
   return {
-    item: history.items.find((i) => i.id === submissionId) ?? null,
+    item,
     candidateSubmissionId: history.candidateSubmissionId,
     error: null,
   };

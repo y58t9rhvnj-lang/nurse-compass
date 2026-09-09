@@ -1,6 +1,10 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  logAssessmentDiag,
+  supabaseErrFields,
+} from "./assessmentDiagnostics";
 import { parseSubmissionScope } from "./submissionScope";
 import type {
   AssessmentLateReviewStatus,
@@ -349,6 +353,11 @@ export async function listCyclesForOrg(
   supabase: SupabaseClient,
   organizationId: string,
 ): Promise<{ rows: AssessmentCycleRow[]; error: PgLikeError }> {
+  logAssessmentDiag({
+    op: "listCyclesForOrg",
+    phase: "start",
+    organizationId,
+  });
   const { data, error } = await supabase
     .from("assessment_cycles")
     .select(
@@ -356,27 +365,60 @@ export async function listCyclesForOrg(
     )
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false });
-  if (error) return { rows: [], error };
-  return {
-    rows: ((data ?? []) as Record<string, unknown>[]).map(mapCycle),
-    error: null,
-  };
+  if (error) {
+    logAssessmentDiag({
+      op: "listCyclesForOrg",
+      phase: "fail",
+      organizationId,
+      ...supabaseErrFields(error),
+    });
+    return { rows: [], error };
+  }
+  const rows = ((data ?? []) as Record<string, unknown>[]).map(mapCycle);
+  logAssessmentDiag({
+    op: "listCyclesForOrg",
+    phase: "success",
+    organizationId,
+    detail: `count=${rows.length}`,
+  });
+  return { rows, error: null };
 }
 
 export async function listMilestonesForCycle(
   supabase: SupabaseClient,
   cycleId: string,
 ): Promise<{ rows: AssessmentMilestoneRow[]; error: PgLikeError }> {
+  logAssessmentDiag({
+    op: "listMilestonesForCycle",
+    phase: "start",
+    cycleId,
+  });
   const { data, error } = await supabase
     .from("assessment_milestones")
     .select("*")
     .eq("assessment_cycle_id", cycleId)
     .order("sequence_number", { ascending: true });
-  if (error) return { rows: [], error };
+  if (error) {
+    logAssessmentDiag({
+      op: "listMilestonesForCycle",
+      phase: "fail",
+      cycleId,
+      ...supabaseErrFields(error),
+    });
+    return { rows: [], error };
+  }
 
   const rows = ((data ?? []) as Record<string, unknown>[]).map(mapMilestone);
   const ids = rows.map((r) => r.id);
-  if (ids.length === 0) return { rows, error: null };
+  if (ids.length === 0) {
+    logAssessmentDiag({
+      op: "listMilestonesForCycle",
+      phase: "success",
+      cycleId,
+      detail: "count=0",
+    });
+    return { rows, error: null };
+  }
 
   const { data: counts } = await supabase
     .from("assessment_submissions")
@@ -390,6 +432,12 @@ export async function listMilestonesForCycle(
       (countMap.get(c.assessment_milestone_id) ?? 0) + 1,
     );
   }
+  logAssessmentDiag({
+    op: "listMilestonesForCycle",
+    phase: "success",
+    cycleId,
+    detail: `count=${rows.length}`,
+  });
   return {
     rows: rows.map((r) => ({
       ...r,

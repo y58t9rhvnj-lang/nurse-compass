@@ -5,6 +5,10 @@ import { getCurrentProfile, type AppProfile } from "@/lib/v2/auth/currentUser";
 import { createServerSupabaseClient } from "@/lib/v2/supabase/serverClient";
 import { patientIdForCaseId } from "@/lib/v2/notebook/caseId";
 import {
+  logAssessmentDiag,
+  supabaseErrFields,
+} from "@/lib/v2/assessment/assessmentDiagnostics";
+import {
   getTeacherMilestoneMeta,
   getTeacherStudentProfile,
   getTeacherSubmissionById,
@@ -200,6 +204,15 @@ export async function getTeacherStudentSubmissionDetailAction(input: {
   const ctx = await requireStaffContext();
   if (!ctx.ok) return ctx;
 
+  logAssessmentDiag({
+    op: "getTeacherStudentSubmissionDetailAction",
+    phase: "start",
+    organizationId: ctx.profile.organizationId,
+    role: ctx.profile.role,
+    milestoneId: input.milestoneId,
+    hasStudentRef: true,
+  });
+
   const [milestone, student] = await Promise.all([
     getTeacherMilestoneMeta(
       ctx.supabase,
@@ -213,6 +226,16 @@ export async function getTeacherStudentSubmissionDetailAction(input: {
     ),
   ]);
   if (milestone.error || student.error) {
+    logAssessmentDiag({
+      op: "getTeacherStudentSubmissionDetailAction",
+      phase: "fail",
+      organizationId: ctx.profile.organizationId,
+      role: ctx.profile.role,
+      milestoneId: input.milestoneId,
+      hasStudentRef: true,
+      ...supabaseErrFields(milestone.error ?? student.error),
+      detail: "milestone_or_student_lookup",
+    });
     return { ok: false, kind: "db_error", message: "情報を読み込めませんでした。" };
   }
   if (!milestone.row) {
@@ -229,6 +252,15 @@ export async function getTeacherStudentSubmissionDetailAction(input: {
     input.studentId,
   );
   if (history.error) {
+    logAssessmentDiag({
+      op: "getTeacherStudentSubmissionDetailAction.history",
+      phase: "fail",
+      organizationId: ctx.profile.organizationId,
+      role: ctx.profile.role,
+      milestoneId: input.milestoneId,
+      hasStudentRef: true,
+      ...supabaseErrFields(history.error),
+    });
     return { ok: false, kind: "db_error", message: "提出履歴を読み込めませんでした。" };
   }
 
@@ -261,9 +293,49 @@ export async function getTeacherStudentSubmissionDetailAction(input: {
       viewing.id,
     );
     if (full.item?.snapshot != null) {
-      readModel = parseAssessmentSnapshot(full.item.snapshot, patientId);
+      logAssessmentDiag({
+        op: "parseAssessmentSnapshot",
+        phase: "start",
+        organizationId: ctx.profile.organizationId,
+        role: ctx.profile.role,
+        milestoneId: input.milestoneId,
+        hasStudentRef: true,
+      });
+      try {
+        readModel = parseAssessmentSnapshot(full.item.snapshot, patientId);
+        logAssessmentDiag({
+          op: "parseAssessmentSnapshot",
+          phase: "success",
+          organizationId: ctx.profile.organizationId,
+          role: ctx.profile.role,
+          milestoneId: input.milestoneId,
+          hasStudentRef: true,
+          detail: `ok=${readModel.ok}`,
+        });
+      } catch (e) {
+        logAssessmentDiag({
+          op: "parseAssessmentSnapshot",
+          phase: "fail",
+          organizationId: ctx.profile.organizationId,
+          role: ctx.profile.role,
+          milestoneId: input.milestoneId,
+          hasStudentRef: true,
+          error: e,
+        });
+        throw e;
+      }
     }
   }
+
+  logAssessmentDiag({
+    op: "getTeacherStudentSubmissionDetailAction",
+    phase: "success",
+    organizationId: ctx.profile.organizationId,
+    role: ctx.profile.role,
+    milestoneId: input.milestoneId,
+    hasStudentRef: true,
+    detail: `historyCount=${history.items.length};hasReadModel=${Boolean(readModel)}`,
+  });
 
   return {
     ok: true,

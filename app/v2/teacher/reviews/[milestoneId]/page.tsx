@@ -2,6 +2,11 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/v2/auth/currentUser";
 import { createServerSupabaseClient } from "@/lib/v2/supabase/serverClient";
 import {
+  logAssessmentDiag,
+  supabaseErrFields,
+  throwAssessmentDiagError,
+} from "@/lib/v2/assessment/assessmentDiagnostics";
+import {
   getTeacherMilestoneSubmissionSummary,
   listTeacherStudentSubmissionRows,
 } from "@/lib/v2/assessment/teacherReviewRepository";
@@ -18,36 +23,70 @@ export default async function TeacherReviewMilestonePage({ params }: Props) {
   const profile = await requireRole("teacher", "admin");
   const supabase = await createServerSupabaseClient();
 
+  logAssessmentDiag({
+    op: "teacherReviewMilestonePage.summary",
+    phase: "start",
+    organizationId: profile.organizationId,
+    role: profile.role,
+    milestoneId,
+  });
+
   const summary = await getTeacherMilestoneSubmissionSummary(
     supabase,
     profile.organizationId,
     milestoneId,
   );
   if (summary.error) {
-    return (
-      <main className="mx-auto max-w-3xl px-6 py-10">
-        <p className="text-sm text-rose-800">課題情報を読み込めませんでした。</p>
-      </main>
-    );
+    throwAssessmentDiagError({
+      op: "teacherReviewMilestonePage.summary",
+      organizationId: profile.organizationId,
+      role: profile.role,
+      milestoneId,
+      ...supabaseErrFields(summary.error),
+      message: `milestone summary failed (${summary.error.code ?? "no_code"})`,
+    });
   }
-  if (!summary.row) notFound();
+  if (!summary.row) {
+    logAssessmentDiag({
+      op: "teacherReviewMilestonePage.summary",
+      phase: "fail",
+      organizationId: profile.organizationId,
+      role: profile.role,
+      milestoneId,
+      detail: "row_missing",
+    });
+    notFound();
+  }
+
+  logAssessmentDiag({
+    op: "teacherReviewMilestonePage.summary",
+    phase: "success",
+    organizationId: profile.organizationId,
+    role: profile.role,
+    milestoneId,
+  });
 
   const listed = await listTeacherStudentSubmissionRows(
     supabase,
     profile.organizationId,
     milestoneId,
   );
+  if (listed.error) {
+    throwAssessmentDiagError({
+      op: "teacherReviewMilestonePage.students",
+      organizationId: profile.organizationId,
+      role: profile.role,
+      milestoneId,
+      ...supabaseErrFields(listed.error),
+      message: `student submission rows failed (${listed.error.code ?? "no_code"})`,
+    });
+  }
+
   const m = summary.row;
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden bg-slate-50">
-      {listed.error ? (
-        <p className="m-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
-          学生一覧を読み込めませんでした。
-        </p>
-      ) : (
-        <TeacherReviewStudentsClient milestone={m} rows={listed.rows} />
-      )}
+      <TeacherReviewStudentsClient milestone={m} rows={listed.rows} />
     </main>
   );
 }
