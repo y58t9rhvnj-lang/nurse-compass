@@ -150,3 +150,92 @@ export async function rejectLateAssessmentSubmissionAction(input: {
   }
   return mapRpcPayload(data);
 }
+
+export type BulkApproveLateItemResult = {
+  submissionId: string;
+  ok: boolean;
+  kind?: string;
+  message: string;
+};
+
+/**
+ * 期限後・承認待ち提出の一括承認。個別 approve と同じ RPC を逐次呼び出し。
+ */
+export async function bulkApproveLateAssessmentSubmissionsAction(input: {
+  submissionIds: string[];
+}): Promise<
+  | {
+      ok: true;
+      results: BulkApproveLateItemResult[];
+      successCount: number;
+      failureCount: number;
+    }
+  | { ok: false; kind: string; message: string }
+> {
+  const ctx = await requireStaff();
+  if (!ctx.ok) {
+    return { ok: false, kind: ctx.kind, message: "staff login required" };
+  }
+
+  if (!Array.isArray(input.submissionIds) || input.submissionIds.length === 0) {
+    return {
+      ok: false,
+      kind: "validation",
+      message: "承認する提出がありません。",
+    };
+  }
+  if (input.submissionIds.length > 200) {
+    return {
+      ok: false,
+      kind: "validation",
+      message: "一度に承認できる件数は200件までです。",
+    };
+  }
+
+  const seen = new Set<string>();
+  const results: BulkApproveLateItemResult[] = [];
+  let successCount = 0;
+  let failureCount = 0;
+
+  for (const submissionId of input.submissionIds) {
+    if (!submissionId || seen.has(submissionId)) continue;
+    seen.add(submissionId);
+
+    const { data, error } = await ctx.supabase.rpc(
+      "approve_late_assessment_submission",
+      {
+        p_submission_id: submissionId,
+        p_note: null,
+      },
+    );
+    if (error) {
+      failureCount += 1;
+      results.push({
+        submissionId,
+        ok: false,
+        kind: "db_error",
+        message: "承認に失敗しました。",
+      });
+      continue;
+    }
+    const mapped = mapRpcPayload(data);
+    if (!mapped.ok) {
+      failureCount += 1;
+      results.push({
+        submissionId,
+        ok: false,
+        kind: mapped.kind,
+        message: mapped.message,
+      });
+      continue;
+    }
+    successCount += 1;
+    results.push({
+      submissionId,
+      ok: true,
+      message: "承認しました。",
+    });
+  }
+
+  return { ok: true, results, successCount, failureCount };
+}

@@ -797,3 +797,156 @@ export async function bulkCompleteTeacherAssessmentReviewsAction(input: {
 
   return { ok: true, results, successCount, failureCount };
 }
+
+export type BulkReturnItemInput = {
+  studentId: string;
+  submissionId: string;
+  reviewId: string;
+  baseUpdatedAt: string;
+};
+
+export type BulkReturnItemResult = {
+  studentId: string;
+  ok: boolean;
+  kind?: string;
+  message: string;
+};
+
+/**
+ * 確定済み・未返却（返却取消含む）の一括返却。個別 return と同じ検証・更新を逐次実行。
+ */
+export async function bulkReturnTeacherAssessmentReviewsAction(input: {
+  milestoneId: string;
+  items: BulkReturnItemInput[];
+}): Promise<
+  | {
+      ok: true;
+      results: BulkReturnItemResult[];
+      successCount: number;
+      failureCount: number;
+    }
+  | { ok: false; kind: string; message: string }
+> {
+  const ctx = await requireStaffContext();
+  if (!ctx.ok) return ctx;
+
+  if (!Array.isArray(input.items) || input.items.length === 0) {
+    return {
+      ok: false,
+      kind: "validation",
+      message: "返却する評価がありません。",
+    };
+  }
+  if (input.items.length > 200) {
+    return {
+      ok: false,
+      kind: "validation",
+      message: "一度に返却できる件数は200件までです。",
+    };
+  }
+
+  const results: BulkReturnItemResult[] = [];
+  let successCount = 0;
+  let failureCount = 0;
+
+  for (const item of input.items) {
+    const studentOk = await assertStudentInOrg(
+      ctx.supabase,
+      ctx.profile.organizationId,
+      item.studentId,
+    );
+    if (!studentOk.ok) {
+      failureCount += 1;
+      results.push({
+        studentId: item.studentId,
+        ok: false,
+        kind: studentOk.kind,
+        message: studentOk.message,
+      });
+      continue;
+    }
+
+    const validated = await validateReviewTargetSubmission(
+      ctx.supabase,
+      ctx.profile.organizationId,
+      {
+        milestoneId: input.milestoneId,
+        studentId: item.studentId,
+        submissionId: item.submissionId,
+      },
+    );
+    if (!validated.ok) {
+      failureCount += 1;
+      results.push({
+        studentId: item.studentId,
+        ok: false,
+        kind: validated.kind,
+        message: validated.message,
+      });
+      continue;
+    }
+
+    const existing = await getTeacherAssessmentReviewBySubmissionId(
+      ctx.supabase,
+      ctx.profile.organizationId,
+      item.submissionId,
+    );
+    if (existing.error || !existing.row || existing.row.id !== item.reviewId) {
+      failureCount += 1;
+      results.push({
+        studentId: item.studentId,
+        ok: false,
+        kind: "conflict",
+        message:
+          "別の画面でこの評価が更新されています。再読み込みして内容を確認してください。",
+      });
+      continue;
+    }
+    if (existing.row.status !== "completed") {
+      failureCount += 1;
+      results.push({
+        studentId: item.studentId,
+        ok: false,
+        kind: "validation",
+        message: "確定済みの評価のみ返却できます。",
+      });
+      continue;
+    }
+    if (isAssessmentReviewCurrentlyReturned(existing.row)) {
+      failureCount += 1;
+      results.push({
+        studentId: item.studentId,
+        ok: false,
+        kind: "validation",
+        message: "すでに学生へ返却済みです。",
+      });
+      continue;
+    }
+
+    const returned = await returnTeacherAssessmentReviewRow(ctx.supabase, {
+      organizationId: ctx.profile.organizationId,
+      reviewId: item.reviewId,
+      baseUpdatedAt: item.baseUpdatedAt,
+      actorUserId: ctx.profile.id,
+    });
+    if (!returned.ok) {
+      failureCount += 1;
+      results.push({
+        studentId: item.studentId,
+        ok: false,
+        kind: returned.kind,
+        message: returned.message,
+      });
+      continue;
+    }
+
+    successCount += 1;
+    results.push({
+      studentId: item.studentId,
+      ok: true,
+      message: "学生へ返却しました。",
+    });
+  }
+
+  return { ok: true, results, successCount, failureCount };
+}

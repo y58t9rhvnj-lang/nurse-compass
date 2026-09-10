@@ -101,6 +101,11 @@ export type TeacherStudentSubmissionRow = {
   isUnsubmitted: boolean;
   isLate: boolean;
   isPendingLateReview: boolean;
+  /**
+   * この学生の期限後・承認待ち提出 ID（submitted_at 昇順＝古い順）。
+   * 一括承認の対象。最新以外の pending も含む。
+   */
+  pendingLateSubmissionIds: string[];
 };
 
 export type TeacherSubmissionHistoryItem = {
@@ -635,6 +640,15 @@ export async function listTeacherStudentSubmissionRows(
       }
     }
 
+    // list は submitted_at desc。一括承認は古い順に処理する。
+    const pendingLateSubmissionIds = list
+      .filter(
+        (s) =>
+          s.timing_status === "late" && s.late_review_status === "pending",
+      )
+      .map((s) => s.id)
+      .reverse();
+
     return {
       student,
       submissionCount: list.length,
@@ -655,7 +669,8 @@ export async function listTeacherStudentSubmissionRows(
       reviewSummary,
       isUnsubmitted,
       isLate: latest?.timing_status === "late",
-      isPendingLateReview: latest?.late_review_status === "pending",
+      isPendingLateReview: pendingLateSubmissionIds.length > 0,
+      pendingLateSubmissionIds,
     };
   });
 

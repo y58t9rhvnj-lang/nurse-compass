@@ -16,6 +16,7 @@ import StudentSubmissionsWorkspace from "@/components/v2/assessment/StudentSubmi
 import StudentFeedbackWorkspace from "@/components/v2/assessment/StudentFeedbackWorkspace";
 import { getSubmissionPendingBadgeCountAction } from "@/app/v2/actions/assessmentSubmission";
 import { listStudentReturnedReviewsAction } from "@/app/v2/actions/assessmentStudentFeedback";
+import { countUnviewedStudentFeedbackReviews } from "@/lib/v2/assessment/studentFeedbackViewedStorage";
 import {
   EvidenceCaptureProvider,
   type EvidenceCaptureApi,
@@ -476,8 +477,14 @@ export default function AppShell({
       return;
     }
     const res = await listStudentReturnedReviewsAction();
-    if (res.ok) setFeedbackBadgeCount(res.count);
-    else setFeedbackBadgeCount(0);
+    if (!res.ok) {
+      setFeedbackBadgeCount(0);
+      return;
+    }
+    // 返却総数ではなく、端末内既読を除いた未確認件数
+    setFeedbackBadgeCount(
+      countUnviewedStudentFeedbackReviews(res.items.map((i) => i.reviewId)),
+    );
   }, [mode, lectureMode]);
 
   useEffect(() => {

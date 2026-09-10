@@ -5,8 +5,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   bulkCompleteTeacherAssessmentReviewsAction,
+  bulkReturnTeacherAssessmentReviewsAction,
   type BulkCompleteItemResult,
+  type BulkReturnItemResult,
 } from "@/app/v2/actions/assessmentReviewWrite";
+import {
+  bulkApproveLateAssessmentSubmissionsAction,
+  type BulkApproveLateItemResult,
+} from "@/app/v2/actions/assessmentLateReview";
 import { listTeacherStudentSubmissionRowsAction } from "@/app/v2/actions/assessmentReviews";
 import type {
   TeacherReviewMilestoneSummary,
@@ -157,6 +163,21 @@ function isSortKey(v: string | null): v is SortKey {
   return v === "name" || v === "submitted_at" || v === "count";
 }
 
+function canBulkReturnRow(row: TeacherStudentSubmissionRow): boolean {
+  const rs = row.reviewSummary;
+  return (
+    Boolean(rs.reviewId && rs.updatedAt && row.candidateSubmissionId) &&
+    (rs.status === "completed" || rs.status === "return_revoked")
+  );
+}
+
+type BulkOpSummary = {
+  label: string;
+  successCount: number;
+  failureCount: number;
+  failMessages: string[];
+};
+
 export default function TeacherReviewStudentsClient({
   milestone,
   rows: initialRows,
@@ -186,6 +207,7 @@ export default function TeacherReviewStudentsClient({
   const [bulkResults, setBulkResults] = useState<BulkCompleteItemResult[] | null>(
     null,
   );
+  const [bulkOpSummary, setBulkOpSummary] = useState<BulkOpSummary | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -241,6 +263,27 @@ export default function TeacherReviewStudentsClient({
       }
     }
     return ids;
+  }, [visible]);
+
+  /** 表示中の承認待ち提出（提出単位） */
+  const visiblePendingLateSubmissionIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const row of visible) {
+      for (const id of row.pendingLateSubmissionIds ?? []) {
+        ids.push(id);
+      }
+    }
+    return ids;
+  }, [visible]);
+
+  /** 表示中の確定済み・未返却（返却取消含む） */
+  const visibleReturnableItems = useMemo(() => {
+    return visible.filter(canBulkReturnRow).map((r) => ({
+      studentId: r.student.id,
+      submissionId: r.candidateSubmissionId!,
+      reviewId: r.reviewSummary.reviewId!,
+      baseUpdatedAt: r.reviewSummary.updatedAt!,
+    }));
   }, [visible]);
 
   /** 選択あり → その提出のみ。未選択 → null（マイルストーン評価対象すべて） */
@@ -304,6 +347,7 @@ export default function TeacherReviewStudentsClient({
 
     setBulkError(null);
     setBulkResults(null);
+    setBulkOpSummary(null);
     startTransition(async () => {
       const res = await bulkCompleteTeacherAssessmentReviewsAction({
         milestoneId: milestone.milestoneId,
@@ -314,12 +358,102 @@ export default function TeacherReviewStudentsClient({
         return;
       }
       setBulkResults(res.results);
+      setBulkOpSummary({
+        label: "一括確定",
+        successCount: res.successCount,
+        failureCount: res.failureCount,
+        failMessages: res.results
+          .filter((r) => !r.ok)
+          .map((r) => r.message)
+          .slice(0, 5),
+      });
       setSelected((prev) => {
         const next = new Set(prev);
         for (const r of res.results) {
           if (r.ok) next.delete(r.studentId);
         }
         return next;
+      });
+      const listed = await listTeacherStudentSubmissionRowsAction(
+        milestone.milestoneId,
+      );
+      if (listed.ok) setRows(dedupeByStudentId(listed.rows));
+    });
+  };
+
+  const onBulkApprove = () => {
+    const submissionIds = visiblePendingLateSubmissionIds;
+    if (submissionIds.length === 0) return;
+    const ok = window.confirm(
+      `現在表示中の未承認の提出${submissionIds.length}件を一括承認しますか？`,
+    );
+    if (!ok) return;
+
+    setBulkError(null);
+    setBulkResults(null);
+    setBulkOpSummary(null);
+    startTransition(async () => {
+      const res = await bulkApproveLateAssessmentSubmissionsAction({
+        submissionIds,
+      });
+      if (!res.ok) {
+        setBulkError(res.message);
+        return;
+      }
+      setBulkOpSummary({
+        label: "一括承認",
+        successCount: res.successCount,
+        failureCount: res.failureCount,
+        failMessages: res.results
+          .filter((r: BulkApproveLateItemResult) => !r.ok)
+          .map((r) => r.message)
+          .slice(0, 5),
+      });
+      const listed = await listTeacherStudentSubmissionRowsAction(
+        milestone.milestoneId,
+      );
+      if (listed.ok) setRows(dedupeByStudentId(listed.rows));
+    });
+  };
+
+  const onBulkReturn = () => {
+    const items = visibleReturnableItems;
+    if (items.length === 0) return;
+    const ok = window.confirm(
+      `現在表示中の確定済み評価${items.length}件を学生へ返却します。返却後、学生が評価を閲覧できるようになります。`,
+    );
+    if (!ok) return;
+
+    setBulkError(null);
+    setBulkResults(null);
+    setBulkOpSummary(null);
+    startTransition(async () => {
+      const res = await bulkReturnTeacherAssessmentReviewsAction({
+        milestoneId: milestone.milestoneId,
+        items,
+      });
+      if (!res.ok) {
+        setBulkError(res.message);
+        return;
+      }
+      setBulkResults(
+        res.results.map(
+          (r: BulkReturnItemResult): BulkCompleteItemResult => ({
+            studentId: r.studentId,
+            ok: r.ok,
+            kind: r.kind,
+            message: r.message,
+          }),
+        ),
+      );
+      setBulkOpSummary({
+        label: "一括返却",
+        successCount: res.successCount,
+        failureCount: res.failureCount,
+        failMessages: res.results
+          .filter((r) => !r.ok)
+          .map((r) => r.message)
+          .slice(0, 5),
       });
       const listed = await listTeacherStudentSubmissionRowsAction(
         milestone.milestoneId,
@@ -341,8 +475,8 @@ export default function TeacherReviewStudentsClient({
     return map;
   }, [bulkResults]);
 
-  const bulkSuccessCount = bulkResults?.filter((r) => r.ok).length ?? 0;
-  const bulkFailCount = bulkResults?.filter((r) => !r.ok).length ?? 0;
+  const pendingApproveCount = visiblePendingLateSubmissionIds.length;
+  const pendingReturnCount = visibleReturnableItems.length;
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -451,17 +585,44 @@ export default function TeacherReviewStudentsClient({
           </button>
           <button
             type="button"
+            disabled={pendingApproveCount === 0 || pending}
+            className="flex min-h-11 items-center rounded-lg bg-amber-700 px-4 text-sm font-medium text-white disabled:opacity-40"
+            onClick={onBulkApprove}
+          >
+            一括承認
+            {pendingApproveCount > 0 ? `（${pendingApproveCount}件）` : ""}
+          </button>
+          <button
+            type="button"
+            disabled={pendingReturnCount === 0 || pending}
+            className="flex min-h-11 items-center rounded-lg bg-sky-700 px-4 text-sm font-medium text-white disabled:opacity-40"
+            onClick={onBulkReturn}
+          >
+            学生へ一括返却
+            {pendingReturnCount > 0 ? `（${pendingReturnCount}件）` : ""}
+          </button>
+          <button
+            type="button"
             disabled={pending}
             className="flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 disabled:opacity-50"
             onClick={refreshRows}
           >
             再読み込み
           </button>
-          {bulkResults ? (
-            <p className="text-sm text-slate-700">
-              一括確定：{bulkSuccessCount}件成功
-              {bulkFailCount > 0 ? `・${bulkFailCount}件失敗` : ""}
-            </p>
+          {bulkOpSummary ? (
+            <div className="text-sm text-slate-700">
+              <p>
+                {bulkOpSummary.label}：{bulkOpSummary.successCount}件成功
+                {bulkOpSummary.failureCount > 0
+                  ? `・${bulkOpSummary.failureCount}件失敗`
+                  : ""}
+              </p>
+              {bulkOpSummary.failMessages.length > 0 ? (
+                <p className="mt-0.5 text-xs text-rose-700">
+                  {bulkOpSummary.failMessages.join(" / ")}
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
@@ -506,6 +667,8 @@ export default function TeacherReviewStudentsClient({
               const canBulkSelect = selectableIds.has(row.student.id);
               const failMsg = bulkFailByStudent.get(row.student.id);
               const rs = row.reviewSummary;
+              const pendingLateCount =
+                row.pendingLateSubmissionIds?.length ?? 0;
               return (
                 <tr
                   key={row.student.id}
@@ -575,6 +738,11 @@ export default function TeacherReviewStudentsClient({
                   </td>
                   <td className="px-3 py-3 text-xs">
                     {lateReviewStatusLabel(row.latestLateReviewStatus)}
+                    {pendingLateCount > 1 ? (
+                      <span className="mt-0.5 block text-[10px] text-amber-800">
+                        承認待ち {pendingLateCount}件
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-3">
                     <div className="space-y-0.5">

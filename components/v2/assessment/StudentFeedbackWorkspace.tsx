@@ -14,6 +14,12 @@ import {
 } from "@/lib/v2/assessment/assessmentRubric";
 import { formatAssessmentDateTimeJa } from "@/lib/v2/assessment/formatAssessmentDate";
 import { evaluationTypeLabel } from "@/lib/v2/assessment/submissionScope";
+import {
+  countUnviewedStudentFeedbackReviews,
+  isStudentFeedbackReviewViewed,
+  markStudentFeedbackReviewViewed,
+  pruneStudentFeedbackViewed,
+} from "@/lib/v2/assessment/studentFeedbackViewedStorage";
 
 function levelLabel(value: number | null | undefined): string {
   if (value == null) return "評価なし";
@@ -31,6 +37,16 @@ export default function StudentFeedbackWorkspace({
   const [detail, setDetail] = useState<StudentReturnedReviewDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [viewedTick, setViewedTick] = useState(0);
+
+  const publishUnviewedCount = useCallback(
+    (list: StudentReturnedReviewListItem[]) => {
+      const ids = list.map((i) => i.reviewId);
+      pruneStudentFeedbackViewed(ids);
+      onCountChange?.(countUnviewedStudentFeedbackReviews(ids));
+    },
+    [onCountChange],
+  );
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -44,8 +60,8 @@ export default function StudentFeedbackWorkspace({
       return;
     }
     setItems(res.items);
-    onCountChange?.(res.count);
-  }, [onCountChange]);
+    publishUnviewedCount(res.items);
+  }, [onCountChange, publishUnviewedCount]);
 
   useEffect(() => {
     void loadList();
@@ -66,11 +82,18 @@ export default function StudentFeedbackWorkspace({
         return;
       }
       setDetail(res.review);
+      // 詳細取得成功時のみ既読（一覧表示だけでは既読にしない）
+      markStudentFeedbackReviewViewed(selectedId);
+      setViewedTick((n) => n + 1);
+      setItems((current) => {
+        publishUnviewedCount(current);
+        return current;
+      });
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, publishUnviewedCount]);
 
   return (
     <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
@@ -100,6 +123,8 @@ export default function StudentFeedbackWorkspace({
         <ul className="space-y-3">
           {items.map((item) => {
             const open = selectedId === item.reviewId;
+            const unviewed =
+              viewedTick >= 0 && !isStudentFeedbackReviewViewed(item.reviewId);
             return (
               <li key={item.reviewId}>
                 <button
@@ -113,8 +138,15 @@ export default function StudentFeedbackWorkspace({
                     setSelectedId(open ? null : item.reviewId)
                   }
                 >
-                  <span className="text-sm font-semibold text-slate-900">
-                    {item.cycleTitle}
+                  <span className="flex w-full items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-900">
+                      {item.cycleTitle}
+                    </span>
+                    {unviewed ? (
+                      <span className="rounded-full bg-sky-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        未確認
+                      </span>
+                    ) : null}
                   </span>
                   <span className="mt-0.5 text-sm font-medium text-slate-800">
                     {item.milestoneTitle}
@@ -200,9 +232,7 @@ function CommentSection({ title, body }: { title: string; body: string }) {
   return (
     <section>
       <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
-      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-        {body}
-      </p>
+      <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{body}</p>
     </section>
   );
 }
