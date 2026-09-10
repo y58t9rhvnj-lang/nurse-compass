@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import {
   exportMilestoneAiDataAction,
   exportSubmissionAiDataAction,
@@ -22,6 +22,9 @@ type Props = {
   mode: Mode;
   buttonLabel?: string;
   className?: string;
+  disabled?: boolean;
+  /** milestone 選択export。未指定は評価候補全員。空配列は0件（全員へフォールバックしない） */
+  submissionIds?: string[];
 };
 
 function downloadText(filename: string, contentType: string, body: string) {
@@ -38,6 +41,8 @@ export default function TeacherAiExportDialog({
   mode,
   buttonLabel = "AI解析用エクスポート",
   className,
+  disabled = false,
+  submissionIds,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [format, setFormat] = useState<"json" | "jsonl">("json");
@@ -47,16 +52,24 @@ export default function TeacherAiExportDialog({
   const [error, setError] = useState<string | null>(null);
   const [auditWarn, setAuditWarn] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  /** preview と download で同じ対象。開いた時点の submissionIds を固定 */
+  const lockedSubmissionIdsRef = useRef<string[] | undefined>(undefined);
 
   const openDialog = () => {
+    if (disabled) return;
     setError(null);
     setAuditWarn(null);
     setPreview(null);
     setOpen(true);
+    lockedSubmissionIdsRef.current =
+      submissionIds === undefined ? undefined : [...submissionIds];
     startTransition(async () => {
       const res =
         mode.kind === "milestone"
-          ? await previewMilestoneAiExportAction(mode.milestoneId)
+          ? await previewMilestoneAiExportAction({
+              milestoneId: mode.milestoneId,
+              submissionIds: lockedSubmissionIdsRef.current,
+            })
           : await previewSubmissionAiExportAction(mode);
       if (!res.ok) {
         setError(res.message);
@@ -77,6 +90,7 @@ export default function TeacherAiExportDialog({
           ? await exportMilestoneAiDataAction({
               milestoneId: mode.milestoneId,
               format,
+              submissionIds: lockedSubmissionIdsRef.current,
             })
           : await exportSubmissionAiDataAction({
               ...mode,
@@ -101,9 +115,10 @@ export default function TeacherAiExportDialog({
     <>
       <button
         type="button"
+        disabled={disabled}
         className={
           className ??
-          "flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800"
+          "flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 disabled:opacity-40"
         }
         onClick={openDialog}
       >

@@ -28,6 +28,20 @@ type StaffContext =
   | { ok: true; supabase: SupabaseClient; profile: AppProfile }
   | { ok: false; kind: string; message: string };
 
+/** 未指定は全員。指定時は正規候補との intersection のみ（空配列は0件。全員へフォールバックしない） */
+function intersectCandidateRows<T extends { id: string }>(
+  rows: T[],
+  submissionIds?: string[] | null,
+): T[] {
+  if (submissionIds == null) return rows;
+  const allow = new Set(
+    submissionIds.filter(
+      (id): id is string => typeof id === "string" && id.length > 0,
+    ),
+  );
+  return rows.filter((r) => allow.has(r.id));
+}
+
 async function requireTeacherContext(): Promise<StaffContext> {
   if (!isSupabaseConfigured()) {
     return {
@@ -49,19 +63,20 @@ async function requireTeacherContext(): Promise<StaffContext> {
 }
 
 /** マイルストーンの評価対象提出について、エクスポート前プレビュー */
-export async function previewMilestoneAiExportAction(
-  milestoneId: string,
-): Promise<AiExportPreviewResult> {
+export async function previewMilestoneAiExportAction(input: {
+  milestoneId: string;
+  submissionIds?: string[] | null;
+}): Promise<AiExportPreviewResult> {
   const ctx = await requireTeacherContext();
   if (!ctx.ok) return ctx;
-  if (!milestoneId.trim()) {
+  if (!input.milestoneId.trim()) {
     return { ok: false, kind: "validation", message: "課題が指定されていません。" };
   }
 
   const meta = await getTeacherMilestoneMeta(
     ctx.supabase,
     ctx.profile.organizationId,
-    milestoneId,
+    input.milestoneId,
   );
   if (meta.error || !meta.row) {
     return { ok: false, kind: "not_found", message: "課題が見つかりません。" };
@@ -70,13 +85,14 @@ export async function previewMilestoneAiExportAction(
   const loaded = await loadCandidateSubmissionsForMilestone(
     ctx.supabase,
     ctx.profile.organizationId,
-    milestoneId,
+    input.milestoneId,
   );
   if (!loaded.ok) return loaded;
 
+  const rows = intersectCandidateRows(loaded.rows, input.submissionIds);
   const { built } = buildAiExportRecordsFromRows(
     ctx.profile.organizationId,
-    loaded.rows,
+    rows,
     meta.row.submissionScope,
   );
   const items: AiExportPreviewItem[] = built.map((b) => ({
@@ -285,6 +301,7 @@ async function finishExport(input: {
 export async function exportMilestoneAiDataAction(input: {
   milestoneId: string;
   format: "json" | "jsonl";
+  submissionIds?: string[] | null;
 }): Promise<AiExportDownloadResult> {
   const ctx = await requireTeacherContext();
   if (!ctx.ok) return ctx;
@@ -308,9 +325,10 @@ export async function exportMilestoneAiDataAction(input: {
   );
   if (!loaded.ok) return loaded;
 
+  const rows = intersectCandidateRows(loaded.rows, input.submissionIds);
   const { built, idMapper, idSecret } = buildAiExportRecordsFromRows(
     ctx.profile.organizationId,
-    loaded.rows,
+    rows,
     meta.row.submissionScope,
   );
   return finishExport({

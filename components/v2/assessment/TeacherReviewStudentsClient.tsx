@@ -286,14 +286,30 @@ export default function TeacherReviewStudentsClient({
     }));
   }, [visible]);
 
-  /** 選択あり → その提出のみ。未選択 → null（マイルストーン評価対象すべて） */
-  const batchExportSubmissionIds = useMemo(() => {
-    const fromSelected = visible
+  /** AI解析用エクスポート対象（一括確定の「選択 N 件」とは別）。visible + selected + candidate */
+  const selectedAiExportSubmissionIds = useMemo(() => {
+    return visible
       .filter((r) => selected.has(r.student.id) && r.candidateSubmissionId)
       .map((r) => r.candidateSubmissionId!);
-    if (fromSelected.length > 0) return fromSelected;
-    return undefined;
   }, [visible, selected]);
+
+  const hasRowSelection = selected.size > 0;
+  const selectedAiExportCount = selectedAiExportSubmissionIds.length;
+  const aiExportBlockedByEmptySelection =
+    hasRowSelection && selectedAiExportCount === 0;
+  const aiExportButtonLabel = !hasRowSelection
+    ? "AI解析用エクスポート（評価対象全員）"
+    : aiExportBlockedByEmptySelection
+      ? "選択した学生にAI解析対象の提出がありません"
+      : `選択した${selectedAiExportCount}名をAI解析用エクスポート`;
+  const aiExportSubmissionIds = !hasRowSelection
+    ? undefined
+    : selectedAiExportSubmissionIds;
+  const zipExportButtonLabel = !hasRowSelection
+    ? "一括AI Package Export（ZIP）"
+    : aiExportBlockedByEmptySelection
+      ? "選択した学生にAI解析対象の提出がありません"
+      : `選択した${selectedAiExportCount}名を一括AI Package Export（ZIP）`;
 
   const selectedCount = [...selected].filter((id) => selectableIds.has(id)).length;
 
@@ -517,13 +533,16 @@ export default function TeacherReviewStudentsClient({
                 kind: "milestone",
                 milestoneId: milestone.milestoneId,
               }}
-              buttonLabel="AI解析用エクスポート（評価対象）"
+              buttonLabel={aiExportButtonLabel}
+              disabled={aiExportBlockedByEmptySelection}
+              submissionIds={aiExportSubmissionIds}
             />
             <TeacherAiEvaluationImportDialog buttonLabel="AI評価結果を取込" />
             <TeacherAiBatchExportDialog
               milestoneId={milestone.milestoneId}
-              submissionIds={batchExportSubmissionIds}
-              buttonLabel="一括AI Package Export"
+              submissionIds={aiExportSubmissionIds}
+              buttonLabel={zipExportButtonLabel}
+              disabled={aiExportBlockedByEmptySelection}
             />
             <TeacherAiBatchImportDialog buttonLabel="一括AI結果 Import" />
           </div>

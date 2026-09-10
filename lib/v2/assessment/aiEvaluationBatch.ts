@@ -93,7 +93,8 @@ export async function previewBatchExport(input: {
   if (!loaded.ok) return loaded;
 
   let rows = loaded.rows;
-  if (input.submissionIds && input.submissionIds.length > 0) {
+  // null/undefined = 全員。[] は0件（全員へフォールバックしない）
+  if (input.submissionIds != null) {
     const allow = new Set(input.submissionIds);
     rows = rows.filter((r) => allow.has(r.id));
   }
@@ -139,7 +140,7 @@ export async function executeBatchExport(input: {
   if (!loaded.ok) return loaded;
 
   let rows = loaded.rows;
-  if (input.submissionIds && input.submissionIds.length > 0) {
+  if (input.submissionIds != null) {
     const allow = new Set(input.submissionIds);
     rows = rows.filter((r) => allow.has(r.id));
   }

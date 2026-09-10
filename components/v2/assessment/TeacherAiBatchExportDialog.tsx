@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   exportBatchAiPackagesAction,
   previewBatchAiExportAction,
@@ -8,10 +8,11 @@ import {
 
 type Props = {
   milestoneId: string;
-  /** 選択中の提出 ID（空なら評価対象すべて） */
+  /** 未指定は評価対象すべて。空配列は0件（全員へフォールバックしない） */
   submissionIds?: string[];
   buttonLabel?: string;
   className?: string;
+  disabled?: boolean;
 };
 
 function downloadBase64Zip(filename: string, base64: string) {
@@ -32,6 +33,7 @@ export default function TeacherAiBatchExportDialog({
   submissionIds,
   buttonLabel = "一括AI Package Export",
   className,
+  disabled = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<{
@@ -44,18 +46,21 @@ export default function TeacherAiBatchExportDialog({
   const [error, setError] = useState<string | null>(null);
   /** async Server Action 用。startTransition(async) だと pending が張り付くことがある */
   const [busy, setBusy] = useState(false);
+  const lockedIdsRef = useRef<string[] | undefined>(undefined);
 
   const openDialog = () => {
+    if (disabled) return;
     setError(null);
     setPreview(null);
     setOpen(true);
     setBusy(true);
+    lockedIdsRef.current =
+      submissionIds === undefined ? undefined : [...submissionIds];
     void (async () => {
       try {
         const res = await previewBatchAiExportAction({
           milestoneId,
-          submissionIds:
-            submissionIds && submissionIds.length > 0 ? submissionIds : null,
+          submissionIds: lockedIdsRef.current,
         });
         if (!res.ok) {
           setError(res.message);
@@ -82,8 +87,7 @@ export default function TeacherAiBatchExportDialog({
       try {
         const res = await exportBatchAiPackagesAction({
           milestoneId,
-          submissionIds:
-            submissionIds && submissionIds.length > 0 ? submissionIds : null,
+          submissionIds: lockedIdsRef.current,
         });
         if (!res.ok) {
           setError(res.message);
@@ -101,9 +105,10 @@ export default function TeacherAiBatchExportDialog({
     <>
       <button
         type="button"
+        disabled={disabled}
         className={
           className ??
-          "flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800"
+          "flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 disabled:opacity-40"
         }
         onClick={openDialog}
       >
