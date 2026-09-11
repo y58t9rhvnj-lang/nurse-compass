@@ -3,7 +3,9 @@
 // Phase 2 Step 1: 情報の追加・編集。フローティング作業ウィンドウ（背景カルテ操作可）。
 
 import { useId, useState } from "react";
-import Form3FloatingEditorShell from "@/components/v2/form3/Form3FloatingEditorShell";
+import Form3FloatingEditorShell, {
+  useForm3FloatEditor,
+} from "@/components/v2/form3/Form3FloatingEditorShell";
 import type { Form3SoType } from "@/lib/form3/v2/form3V2Types";
 
 export type Form3InformationDialogValues = {
@@ -71,6 +73,42 @@ export default function Form3InformationDialog({
         </div>
       }
     >
+      <Form3InformationEditorBody
+        kindGroupId={kindGroupId}
+        soType={soType}
+        content={content}
+        contentInvalid={contentInvalid}
+        onSoTypeChange={setSoType}
+        onContentChange={setContent}
+      />
+    </Form3FloatingEditorShell>
+  );
+}
+
+function Form3InformationEditorBody({
+  kindGroupId,
+  soType,
+  content,
+  contentInvalid,
+  onSoTypeChange,
+  onContentChange,
+}: {
+  kindGroupId: string;
+  soType: Form3SoType;
+  content: string;
+  contentInvalid: boolean;
+  onSoTypeChange: (value: Form3SoType) => void;
+  onContentChange: (value: string) => void;
+}) {
+  const { isFullscreen } = useForm3FloatEditor();
+  return (
+    <div
+      className={
+        isFullscreen
+          ? "min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
+          : undefined
+      }
+    >
       <fieldset className="m-0 border-0 p-0">
         <legend
           id={kindGroupId}
@@ -96,7 +134,7 @@ export default function Form3InformationDialog({
               name="form3-info-so-type"
               className="h-5 w-5 accent-[#1E88E5]"
               checked={soType === "S"}
-              onChange={() => setSoType("S")}
+              onChange={() => onSoTypeChange("S")}
             />
             <span className="text-[15px] font-medium text-[#1D1D1F]">
               S情報（主観的情報）
@@ -115,7 +153,7 @@ export default function Form3InformationDialog({
               name="form3-info-so-type"
               className="h-5 w-5 accent-[#1E88E5]"
               checked={soType === "O"}
-              onChange={() => setSoType("O")}
+              onChange={() => onSoTypeChange("O")}
             />
             <span className="text-[15px] font-medium text-[#1D1D1F]">
               O情報（客観的情報）
@@ -134,7 +172,7 @@ export default function Form3InformationDialog({
           ].join(" ")}
           placeholder="観察や会話で得た事実を記入してください"
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => onContentChange(e.target.value)}
           aria-invalid={contentInvalid}
           aria-required
         />
@@ -144,6 +182,6 @@ export default function Form3InformationDialog({
           </span>
         ) : null}
       </label>
-    </Form3FloatingEditorShell>
+    </div>
   );
 }

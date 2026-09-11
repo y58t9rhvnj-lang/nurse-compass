@@ -7,7 +7,9 @@
  */
 
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -95,6 +97,20 @@ function defaultPos(size: Form3FloatSize): Pos {
 function parseStoredSize(raw: string | null): Form3FloatSize | null {
   if (raw === "S" || raw === "M" || raw === "L") return raw;
   return null;
+}
+
+type Form3FloatEditorCtx = {
+  size: Form3FloatSize;
+  isFullscreen: boolean;
+};
+
+const Form3FloatEditorContext = createContext<Form3FloatEditorCtx>({
+  size: "M",
+  isFullscreen: false,
+});
+
+export function useForm3FloatEditor() {
+  return useContext(Form3FloatEditorContext);
 }
 
 type Props = {
@@ -354,8 +370,16 @@ export default function Form3FloatingEditorShell({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-4 py-3">
-          {children}
+        <div
+          className={
+            isFullscreen
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3"
+              : "min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-4 py-3"
+          }
+        >
+          <Form3FloatEditorContext.Provider value={{ size, isFullscreen }}>
+            {children}
+          </Form3FloatEditorContext.Provider>
         </div>
 
         <div className="shrink-0 border-t border-[#E5E5EA] bg-white px-4 py-3">

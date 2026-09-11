@@ -2,8 +2,10 @@
 
 // Phase 2 Step 2: 解釈・分析の追加・編集。フローティング作業ウィンドウ（背景カルテ操作可）。
 
-import { useId, useState } from "react";
-import Form3FloatingEditorShell from "@/components/v2/form3/Form3FloatingEditorShell";
+import { useId, useState, type ReactNode } from "react";
+import Form3FloatingEditorShell, {
+  useForm3FloatEditor,
+} from "@/components/v2/form3/Form3FloatingEditorShell";
 import {
   FORM3_PHASE_B_ASSESSMENT_DIALOG_HELPER,
   FORM3_PHASE_B_ASSESSMENT_PLACEHOLDER,
@@ -47,6 +49,256 @@ function SoBadge({ soType }: { soType: "S" | "O" | null }) {
   );
 }
 
+function EvidencePicker({
+  informationOptions,
+  selectedIds,
+  legendId,
+  onToggle,
+}: {
+  informationOptions: Form3InformationCardV2[];
+  selectedIds: string[];
+  legendId: string;
+  onToggle: (id: string) => void;
+}) {
+  if (informationOptions.length === 0) {
+    return (
+      <p className="mt-2.5 rounded-2xl bg-[#F2F2F7] px-4 py-4 text-[14px] text-[#6E6E73]">
+        先にこのパターンへ情報を追加してください。
+      </p>
+    );
+  }
+  return (
+    <ul className="mt-2.5 flex flex-col gap-2" aria-labelledby={legendId}>
+      {informationOptions.map((info) => {
+        const checked = selectedIds.includes(info.id);
+        return (
+          <li key={info.id}>
+            <label
+              className={[
+                "flex min-h-[48px] cursor-pointer items-start gap-3 rounded-2xl px-3 py-2.5 ring-1 transition-colors [touch-action:manipulation]",
+                checked
+                  ? "bg-[#EAF4FC] ring-[#1E88E5]/35"
+                  : "bg-[#F7F7F8] ring-transparent",
+              ].join(" ")}
+            >
+              <input
+                type="checkbox"
+                className="mt-1 h-5 w-5 shrink-0 accent-[#1E88E5]"
+                checked={checked}
+                onChange={() => onToggle(info.id)}
+              />
+              <SoBadge soType={info.soType} />
+              <span className="min-w-0 flex-1 whitespace-pre-wrap text-[14px] leading-snug text-[#1D1D1F]">
+                {info.content.trim() || "（未入力）"}
+              </span>
+            </label>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function CollapseToggle({
+  id,
+  expanded,
+  onToggle,
+  children,
+}: {
+  id: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      id={id}
+      aria-expanded={expanded}
+      onClick={onToggle}
+      className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl bg-[#F7F8FA] px-3 text-left text-[13px] font-semibold text-[#1D1D1F] [touch-action:manipulation]"
+    >
+      <span className="min-w-0 truncate">{children}</span>
+      <span className="shrink-0 text-[11px] text-[#8E8E93]" aria-hidden>
+        {expanded ? "▲" : "▼"}
+      </span>
+    </button>
+  );
+}
+
+function Form3AssessmentEditorBody({
+  informationOptions,
+  selectedIds,
+  interpretation,
+  attempted,
+  evidenceLegendId,
+  onToggleEvidence,
+  onInterpretationChange,
+}: {
+  informationOptions: Form3InformationCardV2[];
+  selectedIds: string[];
+  interpretation: string;
+  attempted: boolean;
+  evidenceLegendId: string;
+  onToggleEvidence: (id: string) => void;
+  onInterpretationChange: (value: string) => void;
+}) {
+  const { isFullscreen } = useForm3FloatEditor();
+  const hintsToggleId = useId();
+  const evidenceToggleId = useId();
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const [hintsOpen, setHintsOpen] = useState(false);
+
+  const trimmed = interpretation.trim();
+  const evidenceInvalid = attempted && selectedIds.length === 0;
+  const contentInvalid = attempted && trimmed.length === 0;
+
+  const evidencePicker = (
+    <EvidencePicker
+      informationOptions={informationOptions}
+      selectedIds={selectedIds}
+      legendId={evidenceLegendId}
+      onToggle={onToggleEvidence}
+    />
+  );
+
+  const hints = (
+    <ul className="space-y-1 rounded-2xl bg-[#F7F8FA] px-3.5 py-2.5">
+      {FORM3_PHASE_B_ASSESSMENT_PROMPTS.map((prompt) => (
+        <li key={prompt} className="text-[12px] leading-snug text-[#667085]">
+          {prompt}
+        </li>
+      ))}
+    </ul>
+  );
+
+  return (
+    <div
+      className={
+        isFullscreen ? "flex min-h-0 flex-1 flex-col gap-2" : undefined
+      }
+    >
+      {!isFullscreen ? (
+        <p className="text-[12px] leading-relaxed text-[#8E8E93]">
+          {FORM3_PHASE_B_ASSESSMENT_DIALOG_HELPER}
+        </p>
+      ) : null}
+
+      {isFullscreen ? (
+        <div className="shrink-0">
+          <CollapseToggle
+            id={evidenceToggleId}
+            expanded={evidenceOpen}
+            onToggle={() => setEvidenceOpen((v) => !v)}
+          >
+            選択した情報（{selectedIds.length}件）
+          </CollapseToggle>
+          {evidenceOpen ? (
+            <div
+              role="region"
+              aria-labelledby={evidenceToggleId}
+              className="mt-2 max-h-[min(30dvh,17rem)] overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
+            >
+              <span id={evidenceLegendId} className="sr-only">
+                根拠とした情報を選択（複数選択可）
+              </span>
+              {evidencePicker}
+              {evidenceInvalid ? (
+                <span className="mt-1.5 block text-[12px] text-[#C0392B]">
+                  根拠とする情報を1つ以上選んでください
+                </span>
+              ) : null}
+            </div>
+          ) : evidenceInvalid ? (
+            <span className="mt-1.5 block text-[12px] text-[#C0392B]">
+              根拠とする情報を1つ以上選んでください
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <fieldset className="mt-4 m-0 border-0 p-0">
+          <legend
+            id={evidenceLegendId}
+            className="text-[13px] font-semibold text-[#1D1D1F]"
+          >
+            根拠とした情報を選択（複数選択可）
+          </legend>
+          {evidencePicker}
+          {evidenceInvalid ? (
+            <span className="mt-1.5 block text-[12px] text-[#C0392B]">
+              根拠とする情報を1つ以上選んでください
+            </span>
+          ) : null}
+        </fieldset>
+      )}
+
+      {isFullscreen ? (
+        <div className="shrink-0">
+          <CollapseToggle
+            id={hintsToggleId}
+            expanded={hintsOpen}
+            onToggle={() => setHintsOpen((v) => !v)}
+          >
+            考えるヒント
+          </CollapseToggle>
+          {hintsOpen ? (
+            <div role="region" aria-labelledby={hintsToggleId} className="mt-2">
+              {hints}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-5">
+          <span className="text-[13px] font-semibold text-[#1D1D1F]">
+            解釈・分析の内容
+          </span>
+          <div className="mt-2">{hints}</div>
+        </div>
+      )}
+
+      {isFullscreen ? (
+        <span className="shrink-0 text-[13px] font-semibold text-[#1D1D1F]">
+          解釈・分析の内容
+        </span>
+      ) : null}
+
+      <div
+        className={
+          isFullscreen ? "flex min-h-[5rem] flex-1 flex-col" : "mt-2.5 block"
+        }
+      >
+        <div
+          className={isFullscreen ? "relative min-h-0 flex-1" : undefined}
+        >
+          <textarea
+            className={[
+              "w-full rounded-2xl border-0 bg-[#F2F2F7] px-4 py-3 text-[16px] leading-relaxed text-[#1D1D1F] outline-none",
+              "focus:ring-2 focus:ring-[#1E88E5]/40",
+              contentInvalid ? "ring-2 ring-[#FF3B30]/50" : "",
+              isFullscreen
+                ? "absolute inset-0 resize-none overflow-y-auto overscroll-contain"
+                : "min-h-[12rem] resize-y",
+            ].join(" ")}
+            placeholder={FORM3_PHASE_B_ASSESSMENT_PLACEHOLDER}
+            value={interpretation}
+            onChange={(e) => onInterpretationChange(e.target.value)}
+            aria-invalid={contentInvalid}
+            aria-required
+          />
+        </div>
+        {contentInvalid ? (
+          <span className="mt-1.5 shrink-0 text-[12px] text-[#C0392B]">
+            解釈・分析を入力してください
+          </span>
+        ) : null}
+      </div>
+      <span className="sr-only">
+        evidenceInformationIds selected: {selectedIds.join(",")}
+      </span>
+    </div>
+  );
+}
+
 export default function Form3AssessmentDialog({
   open,
   mode,
@@ -68,8 +320,6 @@ export default function Form3AssessmentDialog({
   if (!open) return null;
 
   const trimmed = interpretation.trim();
-  const evidenceInvalid = attempted && selectedIds.length === 0;
-  const contentInvalid = attempted && trimmed.length === 0;
 
   function toggleEvidence(id: string) {
     setSelectedIds((prev) =>
@@ -111,97 +361,15 @@ export default function Form3AssessmentDialog({
         </div>
       }
     >
-      <p className="text-[12px] leading-relaxed text-[#8E8E93]">
-        {FORM3_PHASE_B_ASSESSMENT_DIALOG_HELPER}
-      </p>
-
-      <fieldset className="mt-4 m-0 border-0 p-0">
-        <legend
-          id={evidenceLegendId}
-          className="text-[13px] font-semibold text-[#1D1D1F]"
-        >
-          根拠とした情報を選択（複数選択可）
-        </legend>
-        {informationOptions.length === 0 ? (
-          <p className="mt-2.5 rounded-2xl bg-[#F2F2F7] px-4 py-4 text-[14px] text-[#6E6E73]">
-            先にこのパターンへ情報を追加してください。
-          </p>
-        ) : (
-          <ul
-            className="mt-2.5 flex flex-col gap-2"
-            aria-labelledby={evidenceLegendId}
-          >
-            {informationOptions.map((info) => {
-              const checked = selectedIds.includes(info.id);
-              return (
-                <li key={info.id}>
-                  <label
-                    className={[
-                      "flex min-h-[48px] cursor-pointer items-start gap-3 rounded-2xl px-3 py-2.5 ring-1 transition-colors",
-                      checked
-                        ? "bg-[#EAF4FC] ring-[#1E88E5]/35"
-                        : "bg-[#F7F7F8] ring-transparent",
-                    ].join(" ")}
-                  >
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-5 w-5 shrink-0 accent-[#1E88E5]"
-                      checked={checked}
-                      onChange={() => toggleEvidence(info.id)}
-                    />
-                    <SoBadge soType={info.soType} />
-                    <span className="min-w-0 flex-1 whitespace-pre-wrap text-[14px] leading-snug text-[#1D1D1F]">
-                      {info.content.trim() || "（未入力）"}
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {evidenceInvalid ? (
-          <span className="mt-1.5 block text-[12px] text-[#C0392B]">
-            根拠とする情報を1つ以上選んでください
-          </span>
-        ) : null}
-      </fieldset>
-
-      <label className="mt-5 block">
-        <span className="text-[13px] font-semibold text-[#1D1D1F]">
-          解釈・分析の内容
-        </span>
-        <ul className="mt-2 space-y-1 rounded-2xl bg-[#F7F8FA] px-3.5 py-2.5">
-          {FORM3_PHASE_B_ASSESSMENT_PROMPTS.map((prompt) => (
-            <li
-              key={prompt}
-              className="text-[12px] leading-snug text-[#667085]"
-            >
-              {prompt}
-            </li>
-          ))}
-        </ul>
-        <textarea
-          className={[
-            "mt-2.5 min-h-[12rem] w-full resize-y rounded-2xl border-0 bg-[#F2F2F7] px-4 py-3 text-[16px] leading-relaxed text-[#1D1D1F] outline-none",
-            "focus:ring-2 focus:ring-[#1E88E5]/40",
-            contentInvalid ? "ring-2 ring-[#FF3B30]/50" : "",
-          ].join(" ")}
-          placeholder={FORM3_PHASE_B_ASSESSMENT_PLACEHOLDER}
-          value={interpretation}
-          onChange={(e) => setInterpretation(e.target.value)}
-          aria-invalid={contentInvalid}
-          aria-required
-        />
-        {contentInvalid ? (
-          <span className="mt-1.5 block text-[12px] text-[#C0392B]">
-            解釈・分析を入力してください
-          </span>
-        ) : null}
-      </label>
-
-      <span className="sr-only">
-        evidenceInformationIds selected: {selectedIds.join(",")}
-      </span>
+      <Form3AssessmentEditorBody
+        informationOptions={informationOptions}
+        selectedIds={selectedIds}
+        interpretation={interpretation}
+        attempted={attempted}
+        evidenceLegendId={evidenceLegendId}
+        onToggleEvidence={toggleEvidence}
+        onInterpretationChange={setInterpretation}
+      />
     </Form3FloatingEditorShell>
   );
 }
