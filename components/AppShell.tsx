@@ -14,6 +14,7 @@ import LearningLayer from "@/components/v2/learning/LearningLayer";
 import { isLearningWorkspaceView } from "@/components/v2/learning/workspace/WorkspaceHost";
 import StudentSubmissionsWorkspace from "@/components/v2/assessment/StudentSubmissionsWorkspace";
 import StudentFeedbackWorkspace from "@/components/v2/assessment/StudentFeedbackWorkspace";
+import RelatedDiagramReadonlyWorkspace from "@/components/v2/relatedDiagram/RelatedDiagramReadonlyWorkspace";
 import { getSubmissionPendingBadgeCountAction } from "@/app/v2/actions/assessmentSubmission";
 import { listStudentReturnedReviewsAction } from "@/app/v2/actions/assessmentStudentFeedback";
 import { countUnviewedStudentFeedbackReviews } from "@/lib/v2/assessment/studentFeedbackViewedStorage";
@@ -294,6 +295,11 @@ export default function AppShell({
     setPendingQuestion(null);
     setActiveView("feedback");
   }, []);
+  const goRelatedDiagram = useCallback(() => {
+    setNotice(null);
+    setPendingQuestion(null);
+    setActiveView("related-diagram");
+  }, []);
   // 電子カルテを開く。tab 指定時はそのタブから、focus 指定時は該当記録へ移動・強調。
   const goChart = (tab?: ChartTabId, focus?: ChartFocus) => {
     setNotice(null);
@@ -323,6 +329,7 @@ export default function AppShell({
     else if (view === "form3" && mode === "v2") goForm3();
     else if (view === "submissions" && mode === "v2") goSubmissions();
     else if (view === "feedback" && mode === "v2") goFeedback();
+    else if (view === "related-diagram" && mode === "v2") goRelatedDiagram();
   };
 
   // ── Version2 学習支援 Inspector（P4） ───────────────────────────
@@ -555,7 +562,9 @@ export default function AppShell({
     // 学生用フル SideNav（V1 ベースの項目＋様式2 作成＋学生識別）。
     // C3 focusMode: 様式2/様式3 作業中は SideNav を描画しない（CSS 隠しではない）。
     const focusMode =
-      isLearningWorkspaceView(activeView) || activeView === "evidence-review";
+      isLearningWorkspaceView(activeView) ||
+      activeView === "evidence-review" ||
+      activeView === "related-diagram";
     const studentSideNav = focusMode ? null : (
       <aside className="w-[204px] shrink-0 border-r border-[#E5E5EA] bg-white">
         <SideNav
@@ -632,6 +641,14 @@ export default function AppShell({
                 {studentSideNav}
                 <StudentFeedbackWorkspace
                   onCountChange={setFeedbackBadgeCount}
+                />
+              </>
+            ) : activeView === "related-diagram" ? (
+              <>
+                {studentSideNav}
+                <RelatedDiagramReadonlyWorkspace
+                  patientId={selectedId}
+                  onBack={goPatientOverview}
                 />
               </>
             ) : activeView === "evidence-review" ? (

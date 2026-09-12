@@ -1,8 +1,9 @@
 # Nurse Compass V2.2 Related Diagram V1
 ## Implementation Design Spec — UI State / Data Schema / AI Evaluation / Implementation Slices
-**Status:** Implementation Design Draft  
+**Status:** Implementation Design — Slice 0 / Slice 1 Frozen; later slices Draft  
 **Parent Spec:** `24_related_diagram_v1_integrated_spec_frozen.md`  
-**Rule:** 本書はDesign Frozen V1の教育的意味を変更しない。実装都合で意味を変えない。
+**Rule:** 本書はDesign Frozen V1の教育的意味を変更しない。実装都合で意味を変えない。  
+**Slice 1:** Read-only A3 Canvas は実装 Freeze。Slice 2（Card drag / editable topology）は未着手。
 
 ---
 
@@ -77,16 +78,15 @@ RECOVERY_REQUIRED
 初期表示：
 - A3 landscape canvas
 - assigned pathology Knowledge Group
-- persistent toolbar
-  - 全体表示
-  - Undo
-  - Redo
-  - ＋
-  - 追加Card
-  - Coach
-  - 提出
 
-この状態では編集可能。
+Slice 1 toolbar（確定・1段・transform外・sticky top）：
+- 左：Related Diagram / case title
+- 右：現在倍率 / 100% / 全体表示 / 印刷
+
+後続 Slice で追加し得るもの（Slice 1 には置かない）：
+- Undo / Redo / ＋ / 追加Card / Coach / 提出
+
+Slice 1 はこの状態で **read-only**。編集可能になるのは Slice 2 以降。
 
 ---
 
@@ -949,19 +949,78 @@ Acceptance:
 
 ---
 
-## Slice 1 — Read-only A3 Canvas
+## Slice 1 — Read-only A3 Canvas — **FROZEN**
 Goal:
-Knowledge Group + mock/sample semantic CardをA3で表示。
+published Knowledge binding または DEV fixture を、編集なしの A3 上に表示する。
 
-Deliver:
-- logical A3 canvas
-- zoom/pan/full view
-- Card renderer
-- Connection renderer
-- print scale baseline
-- iPad Safari basic check
+Delivered:
+- logical A3 canvas（1587 × 1122、本文 10.5pt）
+- Toolbar 1段（transform外 / sticky / 倍率・100%・全体表示・印刷）
+- pinch zoom / 2本指 pan / fitScale
+- Knowledge / Information / Understanding / Nursing Problem Card renderer
+- orthogonal Connection renderer + 半円 bridge
+- A3-local Legend（顕在・潜在・看護問題 / 顕在・潜在・治療）
+- print baseline
+- student runtime: Knowledge binding → published group/version。未設定は empty。load error は error。**production fixture fallback なし**
+- DEV `/dev/related-diagram-slice1`: schizophrenia fixture + style demo（本番経路から呼ばない）
+- explicit route topology（`rd.routeTopology.v1`）
+- Knowledge compact（幅146、padding 5×7、左上配置）
 
-No editing yet.
+No editing. 1 finger card drag は Slice 2 以降。
+
+### Slice 1 route topology
+Schema: **`rd.routeTopology.v1`**（`RelatedDiagramRouteTopology`）
+
+layout/routing metadata。semantic graph ではない。AI評価に使わない。
+
+- `ExplicitSharedTrunk`
+- `ExplicitBranchPoint`
+- `ExplicitRouteGroup`
+- `ExplicitConnectionRoute`
+
+### Slice 1 routing pipeline
+```text
+semantic connections
+  → route topology
+  → authored / derived orthogonal polyline
+  → explicit Junction exclusion（bridge なし）
+  → remaining proper H×V internal crossing
+  → Independent Crossing
+  → deterministic jumper
+  → bridge rendering
+    （spine gap + 別 SVG 半円 arc。potential は arc のみ solid overlay 可）
+```
+
+Junction は検出しない。生成する。
+使わない判定：vertex一致 / vertex-on-segment / Card近傍 / same source だけ / geometry coincidence。
+
+### Slice 1 Connection renderer
+`resolveConnectionStrokeVisual`：
+- current → solid arrow
+- potential → dashed arrow
+- treatment → thick solid arrow
+- nursing_problem_basis → solid arrow（semantic type は保持）
+- nursing_problem_integration → solid arrow（semantic type は保持）
+
+**廃止仕様（実装しない）：** double-line / diamond / 青色 Connection。
+
+bridge は共通 renderer。Junction には付けない。
+
+### Slice 1 Knowledge runtime
+- DEV fixture のみ explicit topology を持つ
+- production/student は Knowledge binding を解決する
+- production に schizophrenia fixture fallback なし
+- Knowledge 未設定 → empty state
+- Slice 1 では student editable topology は実装しない
+- Slice 2 以降で student card drag / topology persistence を検討する（今回実装しない）
+
+### Slice 1 viewport
+```text
+header[data-rd-toolbar]   → transform 外
+viewport                  → overflow hidden
+canvas transform layer    → translate + scale
+A3 logical canvas         → 1587 × 1122
+```
 
 ---
 
@@ -1183,7 +1242,8 @@ Virtualization not required initially unless real data proves necessary.
 
 # 28. First Cursor Handoff Boundary
 
-Cursorへ最初に渡す実装指示は **Slice 0のみ** とする。
+Slice 0 と Slice 1 は完了し Freeze 済み。次の実装指示は **Slice 2 のみ**（人間が開始を明示したとき）。
+最初のhandoff（当時）は Slice 0 のみだった。
 
 最初のhandoffで依頼しないもの：
 - Canvas
@@ -1260,15 +1320,19 @@ Nurse Compass V2.2 Related Diagram V1 の実装準備を開始してください
 
 # 30. Next Gate
 
-Slice 0 Cursor結果を人間/ChatGPTでレビューし、
-以下が通った場合のみSlice 1へ進む。
+Slice 0 / Slice 1 は通過済み。
 
-Gate:
-- schema preserves provenance
-- integration history preserved
-- no role/security regression
-- no Form2/Form3 modification
-- migration reversible/safe
-- no premature AI/UI coupling
-- snapshot path remains possible
+**Slice 1 Freeze Gate（達成）:**
+- read-only A3 / Toolbar / Legend / zoom-pan
+- explicit route topology（Junction 生成、Independent Crossing = bridge）
+- Connection visual 簡素化（NP も通常実線。semantic type 保持）
+- Knowledge compact + 左上配置
+- student binding / empty / error。production fixture fallback なし
+- Form2/Form3 非改変
+- iPad 実機 PASS
+
+Slice 2 へ進む条件（今回は進まない）:
+- 人間が Slice 2 開始を明示する
+- Slice 1 Freeze UI を壊さない
+- student card drag / topology persistence の設計レビュー後
 

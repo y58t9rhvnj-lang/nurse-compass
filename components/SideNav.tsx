@@ -40,7 +40,9 @@ export type AppView =
   | "clinical-workspace"
   // Evidence 整理専用の内部ビュー（Sprint D-2B 画面構成修正）。サイドバー項目にはせず、
   // 思考ワークスペースの様式2 ヘッダーにある「根拠を整理する」からのみ到達する。
-  | "evidence-review";
+  | "evidence-review"
+  // Related Diagram V1 Slice 1（read-only A3）。学生サイドナビから到達。
+  | "related-diagram";
 
 export type NavItem = {
   label: string;
@@ -102,7 +104,7 @@ export const STUDENT_NAV_ITEMS: NavItem[] = [
   { label: "スケジュール", icon: Calendar },
   { label: "業務メモ", icon: StickyNote },
   { label: "ラーニング", icon: BookOpen },
-  { label: "関連図", icon: Network },
+  { label: "関連図", icon: Network, view: "related-diagram" },
   { label: "設定", icon: Settings },
 ];
 

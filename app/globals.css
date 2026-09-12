@@ -96,6 +96,27 @@ button:disabled {
   zoom: 1;
 }
 
+/* Related Diagram V1 Slice 1 — A3 landscape print portal (hidden on screen) */
+#related-diagram-print-portal {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 420mm;
+  min-width: 420mm;
+  max-width: 420mm;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+  background: #ffffff;
+  transform: none;
+  zoom: 1;
+}
+
 @media print {
   @page {
     size: A4 portrait;
@@ -117,7 +138,10 @@ button:disabled {
     text-size-adjust: 100% !important;
   }
 
-  body > *:not(#form2-print-portal):not(#form3-print-portal) {
+  body
+    > *:not(#form2-print-portal):not(#form3-print-portal):not(
+      #related-diagram-print-portal
+    ) {
     display: none !important;
   }
 
@@ -143,10 +167,53 @@ button:disabled {
     zoom: 1 !important;
   }
 
+  #related-diagram-print-portal {
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 420mm !important;
+    min-width: 420mm !important;
+    max-width: 420mm !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: none !important;
+    z-index: auto !important;
+    background: #ffffff !important;
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  /* Keep logical px layout (≈96dpi A3). Do not remount into mm and break card coords. */
+  #related-diagram-print-portal .rd-a3-surface {
+    box-shadow: none !important;
+    outline: 1px solid #C7C7CC !important;
+    border: 1px solid #C7C7CC !important;
+    transform: none !important;
+    zoom: 1 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #related-diagram-print-portal [data-rd-legend] {
+    overflow: hidden !important;
+  }
+
+  #related-diagram-print-portal .rd-no-print {
+    display: none !important;
+  }
+
   #form2-print-portal,
   #form2-print-portal *,
   #form3-print-portal,
-  #form3-print-portal * {
+  #form3-print-portal *,
+  #related-diagram-print-portal,
+  #related-diagram-print-portal * {
     transform: none !important;
     zoom: 1 !important;
   }

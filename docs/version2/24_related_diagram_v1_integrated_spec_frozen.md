@@ -1,7 +1,8 @@
 # Nurse Compass V2.2 Related Diagram V1 統合仕様書
 **Status:** Canonical — Design Frozen (V1)  
+**Implementation:** Slice 1 (Read-only A3 Canvas) **Frozen**。Slice 2 以降は未実装。  
 **Scope:** 教育設計 / 学習体験 / UI/UX / データ構造 / AI評価 / 教員トリアージ  
-**Implementation:** 本仕様書の凍結後に開始する。現時点では実装しない。
+**Rule:** 教育的意味は本仕様で固定。Slice 1 で確定した Canvas / Connection visual / routing は実装 Freeze。後続 Slice で意味を変えない。
 
 ---
 
@@ -85,11 +86,13 @@ Compassの関連図は、Form3でパターンごとに文章化した患者理�
 
 ### 5.1 基本
 - 論理キャンバスはA3横。
+- 論理ピクセルは約96dpiで **1587 × 1122**（ISO A3 420×297mm）。
 - iPad Safariを主要対象とする。
-- 10.5pt程度で印刷時に可読性を確保する。
-- 編集時はpinch zoom / panを許可する。
-- 「全体表示」でA3全体へ戻れる。
+- 本文は **10.5pt** 基準。文字サイズを下げて縮小しない。
+- pinch zoom / 2本指 pan を許可する（viewport transform。Card座標は変えない）。
+- 「100%」と「全体表示」で倍率を戻せる。
 - 無限キャンバスにはしない。
+- Slice 1 は read-only。1本指 Card drag は Slice 2 以降。
 
 ### 5.2 A3外
 - A3外への配置は完全禁止しない。
@@ -101,6 +104,37 @@ Compassの関連図は、Form3でパターンごとに文章化した患者理�
 既存Compassの左メニュー構造を維持する。
 関連図はForm2/Form3と同じように直接開ける。
 Form3完了を起動条件にはしない。
+
+### 5.4 Toolbar（Slice 1 確定）
+Toolbarは **1段**。Canvas transform の外。`sticky top`。iPad landscape で常時操作可能。
+
+- 左：Related Diagram / case または fixture title（truncate可）
+- 右：現在倍率 / `100%` / `全体表示` / `印刷`
+
+Undo / Redo / ＋ / Coach は Slice 1 には置かない（後続 Slice）。
+
+### 5.5 Viewport（Slice 1 確定）
+```text
+header[data-rd-toolbar]     ← transform 外
+viewport                    ← overflow hidden
+  canvas transform layer    ← translate + scale
+    A3 logical canvas       ← 1587 × 1122
+```
+
+### 5.6 Legend（Slice 1 確定）
+A3 右下のキャンバス内凡例。semantic graph には含めない。位置・サイズ・内容は Slice 1 Freeze。
+
+Cards:
+- 顕在
+- 潜在
+- 看護問題
+
+Lines:
+- 顕在
+- 潜在
+- 治療
+
+看護問題専用 line legend なし。bridge legend なし。
 
 ---
 
@@ -221,13 +255,54 @@ Nursing Problem → Integrated Nursing Problemは、
 
 「統合して考える」操作によって生成する。
 
-### 9.5 白黒印刷での表現
-通常3種と混同しないよう、以下を推奨する。
+### 9.5 Connection visual（Slice 1 確定）
+白黒・monochrome。Connection 色は `#1D1D1F`。青色 Connection は使わない。
 
-- Nursing Problem Basis：**細い二重線矢印**
-- Nursing Problem Integration：**二重線＋統合記号（◇）を終端近くに付与**
+| relation_type | visual |
+|---|---|
+| `current` | 通常の実線矢印 |
+| `potential` | 破線矢印 |
+| `treatment` | 太い実線矢印 |
+| `nursing_problem_basis` | visual上は通常の実線矢印 |
+| `nursing_problem_integration` | visual上は通常の実線矢印 |
 
-※実装前のUIモックでA3白黒印刷可読性を確認し、必要なら線パターンのみ調整する。意味論は固定する。
+semantic graph 上の `nursing_problem_basis` / `nursing_problem_integration` は **保持**する。これは visual simplification であり、semantic 削除ではない。学生が選ぶ線種は従来どおり通常3種だけ。
+
+#### 廃止仕様（実装しない / 復活させない）
+旧モック案。現行仕様と混同しないこと。
+
+- 看護問題 basis の二重線
+- integration の二重線
+- integration diamond（◇）
+- 青色 Connection
+
+### 9.6 Junction / Independent Crossing / Bridge（Slice 1 確定）
+Junctionは geometry から **検出しない**。routing 時に明示生成する。
+
+順序：
+1. Connection topology を決定する
+2. shared trunk / branch point / route group を定義する
+3. topology から route / polyline を生成する
+4. **explicit Junction は bridge なし**
+5. それ以外の proper H×V internal crossing は Independent Crossing として **必ず bridge**
+
+Junction 判定に使わない：
+- polyline vertex 一致
+- vertex-on-segment
+- Card 近傍
+- same source だけ
+- geometry coincidence
+
+Independent Crossing の visual：
+- 単純な半円 bridge
+- horizontal jumper = ∩（上向き半円）
+- vertical jumper = 90°回転した半円（右向き）
+- straight spine は bridge 部分で gap
+- arc は別 SVG path
+- potential でも bridge arc は solid overlay 可
+- relation semantic（実線/破線/太線）は直線部分で維持
+
+Junction / shared branch に bridge は付けない。
 
 ---
 
@@ -258,6 +333,33 @@ Nursing Problem → Integrated Nursing Problemは、
 病態Knowledgeは初期状態ではsystem groupとして移動可能。
 個別Knowledge Cardは患者CardとConnection可能。
 誤削除防止のため初期ロックを推奨。
+
+### 10.5 土台としての配置（Slice 1 確定）
+病態Knowledgeは学生関連図の主役ではなく、患者理解を支える土台である。
+teacher-reviewed fixed Knowledge として A3 **左上**に置く。
+右側・下側は患者情報・Assessment・患者理解・看護問題用に残す。
+病態Knowledgeブロック自体を中央へ寄せて空きを埋めない。
+
+本文 10.5pt を維持する。`transform: scale(...)` で Knowledge 全体や文字を縮小しない。
+Slice 1 の compact 方針：
+- Card 幅を約 10〜15% 縮小（標準 width **146**。旧 168）
+- Knowledge padding **5px 7px**（デモ Card は 6px 8px）
+- 短文 min-height **62** / 2行 **72**（旧一律 70）
+- gap を約 10〜15% 詰める
+- 長文は自然に折り返す。無理な1行化はしない
+
+### 10.6 layout / routing metadata
+semantic Knowledge と layout/routing metadata は分離する。
+V1 では少なくとも以下を layout metadata として保持可能とする（AI評価 payload には使わない）。
+
+- Card position / size
+- authored Connection route / polyline
+- shared trunk
+- branch point / Junction
+- route group
+
+Slice 1 では DEV fixture が explicit topology を持つ。
+student editable topology / drag persistence は Slice 2 以降。
 
 ---
 
@@ -982,7 +1084,7 @@ AIは個別評価終了後、クラス全体について以下をまとめる。
 
 以下は実装前にUIモックで最終確認するが、教育上の意味は本仕様で固定する。
 
-1. Nursing Problem Basis / Integration線の白黒A3上での最終視覚表現。
+1. Nursing Problem Basis / Integration線の白黒A3上での最終視覚表現。→ **Slice 1 で通常実線矢印に確定。二重線 / diamond は廃止仕様。**
 2. Nursing Problem Cardのcurrent/potential表示位置。
 3. 10.5pt基準での病態Knowledge初期密度。
 4. iPad Safariでのmulti-select / drag / connection handleの操作性。
@@ -1286,9 +1388,11 @@ Phase 2:
 
 上記修正を反映した時点で、Related Diagram V1は教育設計上の重大な未解決事項を残していない。
 
-**Design Status: FROZEN — V1**
+**Design Status: FROZEN — V1**  
+**Implementation Status: Slice 1 Frozen — Read-only A3 Canvas**
 
 以後、実装中に教育上の意味を変更する必要が生じた場合は、実装都合だけで変更せず、本仕様書へDesign Changeとして戻す。
+Slice 1 で確定した Toolbar / Legend / Connection visual / explicit topology / Bridge は、後続 Slice で勝手に戻さない。
 
 次工程は以下とする。
 
@@ -1302,4 +1406,15 @@ Phase 2:
 8. iPad Safari受入
 9. 教員運用検証
 10. 実学生データでAI妥当性検証
+
+---
+
+# 46. Slice 1 Implementation Freeze
+
+**Related Diagram V2.2 — Slice 1 Read-only A3 Canvas: FROZEN**
+
+実機 PASS として固定した範囲：
+A3 landscape / Toolbar 1段 / 右上 controls / zoom / pinch / 2本指 pan / 100% / 全体表示 / 印刷 baseline / Legend / Knowledge compact / explicit route topology / Junction / Independent Crossing / 半円 bridge / monochrome Connection / 看護問題 Connection visual 簡素化。
+
+Slice 2 は本 Freeze の後、別指示があるまで開始しない。
 
