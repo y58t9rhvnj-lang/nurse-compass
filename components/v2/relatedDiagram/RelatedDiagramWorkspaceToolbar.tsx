@@ -15,6 +15,10 @@ export default function RelatedDiagramWorkspaceToolbar({
   title,
   subtitle,
   leading,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
 }: {
   percent: number;
   onReset100: () => void;
@@ -23,6 +27,10 @@ export default function RelatedDiagramWorkspaceToolbar({
   title: string;
   subtitle?: string;
   leading?: ReactNode;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }) {
   const label = subtitle ? `${title} / ${subtitle}` : title;
   return (
@@ -44,6 +52,30 @@ export default function RelatedDiagramWorkspaceToolbar({
           data-rd-toolbar-controls
           className="flex shrink-0 items-center gap-2"
         >
+          {onUndo || onRedo ? (
+            <>
+              <button
+                type="button"
+                data-rd-undo
+                aria-label="一手戻る"
+                disabled={!canUndo}
+                onClick={onUndo}
+                className="min-h-[44px] min-w-[44px] rounded-lg border border-[#E5E5EA] bg-white text-[16px] text-[#1D1D1F] disabled:opacity-40"
+              >
+                ↶
+              </button>
+              <button
+                type="button"
+                data-rd-redo
+                aria-label="一手進む"
+                disabled={!canRedo}
+                onClick={onRedo}
+                className="min-h-[44px] min-w-[44px] rounded-lg border border-[#E5E5EA] bg-white text-[16px] text-[#1D1D1F] disabled:opacity-40"
+              >
+                ↷
+              </button>
+            </>
+          ) : null}
           <span
             data-rd-zoom-percent
             className="tabular-nums text-[13px] font-medium text-[#1D1D1F]"

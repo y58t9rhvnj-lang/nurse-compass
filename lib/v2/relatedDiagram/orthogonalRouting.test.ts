@@ -27,14 +27,24 @@ import {
   BRIDGE_MIN_VISIBLE_RADIUS_PX,
   BRIDGE_RADIUS_PX,
   BRIDGE_WIDTH_PX,
+  buildOrthogonalSpineDFromHops,
+  collectRenderableHops,
   dedupeBridgesForVisual,
+  dedupeHopsForVisual,
+  hopArcPathD,
   hopRadiusForSegment,
+  hopVisualKey,
   analyzeRouteMeetings,
+  planConnectionBridgeVisual,
   planOrthogonalRoutes,
   polylineHitsObstacles,
   properSegmentCrossing,
+  spineHasStraightThroughHop,
+  uniqueRoutesByConnectionId,
+  type CrossingBridge,
   type RoutedConnection,
 } from "./orthogonalRouting";
+import { overlayPreviewRoutes } from "./dragRoutePreview";
 import {
   ROUTE_TOPOLOGY_SCHEMA,
   type RelatedDiagramRouteTopology,
@@ -1049,6 +1059,188 @@ test("D7. analyze counts: independent === bridges", () => {
   const analyzed = analyzeRouteMeetings(routes);
   assert.equal(analyzed.independentCrossingCount, analyzed.bridgeCount);
   assert.equal(analyzed.bridges.length, analyzed.bridgeCount);
+});
+
+const H_BRIDGE: CrossingBridge = {
+  jumperConnectionId: "j",
+  underConnectionId: "u",
+  x: 60,
+  y: 50,
+  jumperAxis: "h",
+};
+const V_BRIDGE: CrossingBridge = {
+  jumperConnectionId: "j",
+  underConnectionId: "u",
+  x: 50,
+  y: 60,
+  jumperAxis: "v",
+};
+
+test("bridge visual. horizontal crossing is a semicircle only", () => {
+  const points = [
+    { x: 0, y: 50 },
+    { x: 120, y: 50 },
+  ];
+  const hops = collectRenderableHops(points, [H_BRIDGE]);
+  assert.equal(hops.length, 1);
+  assert.match(hopArcPathD(hops[0]!), /A 10 10 0 0 1 /);
+  const spine = buildOrthogonalSpineDFromHops(points, hops);
+  assert.equal(spine.includes("A "), false);
+  assert.equal(spineHasStraightThroughHop(spine, hops[0]!), false);
+});
+
+test("bridge visual. vertical crossing is a semicircle only", () => {
+  const points = [
+    { x: 50, y: 0 },
+    { x: 50, y: 120 },
+  ];
+  const hops = collectRenderableHops(points, [V_BRIDGE]);
+  assert.equal(hops.length, 1);
+  assert.match(hopArcPathD(hops[0]!), /A 10 10 0 0 1 /);
+  const spine = buildOrthogonalSpineDFromHops(points, hops);
+  assert.equal(spineHasStraightThroughHop(spine, hops[0]!), false);
+});
+
+test("bridge visual. no straight segment under the hop chord", () => {
+  const points = [
+    { x: 0, y: 50 },
+    { x: 120, y: 50 },
+  ];
+  const hops = collectRenderableHops(points, [H_BRIDGE]);
+  const spine = buildOrthogonalSpineD(points, [H_BRIDGE]);
+  assert.ok(spine.includes("L 50 50"));
+  assert.ok(spine.includes("M 70 50"));
+  assert.equal(spineHasStraightThroughHop(spine, hops[0]!), false);
+});
+
+test("bridge visual. potential dashed spine still gaps the hop", () => {
+  const dash = resolveConnectionStrokeVisual("potential");
+  assert.equal(dash.dasharray, "5 4");
+  const points = [
+    { x: 0, y: 50 },
+    { x: 120, y: 50 },
+  ];
+  const hops = collectRenderableHops(points, [H_BRIDGE]);
+  const spine = buildOrthogonalSpineDFromHops(points, hops);
+  assert.equal(spineHasStraightThroughHop(spine, hops[0]!), false);
+  assert.equal(hopArcPathD(hops[0]!).includes("A "), true);
+  const layer = readFileSync(
+    new URL(
+      "../../../components/v2/relatedDiagram/RelatedDiagramConnectionLayer.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const hopBlock = layer.slice(layer.indexOf("data-rd-bridge-arc"));
+  assert.equal(hopBlock.includes("strokeDasharray"), false);
+});
+
+test("bridge visual. coincident hops collapse to one arc", () => {
+  const hops = collectRenderableHops(
+    [
+      { x: 0, y: 50 },
+      { x: 200, y: 50 },
+    ],
+    [
+      { ...H_BRIDGE, jumperConnectionId: "aa", x: 80, y: 50 },
+      { ...H_BRIDGE, jumperConnectionId: "zz", x: 80.2, y: 50.1 },
+    ],
+  );
+  const unique = dedupeHopsForVisual(hops);
+  assert.equal(unique.length, 1);
+  const visual = planConnectionBridgeVisual({
+    routes: [
+      manualRoute("aa", "h1", "h2", [
+        { x: 0, y: 50 },
+        { x: 200, y: 50 },
+      ]),
+      manualRoute("zz", "h3", "h4", [
+        { x: 0, y: 50 },
+        { x: 200, y: 50 },
+      ]),
+    ],
+    bridges: [
+      { ...H_BRIDGE, jumperConnectionId: "aa", x: 80, y: 50 },
+      { ...H_BRIDGE, jumperConnectionId: "zz", x: 80.2, y: 50.1 },
+    ],
+  });
+  assert.equal(visual.hops.length, 1);
+  assert.equal(new Set(visual.hops.map((h) => hopVisualKey(h.hop))).size, 1);
+  const shared = visual.hops.map((h) => h.hop);
+  for (const route of visual.adoptedRoutes) {
+    const spine = buildOrthogonalSpineDFromHops(route.points, shared);
+    assert.equal(spineHasStraightThroughHop(spine, shared[0]!), false);
+  }
+});
+
+test("bridge visual. preview/fallback cannot keep a second spine", () => {
+  const final = manualRoute("c1", "a", "b", [
+    { x: 0, y: 50 },
+    { x: 120, y: 50 },
+  ]);
+  const preview = manualRoute("c1", "a", "b", [
+    { x: 0, y: 50 },
+    { x: 80, y: 50 },
+    { x: 80, y: 20 },
+  ]);
+  const overlay = overlayPreviewRoutes([final], [preview]);
+  const visual = planConnectionBridgeVisual({
+    routes: overlay,
+    bridges: [H_BRIDGE],
+    previewIds: new Set(["c1"]),
+  });
+  assert.equal(overlay.length, 1);
+  assert.deepEqual(overlay[0]!.points, preview.points);
+  assert.equal(uniqueRoutesByConnectionId([...overlay, final]).length, 1);
+  assert.equal(visual.adoptedRoutes.length, 1);
+  assert.deepEqual(visual.adoptedRoutes[0]!.points, preview.points);
+  assert.equal(visual.hops.length, 0);
+});
+
+test("bridge visual. Junction routes do not emit hops", () => {
+  const routes = [
+    manualRoute("a_c", "A", "C", [
+      { x: 0, y: 50 },
+      { x: 200, y: 50 },
+    ]),
+    manualRoute("a_b", "A", "B", [
+      { x: 0, y: 50 },
+      { x: 80, y: 50 },
+      { x: 80, y: 10 },
+    ]),
+  ];
+  const classified = classifyRouteInteractions(routes);
+  assert.equal(classified.bridges.length, 0);
+  const visual = planConnectionBridgeVisual({
+    routes,
+    bridges: classified.bridges,
+  });
+  assert.equal(visual.hops.length, 0);
+});
+
+test("bridge visual. debug overlay does not draw a r=10 circle under the hop", () => {
+  const overlay = readFileSync(
+    new URL(
+      "../../../components/v2/relatedDiagram/RelatedDiagramRouteDebugOverlay.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.ok(overlay.includes("bridge-safe-zone"));
+  assert.equal(overlay.includes("r={10}"), false);
+  const layer = readFileSync(
+    new URL(
+      "../../../components/v2/relatedDiagram/RelatedDiagramConnectionLayer.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.ok(layer.includes("planConnectionBridgeVisual"));
+  assert.ok(layer.includes("buildOrthogonalHopArcs"));
+  assert.ok(layer.includes("buildOrthogonalSpineD"));
+  assert.ok(layer.includes("data-rd-bridge-arc"));
+  assert.equal(layer.includes("mask"), false);
+  assert.equal(layer.includes("data-rd-bridge-knockout"), false);
 });
 
 console.log(`\n${passed} passed`);

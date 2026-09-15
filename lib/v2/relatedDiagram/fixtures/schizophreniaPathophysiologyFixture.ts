@@ -103,6 +103,24 @@ export const SCHIZOPHRENIA_KNOWLEDGE_CONNECTIONS: RelatedDiagramConnection[] = [
 ];
 
 /**
+ * Slice 2A DEV student-card unlock set. Junction / crossing demos stay
+ * layout-locked so their authored topology remains a stable visual fixture.
+ * Knowledge cards keep isLocked=true (semantic lock) but are layout-movable.
+ */
+export const SLICE2A_MOVABLE_DEMO_CARD_IDS = [
+  "demo_info",
+  "demo_u_cur",
+  "demo_u_pot",
+  "demo_np",
+  "demo_np2",
+  "demo_treat_src",
+] as const;
+
+function demoLocked(id: string): boolean {
+  return !(SLICE2A_MOVABLE_DEMO_CARD_IDS as readonly string[]).includes(id);
+}
+
+/**
  * Style demo only — not Knowledge Library content.
  * One of each card/connection visual for Slice 1 QA (right side of A3).
  */
@@ -115,7 +133,7 @@ export function buildSlice1StyleDemoGraph(): RelatedDiagramSemanticGraph {
       state: null,
       origin: "patient_information",
       layout: { x: A3_WIDTH_PX - 360, y: 80, width: 180, height: 72, zIndex: 1 },
-      isLocked: true,
+      isLocked: demoLocked("demo_info"),
       createdAt: TS,
       updatedAt: TS,
     },
@@ -132,7 +150,7 @@ export function buildSlice1StyleDemoGraph(): RelatedDiagramSemanticGraph {
         height: 72,
         zIndex: 1,
       },
-      isLocked: true,
+      isLocked: demoLocked("demo_u_cur"),
       createdAt: TS,
       updatedAt: TS,
     },
@@ -149,7 +167,7 @@ export function buildSlice1StyleDemoGraph(): RelatedDiagramSemanticGraph {
         height: 72,
         zIndex: 1,
       },
-      isLocked: true,
+      isLocked: demoLocked("demo_u_pot"),
       createdAt: TS,
       updatedAt: TS,
     },
@@ -166,7 +184,7 @@ export function buildSlice1StyleDemoGraph(): RelatedDiagramSemanticGraph {
         height: 78,
         zIndex: 1,
       },
-      isLocked: true,
+      isLocked: demoLocked("demo_np"),
       createdAt: TS,
       updatedAt: TS,
     },
@@ -183,7 +201,7 @@ export function buildSlice1StyleDemoGraph(): RelatedDiagramSemanticGraph {
         height: 78,
         zIndex: 1,
       },
-      isLocked: true,
+      isLocked: demoLocked("demo_np2"),
       createdAt: TS,
       updatedAt: TS,
     },
@@ -200,7 +218,7 @@ export function buildSlice1StyleDemoGraph(): RelatedDiagramSemanticGraph {
         height: 64,
         zIndex: 1,
       },
-      isLocked: true,
+      isLocked: demoLocked("demo_treat_src"),
       createdAt: TS,
       updatedAt: TS,
     },

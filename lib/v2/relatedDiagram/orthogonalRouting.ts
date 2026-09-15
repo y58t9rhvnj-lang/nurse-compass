@@ -13,6 +13,15 @@ import {
   junctionsFromTopology,
   type RelatedDiagramRouteTopology,
 } from "./routeTopology";
+import {
+  BRIDGE_SAFE_MARGIN,
+  CARD_ROUTE_CLEARANCE,
+  MIN_ENDPOINT_STUB,
+  minBridgeSegmentLength,
+  normalizeOrthogonalPolyline,
+  selectBestOrthogonalRoute,
+  validateOrthogonalRoute,
+} from "./routeHardening";
 
 export type EdgeSide = "top" | "right" | "bottom" | "left";
 export type Point = { x: number; y: number };
@@ -52,14 +61,25 @@ export type RouteJunction = {
   connectionIds: [string, string];
 };
 
+export type InvalidPlannedRoute = {
+  connectionId: string;
+  sourceCardId: string;
+  targetCardId: string;
+  sourceEdge: EdgeSide;
+  targetEdge: EdgeSide;
+  points: Point[];
+  reasons: string[];
+};
+
 export type OrthogonalRoutePlan = {
   routes: RoutedConnection[];
   bridges: CrossingBridge[];
   junctions: RouteJunction[];
+  invalidRoutes: InvalidPlannedRoute[];
 };
 
-export const ROUTE_STUB_PX = 14;
-export const ROUTE_CLEARANCE_PX = 10;
+export const ROUTE_STUB_PX = MIN_ENDPOINT_STUB;
+export const ROUTE_CLEARANCE_PX = CARD_ROUTE_CLEARANCE;
 /** True semicircle hop: width = 2r, height = r. */
 export const BRIDGE_RADIUS_PX = 10;
 export const BRIDGE_WIDTH_PX = BRIDGE_RADIUS_PX * 2;
@@ -227,7 +247,7 @@ function segmentHitsRect(
   return true;
 }
 
-/** True if any interior segment (not first/last stub) hits an obstacle card. */
+/** True if any segment hits an unrelated card keep-out. Source/target are ignored. */
 export function polylineHitsObstacles(
   points: Point[],
   obstacles: CardBox[],
@@ -235,9 +255,7 @@ export function polylineHitsObstacles(
   clearance: number,
 ): boolean {
   if (points.length < 2) return false;
-  const start = points.length <= 3 ? 0 : 1;
-  const end = points.length <= 3 ? points.length - 1 : points.length - 2;
-  for (let i = start; i < end; i++) {
+  for (let i = 0; i < points.length - 1; i++) {
     const a = points[i]!;
     const b = points[i + 1]!;
     for (const box of obstacles) {
@@ -881,55 +899,90 @@ export function planOrthogonalRoutes(
   );
 
   const accepted: RoutedConnection[] = [];
+  const invalidRoutes: InvalidPlannedRoute[] = [];
+  const junctions = (options?.topology?.branchPoints ?? []).map((bp) => ({
+    x: bp.x,
+    y: bp.y,
+  }));
   for (const conn of ordered) {
     const source = byId.get(conn.sourceCardId);
     const target = byId.get(conn.targetCardId);
     if (!source || !target || source.id === target.id) continue;
     const preset = authored.get(conn.id);
-    if (preset && preset.points.length >= 2) {
+    const srcBox = cardBox(source);
+    const tgtBox = cardBox(target);
+    const { sourceEdge, targetEdge } = preset
+      ? { sourceEdge: preset.sourceEdge, targetEdge: preset.targetEdge }
+      : chooseCardEdges(source, target);
+    const sourcePin = edgeMidpoint(srcBox, sourceEdge);
+    const targetPin = edgeMidpoint(tgtBox, targetEdge);
+    const tryAccept = (points: Point[]): boolean => {
+      const validation = validateOrthogonalRoute({
+        points,
+        sourcePin,
+        targetPin,
+        obstacles,
+        sourceCardId: source.id,
+        targetCardId: target.id,
+        clearance: 0,
+      });
+      if (!validation.ok) return false;
       accepted.push({
         connectionId: conn.id,
         sourceCardId: source.id,
         targetCardId: target.id,
-        sourceEdge: preset.sourceEdge,
-        targetEdge: preset.targetEdge,
-        points: preset.points,
+        sourceEdge,
+        targetEdge,
+        points,
       });
-      continue;
+      return true;
+    };
+
+    if (preset && preset.points.length >= 2) {
+      const normalized = normalizeOrthogonalPolyline(
+        preset.points,
+        sourcePin,
+        targetPin,
+      );
+      if (tryAccept(normalized)) continue;
     }
-    const { sourceEdge, targetEdge } = chooseCardEdges(source, target);
-    const ignore = new Set([source.id, target.id]);
-    const blockers = obstacles.filter((o) => !ignore.has(o.id));
-    const candidates = candidatePolylines(
-      cardBox(source),
-      cardBox(target),
+    const best = selectBestOrthogonalRoute({
+      source: srcBox,
+      target: tgtBox,
       sourceEdge,
       targetEdge,
+      obstacles,
+      canvas,
       stub,
       clearance,
-      canvas,
-      blockers,
+      priorRoutes: accepted.map((r) => r.points),
+      junctions,
+      sourcePin,
+      targetPin,
+    });
+    if (best && tryAccept(best)) continue;
+    const fallback = normalizeOrthogonalPolyline(
+      preset?.points ?? [sourcePin, targetPin],
+      sourcePin,
+      targetPin,
     );
-    const prior = accepted.map((r) => r.points);
-    let best: Point[] | null = null;
-    let bestScore = Infinity;
-    for (const pts of candidates) {
-      const hits = polylineHitsObstacles(pts, obstacles, ignore, clearance);
-      const crosses = countRouteCrossings(pts, prior);
-      const score = routeScore(pts, hits, crosses);
-      if (score < bestScore) {
-        bestScore = score;
-        best = pts;
-      }
-    }
-    if (!best) continue;
-    accepted.push({
+    const failed = validateOrthogonalRoute({
+      points: fallback,
+      sourcePin,
+      targetPin,
+      obstacles,
+      sourceCardId: source.id,
+      targetCardId: target.id,
+      clearance: 0,
+    });
+    invalidRoutes.push({
       connectionId: conn.id,
       sourceCardId: source.id,
       targetCardId: target.id,
       sourceEdge,
       targetEdge,
-      points: best,
+      points: fallback,
+      reasons: failed.reasons.length ? failed.reasons : ["no-legal-route"],
     });
   }
 
@@ -942,6 +995,7 @@ export function planOrthogonalRoutes(
     routes: accepted,
     bridges: classified.bridges,
     junctions: classified.junctions,
+    invalidRoutes,
   };
 }
 
@@ -1003,9 +1057,10 @@ export function hopRadiusForSegment(
   segLen: number,
   requested = BRIDGE_RADIUS_PX,
 ): number | null {
-  const maxR = (segLen - 16) / 2;
-  if (maxR < BRIDGE_MIN_VISIBLE_RADIUS_PX) return null;
-  return Math.min(requested, maxR);
+  if (segLen <= minBridgeSegmentLength(requested, BRIDGE_SAFE_MARGIN)) {
+    return null;
+  }
+  return requested;
 }
 
 /** One visual hop per coincident point (later jumper id wins). Semantics unchanged. */
@@ -1025,6 +1080,132 @@ export function dedupeBridgesForVisual(
     byPoint.set(key, br);
   }
   return [...byPoint.values()];
+}
+
+/** Last write wins so preview/final cannot both remain. */
+export function uniqueRoutesByConnectionId<T extends { connectionId: string }>(
+  routes: T[],
+): T[] {
+  const byId = new Map<string, T>();
+  for (const route of routes) {
+    byId.set(route.connectionId, route);
+  }
+  return [...byId.values()];
+}
+
+export function hopCenter(hop: BridgeHopGeom): Point {
+  return {
+    x: (hop.start.x + hop.end.x) / 2,
+    y: (hop.start.y + hop.end.y) / 2,
+  };
+}
+
+export function hopVisualKey(hop: BridgeHopGeom): string {
+  const c = hopCenter(hop);
+  return `${hop.axis}:${Math.round(c.x)}:${Math.round(c.y)}:${hop.r}`;
+}
+
+export function collectRenderableHops(
+  points: Point[],
+  bridges: CrossingBridge[],
+  radius = BRIDGE_RADIUS_PX,
+): BridgeHopGeom[] {
+  if (points.length < 2) return [];
+  const hops: BridgeHopGeom[] = [];
+  for (let i = 1; i < points.length; i++) {
+    hops.push(...hopsOnSegment(points[i - 1]!, points[i]!, bridges, radius));
+  }
+  return hops;
+}
+
+export function dedupeHopsForVisual(hops: BridgeHopGeom[]): BridgeHopGeom[] {
+  const byKey = new Map<string, BridgeHopGeom>();
+  for (const hop of hops) {
+    byKey.set(hopVisualKey(hop), hop);
+  }
+  return [...byKey.values()];
+}
+
+export function hopLiesOnSegment(
+  a: Point,
+  b: Point,
+  hop: BridgeHopGeom,
+): boolean {
+  if (segmentAxis(a, b) !== hop.axis) return false;
+  const c = hopCenter(hop);
+  if (hop.axis === "h") {
+    if (Math.abs(c.y - (a.y + b.y) / 2) > 5) return false;
+    const lo = Math.min(a.x, b.x);
+    const hi = Math.max(a.x, b.x);
+    return c.x > lo + 0.35 && c.x < hi - 0.35;
+  }
+  if (Math.abs(c.x - (a.x + b.x) / 2) > 5) return false;
+  const lo = Math.min(a.y, b.y);
+  const hi = Math.max(a.y, b.y);
+  return c.y > lo + 0.35 && c.y < hi - 0.35;
+}
+
+function gapOnSegment(
+  a: Point,
+  b: Point,
+  hop: BridgeHopGeom,
+): { start: Point; end: Point } | null {
+  if (!hopLiesOnSegment(a, b, hop)) return null;
+  const c = hopCenter(hop);
+  const r = hop.r;
+  const segLen = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+  if (segLen < 2 * r + 0.35) return null;
+  if (hop.axis === "h") {
+    const dir = b.x >= a.x ? 1 : -1;
+    if (Math.abs(c.x - a.x) < r || Math.abs(b.x - c.x) < r) return null;
+    return {
+      start: { x: c.x - dir * r, y: a.y },
+      end: { x: c.x + dir * r, y: a.y },
+    };
+  }
+  const dir = b.y >= a.y ? 1 : -1;
+  if (Math.abs(c.y - a.y) < r || Math.abs(b.y - c.y) < r) return null;
+  return {
+    start: { x: a.x, y: c.y - dir * r },
+    end: { x: a.x, y: c.y + dir * r },
+  };
+}
+
+export type PlannedBridgeHop = {
+  key: string;
+  hop: BridgeHopGeom;
+  connectionId: string;
+};
+
+/**
+ * Final adopted geometry only: one route per connectionId, one hop per
+ * visual crossing. Preview ids contribute no hop (no second spine+arc).
+ */
+export function planConnectionBridgeVisual(input: {
+  routes: RoutedConnection[];
+  bridges: CrossingBridge[];
+  previewIds?: ReadonlySet<string>;
+}): {
+  adoptedRoutes: RoutedConnection[];
+  hops: PlannedBridgeHop[];
+} {
+  const adoptedRoutes = uniqueRoutesByConnectionId(input.routes);
+  const visualBridges = dedupeBridgesForVisual(input.bridges);
+  const hops: PlannedBridgeHop[] = [];
+  const seen = new Set<string>();
+  for (const route of adoptedRoutes) {
+    if (input.previewIds?.has(route.connectionId)) continue;
+    const own = visualBridges.filter((b) =>
+      polylineCarriesBridge(route.points, b),
+    );
+    for (const hop of collectRenderableHops(route.points, own)) {
+      const key = hopVisualKey(hop);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      hops.push({ key, hop, connectionId: route.connectionId });
+    }
+  }
+  return { adoptedRoutes, hops };
 }
 
 /** Snap centerline bridges onto an offset polyline (double-line). */
@@ -1072,7 +1253,9 @@ function hopsOnSegment(
     const t = alongT(a, b, br);
     const distA = t * segLen;
     const distB = (1 - t) * segLen;
-    if (distA < r + 8 || distB < r + 8) continue;
+    if (distA < r + BRIDGE_SAFE_MARGIN || distB < r + BRIDGE_SAFE_MARGIN) {
+      continue;
+    }
     if (axis === "h") {
       const dir = b.x >= a.x ? 1 : -1;
       hops.push({
@@ -1094,6 +1277,20 @@ function hopsOnSegment(
     }
   }
   return hops;
+}
+
+/** False when hopsOnSegment would skip this Independent Crossing. */
+export function canRenderBridgeHop(
+  points: Point[],
+  bridge: CrossingBridge,
+  radius = BRIDGE_RADIUS_PX,
+): boolean {
+  if (points.length < 2) return false;
+  for (let i = 1; i < points.length; i++) {
+    const hops = hopsOnSegment(points[i - 1]!, points[i]!, [bridge], radius);
+    if (hops.length > 0) return true;
+  }
+  return false;
 }
 
 export function hopArcPathD(hop: BridgeHopGeom): string {
@@ -1119,25 +1316,82 @@ export function buildOrthogonalHopArcs(
 /**
  * Orthogonal spine with a gap at each hop so the chord does not cut the
  * semicircle, and dashed strokes do not break the arc.
+ * Shared hops cut every same-axis spine that passes the crossing.
  */
-export function buildOrthogonalSpineD(
+export function buildOrthogonalSpineDFromHops(
   points: Point[],
-  bridges: CrossingBridge[],
-  radius = BRIDGE_RADIUS_PX,
+  hops: BridgeHopGeom[],
 ): string {
   if (points.length < 2) return "";
   const parts: string[] = [`M ${points[0]!.x} ${points[0]!.y}`];
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1]!;
     const b = points[i]!;
-    const hops = hopsOnSegment(a, b, bridges, radius);
-    for (const hop of hops) {
-      parts.push(`L ${hop.start.x} ${hop.start.y}`);
-      parts.push(`M ${hop.end.x} ${hop.end.y}`);
+    const gaps = hops
+      .map((hop) => {
+        const gap = gapOnSegment(a, b, hop);
+        if (!gap) return null;
+        return { ...gap, t: alongT(a, b, hopCenter(hop)) };
+      })
+      .filter((g): g is NonNullable<typeof g> => g != null)
+      .sort((p, q) => p.t - q.t);
+    for (const gap of gaps) {
+      parts.push(`L ${gap.start.x} ${gap.start.y}`);
+      parts.push(`M ${gap.end.x} ${gap.end.y}`);
     }
     parts.push(`L ${b.x} ${b.y}`);
   }
   return parts.join(" ");
+}
+
+export function buildOrthogonalSpineD(
+  points: Point[],
+  bridges: CrossingBridge[],
+  radius = BRIDGE_RADIUS_PX,
+): string {
+  return buildOrthogonalSpineDFromHops(
+    points,
+    collectRenderableHops(points, bridges, radius),
+  );
+}
+
+function parseSpineCommands(
+  d: string,
+): Array<{ cmd: string; x: number; y: number }> {
+  const out: Array<{ cmd: string; x: number; y: number }> = [];
+  const re = /([ML])\s+(-?[\d.]+)\s+(-?[\d.]+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(d))) {
+    out.push({ cmd: m[1]!, x: Number(m[2]), y: Number(m[3]) });
+  }
+  return out;
+}
+
+/** True when a continuous L covers the hop chord (circle-forming leftover). */
+export function spineHasStraightThroughHop(
+  d: string,
+  hop: BridgeHopGeom,
+): boolean {
+  const cmds = parseSpineCommands(d);
+  const c = hopCenter(hop);
+  const r = hop.r;
+  for (let i = 1; i < cmds.length; i++) {
+    const prev = cmds[i - 1]!;
+    const cur = cmds[i]!;
+    if (cur.cmd !== "L") continue;
+    if (hop.axis === "h") {
+      if (Math.abs(prev.y - c.y) > 0.6 || Math.abs(cur.y - c.y) > 0.6) continue;
+      const lo = Math.min(prev.x, cur.x);
+      const hi = Math.max(prev.x, cur.x);
+      if (lo <= c.x - r + 0.5 && hi >= c.x + r - 0.5) return true;
+    } else {
+      if (Math.abs(prev.x - c.x) > 0.6 || Math.abs(cur.x - c.x) > 0.6) continue;
+      const lo = Math.min(prev.y, cur.y);
+      const hi = Math.max(prev.y, cur.y);
+      if (lo <= c.y - r + 0.5 && hi >= c.y + r - 0.5) return true;
+    }
+  }
+  return false;
 }
 
 export function buildOrthogonalPathD(

@@ -10,7 +10,8 @@
  * Safari gesture* is cancelled only (never used as scale source).
  *
  * Desktop:
- * - mouse drag → pan
+ * - mouse drag on blank canvas → pan
+ * - mouse drag on a Card → Card interaction (no canvas pan)
  * - wheel / trackpad → zoom about cursor
  */
 
@@ -33,6 +34,10 @@ import {
   type TwoFingerGestureStart,
   type ViewportPoint,
 } from "@/lib/v2/relatedDiagram/a3ViewportGesture";
+import {
+  isRelatedDiagramInteractionTarget,
+  shouldBeginViewportMousePan,
+} from "@/lib/v2/relatedDiagram/cardInteractionState";
 
 export type { A3ViewportTransform };
 
@@ -163,11 +168,23 @@ export function useA3Viewport() {
         type: e.pointerType,
       });
       if (isTouchPointer(e.pointerType)) {
-        el.setPointerCapture?.(e.pointerId);
+        if (!isRelatedDiagramInteractionTarget(e.target)) {
+          el.setPointerCapture?.(e.pointerId);
+        }
         mousePanRef.current = null;
         const pair = pickTwoTouchPointers(pointersRef.current);
         if (pair) beginTwoFinger(pair[0], pair[1]);
         else twoFingerRef.current = null;
+        return;
+      }
+      if (
+        !shouldBeginViewportMousePan({
+          pointerType: e.pointerType,
+          targetIsCard: isRelatedDiagramInteractionTarget(e.target),
+        })
+      ) {
+        mousePanRef.current = null;
+        twoFingerRef.current = null;
         return;
       }
       if (pointersRef.current.size === 1) {
