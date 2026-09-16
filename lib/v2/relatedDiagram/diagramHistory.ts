@@ -1,8 +1,15 @@
 /**
- * Local undo/redo for Related Diagram card moves.
- * One drop = one action. Viewport is not recorded.
+ * Local undo/redo for Related Diagram card moves and Form3 card add/delete.
+ * One drop / one add / one delete = one action. Viewport is not recorded.
+ * Move semantics are unchanged from Slice 2A.
  */
 
+import {
+  cloneCardEntity,
+  insertCardEntity,
+  removeCardEntity,
+  type CardEntitySnapshot,
+} from "./form3ToUnderstandingCard";
 import {
   cloneStableRouteState,
   type StableRouteState,
@@ -27,12 +34,27 @@ export type SceneFragment = {
   topology?: RelatedDiagramRouteTopology;
 };
 
-export type DiagramHistoryAction = {
+export type MoveHistoryAction = {
   type: "moveCard" | "moveGroup";
   cardIds: string[];
   before: SceneFragment;
   after: SceneFragment;
 };
+
+export type CardEntityHistoryAction = {
+  type: "addCard" | "deleteCard";
+  entity: CardEntitySnapshot;
+};
+
+export type DiagramHistoryAction = MoveHistoryAction | CardEntityHistoryAction;
+
+export type HistoryCommand =
+  | { kind: "none" }
+  | { kind: "applyFragment"; fragment: SceneFragment }
+  | { kind: "insertCard"; entity: CardEntitySnapshot }
+  | { kind: "removeCard"; cardId: string };
+
+export type { CardEntitySnapshot };
 
 export type DiagramHistory = {
   past: DiagramHistoryAction[];
@@ -106,43 +128,91 @@ export function pushDiagramHistory(
   action: DiagramHistoryAction,
   limit = DIAGRAM_HISTORY_LIMIT,
 ): DiagramHistory {
-  const past = [...history.past, action];
+  const stored =
+    action.type === "addCard" || action.type === "deleteCard"
+      ? { ...action, entity: cloneCardEntity(action.entity) }
+      : action;
+  const past = [...history.past, stored];
   while (past.length > limit) past.shift();
   return { past, future: [] };
+}
+
+function undoCommand(action: DiagramHistoryAction): HistoryCommand {
+  switch (action.type) {
+    case "moveCard":
+    case "moveGroup":
+      return { kind: "applyFragment", fragment: action.before };
+    case "addCard":
+      return { kind: "removeCard", cardId: action.entity.card.id };
+    case "deleteCard":
+      return { kind: "insertCard", entity: cloneCardEntity(action.entity) };
+  }
+}
+
+function redoCommand(action: DiagramHistoryAction): HistoryCommand {
+  switch (action.type) {
+    case "moveCard":
+    case "moveGroup":
+      return { kind: "applyFragment", fragment: action.after };
+    case "addCard":
+      return { kind: "insertCard", entity: cloneCardEntity(action.entity) };
+    case "deleteCard":
+      return { kind: "removeCard", cardId: action.entity.card.id };
+  }
 }
 
 export function undoDiagramHistory(history: DiagramHistory): {
   history: DiagramHistory;
   fragment: SceneFragment | null;
+  command: HistoryCommand;
 } {
   if (history.past.length === 0) {
-    return { history, fragment: null };
+    return { history, fragment: null, command: { kind: "none" } };
   }
   const action = history.past[history.past.length - 1]!;
+  const command = undoCommand(action);
   return {
     history: {
       past: history.past.slice(0, -1),
       future: [action, ...history.future],
     },
-    fragment: action.before,
+    fragment: command.kind === "applyFragment" ? command.fragment : null,
+    command,
   };
 }
 
 export function redoDiagramHistory(history: DiagramHistory): {
   history: DiagramHistory;
   fragment: SceneFragment | null;
+  command: HistoryCommand;
 } {
   if (history.future.length === 0) {
-    return { history, fragment: null };
+    return { history, fragment: null, command: { kind: "none" } };
   }
   const action = history.future[0]!;
+  const command = redoCommand(action);
   return {
     history: {
       past: [...history.past, action],
       future: history.future.slice(1),
     },
-    fragment: action.after,
+    fragment: command.kind === "applyFragment" ? command.fragment : null,
+    command,
   };
+}
+
+export function applyHistoryCommand(
+  graph: RelatedDiagramSemanticGraph,
+  command: HistoryCommand,
+): RelatedDiagramSemanticGraph {
+  if (command.kind === "none") return graph;
+  if (command.kind === "applyFragment") {
+    return applySceneFragmentToGraph(graph, command.fragment);
+  }
+  if (command.kind === "insertCard") {
+    return insertCardEntity(graph, cloneCardEntity(command.entity));
+  }
+  return removeCardEntity(graph, command.cardId);
 }
 
 export function applySceneFragmentToGraph(

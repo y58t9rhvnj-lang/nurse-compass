@@ -178,6 +178,14 @@ export function addCardSource(
     sourceVersion?: string | null;
     sourcePattern?: string | null;
     relation?: string | null;
+    sourceExcerpt?: string | null;
+    selectedText?: string | null;
+    selectionStart?: number | null;
+    selectionEnd?: number | null;
+    editedText?: string | null;
+    sourceClassification?: string | null;
+    sourcePatterns?: string[] | null;
+    sourceSoType?: "S" | "O" | null;
     now?: string;
   },
 ): SemanticGraphResult<RelatedDiagramCardSource> {
@@ -198,6 +206,14 @@ export function addCardSource(
     sourceVersion: input.sourceVersion ?? null,
     sourcePattern: input.sourcePattern ?? null,
     relation: input.relation ?? null,
+    sourceExcerpt: input.sourceExcerpt ?? null,
+    selectedText: input.selectedText ?? null,
+    selectionStart: input.selectionStart ?? null,
+    selectionEnd: input.selectionEnd ?? null,
+    editedText: input.editedText ?? null,
+    sourceClassification: input.sourceClassification ?? null,
+    sourcePatterns: input.sourcePatterns ? [...input.sourcePatterns] : null,
+    sourceSoType: input.sourceSoType ?? null,
     createdAt: nowIso(input.now),
   };
   g.cardSources.push(source);

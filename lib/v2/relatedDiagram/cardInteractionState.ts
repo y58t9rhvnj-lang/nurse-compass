@@ -155,6 +155,29 @@ function withPointerSample(
   };
 }
 
+/** Select a card without starting a drag. Does not interrupt an active gesture. */
+export function applySelectCard(
+  state: CardInteractionState,
+  cardId: string | null,
+): CardInteractionState {
+  if (
+    state.phase === "CARD_DRAGGING" ||
+    state.phase === "GROUP_DRAGGING" ||
+    state.phase === "VIEWPORT_GESTURE"
+  ) {
+    return state;
+  }
+  if (cardId == null) {
+    return createIdleState();
+  }
+  return {
+    ...createIdleState(),
+    phase: "CARD_SELECTED",
+    selectedCardId: cardId,
+    movable: true,
+  };
+}
+
 export function applyPointerDownOnCard(
   state: CardInteractionState,
   input: {

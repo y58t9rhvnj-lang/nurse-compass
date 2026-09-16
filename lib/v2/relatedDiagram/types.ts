@@ -22,6 +22,7 @@ export type RelatedDiagramCardState = "current" | "potential";
 
 export type RelatedDiagramCardOrigin =
   | "patient_information"
+  | "form3_information"
   | "form3_assessment"
   | "diagram_integration"
   | "knowledge_library";
@@ -70,6 +71,26 @@ export type RelatedDiagramCardSource = {
   sourceVersion: string | null;
   sourcePattern: string | null;
   relation: string | null;
+  /**
+   * Optional snapshot of source text at link time.
+   * Form3 Assessment → Understanding Card stores the full assessment here.
+   */
+  sourceExcerpt?: string | null;
+  /**
+   * Form3 Assessment partial selection (Slice 2B-1).
+   * Offsets are against sourceExcerpt / Assessment原文, not DOM offsets.
+   */
+  selectedText?: string | null;
+  selectionStart?: number | null;
+  selectionEnd?: number | null;
+  /** Student-edited Card wording. selectedText stays the cited range. */
+  editedText?: string | null;
+  /** Form3 classification at cite time. Not the Card state. */
+  sourceClassification?: string | null;
+  /** Form3 Information patternKeys (tags, not ownership). */
+  sourcePatterns?: string[] | null;
+  /** Form3 Information S/O. */
+  sourceSoType?: "S" | "O" | null;
   createdAt: string;
 };
 

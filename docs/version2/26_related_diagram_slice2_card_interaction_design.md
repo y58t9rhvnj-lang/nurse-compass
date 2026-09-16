@@ -1,14 +1,14 @@
 # Nurse Compass V2.2 Related Diagram — Slice 2
 ## Card Interaction / Position Persistence Design
 
-**Status:** Slice 2A implemented (card interaction + incremental route hardening). Slice 2B not started.  
+**Status:** Slice 2A Frozen. Slice 2B-1 Form3 sourcing Frozen separately — `27_related_diagram_slice2b1_form3_sourcing_frozen.md`.  
 **Parent specs:**  
 - `24_related_diagram_v1_integrated_spec_frozen.md` (education meaning Frozen)  
 - `25_related_diagram_v1_implementation_design.md` (implementation design; Slice 0 / Slice 1 Frozen)  
 **Slice 1 Frozen commit:** `6b3360bfa5878de9aa33c091e165240b79a492bd`  
 (`6b3360b` — `feat(v2.2): add related diagram read-only A3 canvas`)  
 **Rule:** Slice 1 Frozen UI / routing / topology / visual を破壊しない。本書は Slice 2 の interaction / persistence だけを定義する。  
-**Slice 2B is not authorized by this document.**
+**Slice 2B-2 is not authorized by this document.**
 
 ---
 

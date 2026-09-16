@@ -17,6 +17,7 @@ import {
   applyEscape,
   applyPointerDownOnBlank,
   applyPointerDownOnCard,
+  applySelectCard,
   applyPointerDownOnGroupHandle,
   applyPointerMove,
   applyPointerUp,
@@ -482,11 +483,19 @@ export function useCardInteraction({
     };
   }, []);
 
+  const selectCard = useCallback(
+    (cardId: string | null) => {
+      publishMachine(applySelectCard(machineRef.current, cardId));
+    },
+    [publishMachine],
+  );
+
   return {
     selectedCardId,
     selectedGroup,
     draggingCardId,
     draggingGroup,
+    selectCard,
     onCardPointerDown,
     onCardPointerMove,
     onCardPointerUp,

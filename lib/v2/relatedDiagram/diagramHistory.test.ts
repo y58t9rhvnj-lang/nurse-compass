@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  applyHistoryCommand,
   applySceneFragmentToGraph,
   captureSceneFragment,
   DIAGRAM_HISTORY_LIMIT,
@@ -15,6 +16,13 @@ import {
   redoDiagramHistory,
   undoDiagramHistory,
 } from "./diagramHistory";
+import { createEmptySemanticGraph } from "./semanticGraph";
+import {
+  buildUnderstandingCardFromAssessmentSelection,
+  insertCardEntity,
+  removeCardEntity,
+} from "./form3ToUnderstandingCard";
+import { buildSchizophreniaForm3ReadModel } from "./fixtures/form3AssessmentSourceFixture";
 import { applyCardPositionToGraph } from "./cardInteractionState";
 import {
   applyIncrementalCardMove,
@@ -363,6 +371,45 @@ test("toolbar exposes undo/redo and keyboard is wired in the DEV workspace", () 
   assert.ok(ws.includes("isTypingTarget"));
   assert.ok(ws.includes('key === "z"'));
   assert.equal(student.includes("onUndo"), false);
+});
+
+test("addCard / deleteCard undo and redo keep the same card identity", () => {
+  const source = buildSchizophreniaForm3ReadModel().assessments[0]!;
+  const selection = {
+    selectedText: source.assessmentText.slice(0, 6),
+    selectionStart: 0,
+    selectionEnd: 6,
+  };
+  const entity = buildUnderstandingCardFromAssessmentSelection({
+    source,
+    selection,
+    editedText: selection.selectedText,
+    state: "current",
+    layout: { x: 40, y: 60, zIndex: 2 },
+  });
+  let graph = insertCardEntity(createEmptySemanticGraph(), entity);
+  let history = pushDiagramHistory(emptyDiagramHistory(), {
+    type: "addCard",
+    entity,
+  });
+  const undoAdd = undoDiagramHistory(history);
+  graph = applyHistoryCommand(graph, undoAdd.command);
+  history = undoAdd.history;
+  assert.equal(graph.cards.length, 0);
+  const redoAdd = redoDiagramHistory(history);
+  graph = applyHistoryCommand(graph, redoAdd.command);
+  assert.equal(graph.cards[0]?.id, entity.card.id);
+  assert.equal(graph.cards[0]?.layout.x, 40);
+
+  graph = removeCardEntity(graph, entity.card.id);
+  history = pushDiagramHistory(emptyDiagramHistory(), {
+    type: "deleteCard",
+    entity,
+  });
+  const undoDel = undoDiagramHistory(history);
+  graph = applyHistoryCommand(graph, undoDel.command);
+  assert.equal(graph.cards[0]?.id, entity.card.id);
+  assert.equal(graph.cardSources[0]?.sourceId, source.assessmentId);
 });
 
 test("clone keeps route state independent of later mutations", () => {
