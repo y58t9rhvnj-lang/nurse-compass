@@ -283,6 +283,7 @@ export default function RelatedDiagramForm3Drawer({
   return (
     <aside
       data-rd-form3-drawer
+      data-rd-editor-drawer
       aria-label="様式3"
       className="absolute inset-y-0 right-0 z-40 flex flex-col border-l border-[#E5E5EA] bg-white shadow-[-8px_0_24px_rgba(0,0,0,0.08)]"
       style={{
@@ -295,7 +296,10 @@ export default function RelatedDiagramForm3Drawer({
       onPointerUp={isolateDrawerPointer}
       onWheel={isolateDrawerPointer}
     >
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#E5E5EA] px-3 py-2">
+      <div
+        data-rd-editor-drawer-header
+        className="flex h-[52px] shrink-0 items-center justify-between gap-2 border-b border-[#E5E5EA] px-3"
+      >
         <h2 className="text-[16px] font-semibold text-[#1D1D1F]">様式3</h2>
         <button
           type="button"

@@ -24,7 +24,6 @@ import {
 import {
   buildInformationCardFromForm3,
   buildUnderstandingCardFromAssessmentSelection,
-  cardHasConnections,
   cloneCardEntity,
   form3SourceTrace,
   insertCardEntity,
@@ -32,16 +31,45 @@ import {
   isForm3InformationAlreadyOnCanvas,
   nextCardZIndex,
   originKeyFromCardSource,
-  removeCardEntity,
 } from "@/lib/v2/relatedDiagram/form3ToUnderstandingCard";
 import { buildSchizophreniaForm3ReadModel } from "@/lib/v2/relatedDiagram/fixtures/form3AssessmentSourceFixture";
-import {
-  seedStableRouteState,
-  type StableRouteState,
-} from "@/lib/v2/relatedDiagram/incrementalRoutes";
 import { placeForm3UnderstandingCard } from "@/lib/v2/relatedDiagram/placeForm3UnderstandingCard";
 import { resolveDevFixtureReadonlyScene } from "@/lib/v2/relatedDiagram/resolveReadonlyScene";
 import type { RelatedDiagramRouteTopology } from "@/lib/v2/relatedDiagram/routeTopology";
+import { getCardActionCapabilities } from "@/lib/v2/relatedDiagram/cardActionCapabilities";
+import { getCardSourceCapabilities } from "@/lib/v2/relatedDiagram/cardSourceCapabilities";
+import type { ContextBarModel } from "@/lib/v2/relatedDiagram/editorContextBar";
+import { resolveRelatedDiagramEditorMode } from "@/lib/v2/relatedDiagram/editorUiState";
+import {
+  incidentConnectionCount,
+  incidentConnections,
+  pruneStableRoutesForConnections,
+  pruneTopologyForConnections,
+  removeCardAndIncidentConnections,
+  snapshotCardForDelete,
+} from "@/lib/v2/relatedDiagram/cardDelete";
+import {
+  applyCardDisplayEdit,
+  canCommitCardEdit,
+  cardEditDraftFromCard,
+  patchCardInGraph,
+  type CardEditDraft,
+} from "@/lib/v2/relatedDiagram/cardEdit";
+import {
+  createCardConnectIntent,
+  createCardDeleteIntent,
+  createCardEditIntent,
+  type CardActionIntent,
+} from "@/lib/v2/relatedDiagram/cardActionIntents";
+import {
+  cloneStableRouteState,
+  seedStableRouteState,
+  type StableRouteState,
+} from "@/lib/v2/relatedDiagram/incrementalRoutes";
+import {
+  selectedCardIdFromSelection,
+  selectionFromCardId,
+} from "@/lib/v2/relatedDiagram/diagramSelection";
 import type { RelatedDiagramSemanticGraph } from "@/lib/v2/relatedDiagram/types";
 import type {
   RelatedDiagramForm3AssessmentSource,
@@ -49,14 +77,16 @@ import type {
 } from "@/lib/v2/relatedDiagram/form3AssessmentReadModel";
 import type { NormalizedAssessmentSelection } from "@/lib/v2/relatedDiagram/form3AssessmentSelection";
 import RelatedDiagramA3Surface from "./RelatedDiagramA3Surface";
+import RelatedDiagramCardDeleteConfirm from "./RelatedDiagramCardDeleteConfirm";
+import RelatedDiagramCardEditDrawer from "./RelatedDiagramCardEditDrawer";
+import RelatedDiagramContextBar from "./RelatedDiagramContextBar";
+import RelatedDiagramEditorToolbar from "./RelatedDiagramEditorToolbar";
 import RelatedDiagramForm3Drawer, {
   type Form3DrawerMode,
 } from "./RelatedDiagramForm3Drawer";
-import RelatedDiagramForm3SourceTrace from "./RelatedDiagramForm3SourceTrace";
 import RelatedDiagramPrintPortal, {
   prepareRelatedDiagramPrint,
 } from "./RelatedDiagramPrintPortal";
-import RelatedDiagramWorkspaceToolbar from "./RelatedDiagramWorkspaceToolbar";
 import { useA3Viewport } from "./useA3Viewport";
 import { useCardInteraction } from "./useCardInteraction";
 
@@ -145,6 +175,12 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       applyFragment(next.command.fragment);
     } else {
       setGraph((prev) => applyHistoryCommand(prev, next.command));
+      if ("routeState" in next.command && next.command.routeState) {
+        setRouteState(next.command.routeState);
+      }
+      if ("topology" in next.command && next.command.topology) {
+        setTopology(next.command.topology);
+      }
     }
     setHistory(next.history);
   }, [applyFragment, history]);
@@ -155,6 +191,12 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       applyFragment(next.command.fragment);
     } else {
       setGraph((prev) => applyHistoryCommand(prev, next.command));
+      if ("routeState" in next.command && next.command.routeState) {
+        setRouteState(next.command.routeState);
+      }
+      if ("topology" in next.command && next.command.topology) {
+        setTopology(next.command.topology);
+      }
     }
     setHistory(next.history);
   }, [applyFragment, history]);
@@ -180,6 +222,76 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     onRouteStateChange,
     onHistoryPush,
   });
+
+  const diagramSelection = useMemo(
+    () => selectionFromCardId(selectedCardId),
+    [selectedCardId],
+  );
+  const selectedCard = useMemo(
+    () =>
+      graph.cards.find(
+        (card) => card.id === selectedCardIdFromSelection(diagramSelection),
+      ) ?? null,
+    [diagramSelection, graph.cards],
+  );
+  const selectedCapabilities = useMemo(
+    () => (selectedCard ? getCardActionCapabilities(selectedCard) : null),
+    [selectedCard],
+  );
+  const [actionIntent, setActionIntent] = useState<CardActionIntent | null>(
+    null,
+  );
+  const [editDraft, setEditDraft] = useState<CardEditDraft | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const editorMode = resolveRelatedDiagramEditorMode({
+    selection: diagramSelection,
+    form3Open: drawerOpen,
+    editOpen: editDraft != null && actionIntent?.kind === "edit",
+    connecting: actionIntent?.kind === "connect",
+  });
+  const selectedSourceCaps = selectedCard
+    ? getCardSourceCapabilities(selectedCard)
+    : null;
+  const contextBarModel = ((): ContextBarModel => {
+    if (actionIntent?.kind === "connect") {
+      const source =
+        graph.cards.find((card) => card.id === actionIntent.sourceCardId) ??
+        selectedCard;
+      return {
+        kind: "connecting",
+        sourceCardId: actionIntent.sourceCardId,
+        sourceTitle: source?.text ?? "",
+      };
+    }
+    if (selectedCard && selectedCapabilities) {
+      return {
+        kind: "card",
+        cardId: selectedCard.id,
+        title: selectedCard.text,
+        capabilities: selectedCapabilities,
+        canOpenSource: selectedSourceCaps?.canOpenSource === true,
+        editDisabledReason:
+          selectedCapabilities.editMode === "forbidden_original"
+            ? "様式3の情報は原文のまま使用します"
+            : null,
+      };
+    }
+    return { kind: "none" };
+  })();
+
+  useEffect(() => {
+    if (actionIntent?.kind === "connect") return;
+    setActionIntent(null);
+    setEditDraft(null);
+    setDeleteConfirmOpen(false);
+  }, [selectedCardId]);
+
+  useEffect(() => {
+    if (actionIntent?.kind !== "connect") return;
+    if (selectedCardId !== actionIntent.sourceCardId) {
+      selectCard(actionIntent.sourceCardId);
+    }
+  }, [actionIntent, selectCard, selectedCardId]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -257,9 +369,36 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       cardState: trace.cardState,
       selectedText: trace.selectedText,
       cardText: trace.cardText,
-      hasConnections: cardHasConnections(graph, selectedCardId),
     };
   }, [form3Model.patterns, graph, selectedCardId]);
+
+  const focusContextAction = useCallback((action: string) => {
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>(`[data-rd-context-action="${action}"]`)
+        ?.focus();
+    });
+  }, []);
+
+  const closeEditDrawer = useCallback(() => {
+    setEditDraft(null);
+    if (actionIntent?.kind === "edit") setActionIntent(null);
+    focusContextAction("edit");
+  }, [actionIntent, focusContextAction]);
+
+  const closeForm3Drawer = useCallback(() => {
+    setDrawerOpen(false);
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-rd-form3-open]")?.focus();
+    });
+  }, []);
+
+  const openForm3Drawer = useCallback(() => {
+    if (actionIntent?.kind === "connect") return;
+    setEditDraft(null);
+    if (actionIntent?.kind === "edit") setActionIntent(null);
+    setDrawerOpen((open) => !open);
+  }, [actionIntent]);
 
   const handleAddInformation = useCallback(
     (source: RelatedDiagramForm3InformationSource) => {
@@ -322,24 +461,96 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     [graph, onHistoryPush, selectCard, viewportCenter],
   );
 
-  const handleDeleteSelected = useCallback(() => {
-    if (!selectedForm3Source) return;
-    if (selectedForm3Source.hasConnections) return;
-    const card = graph.cards.find((row) => row.id === selectedForm3Source.cardId);
-    if (!card) return;
-    const entity = cloneCardEntity({
-      card,
-      sources: graph.cardSources.filter(
-        (row) => row.cardId === selectedForm3Source.cardId,
-      ),
+  const requestDeleteSelected = useCallback(() => {
+    if (!selectedCard) return;
+    const intent = createCardDeleteIntent(selectedCard);
+    if (!intent) return;
+    setActionIntent(intent);
+    setDeleteConfirmOpen(true);
+  }, [selectedCard]);
+
+  const handleConfirmDelete = useCallback(() => {
+    if (!selectedCard) return;
+    const entity = snapshotCardForDelete(graph, selectedCard.id);
+    if (!entity) return;
+    const connections = incidentConnections(graph, selectedCard.id);
+    const connectionIds = connections.map((row) => row.id);
+    const routeStateBefore = cloneStableRouteState(routeState);
+    const routeStateAfter = pruneStableRoutesForConnections(
+      routeState,
+      connectionIds,
+    );
+    const topologyBefore = topology;
+    const topologyAfter = pruneTopologyForConnections(topology, connectionIds);
+    setGraph(removeCardAndIncidentConnections(graph, selectedCard.id));
+    setRouteState(routeStateAfter);
+    if (topologyAfter) setTopology(topologyAfter);
+    onHistoryPush({
+      type: "deleteCard",
+      entity,
+      connections,
+      routeStateBefore,
+      routeStateAfter,
+      topologyBefore,
+      topologyAfter,
     });
-    setGraph(removeCardEntity(graph, selectedForm3Source.cardId));
-    onHistoryPush({ type: "deleteCard", entity });
+    setDeleteConfirmOpen(false);
+    setActionIntent(null);
     selectCard(null);
-  }, [graph, onHistoryPush, selectCard, selectedForm3Source]);
+  }, [graph, onHistoryPush, routeState, selectCard, selectedCard, topology]);
+
+  const handleCardEdit = useCallback(() => {
+    if (!selectedCard) return;
+    const intent = createCardEditIntent(selectedCard);
+    if (!intent) return;
+    setDrawerOpen(false);
+    setActionIntent(intent);
+    setEditDraft(cardEditDraftFromCard(selectedCard));
+  }, [selectedCard]);
+
+  const handleSaveCardEdit = useCallback(() => {
+    if (!selectedCard || !editDraft) return;
+    const nextCard = applyCardDisplayEdit(selectedCard, editDraft);
+    if (!nextCard) return;
+    if (
+      nextCard.text === selectedCard.text &&
+      nextCard.state === selectedCard.state
+    ) {
+      setEditDraft(null);
+      setActionIntent(null);
+      return;
+    }
+    setGraph(patchCardInGraph(graph, nextCard));
+    onHistoryPush({
+      type: "editCard",
+      cardId: selectedCard.id,
+      before: { text: selectedCard.text, state: selectedCard.state },
+      after: { text: nextCard.text, state: nextCard.state },
+    });
+    setEditDraft(null);
+    setActionIntent(null);
+    focusContextAction("edit");
+  }, [editDraft, focusContextAction, graph, onHistoryPush, selectedCard]);
+
+  const handleCardConnect = useCallback(() => {
+    if (!selectedCard) return;
+    const intent = createCardConnectIntent(selectedCard);
+    if (!intent) return;
+    setDrawerOpen(false);
+    setEditDraft(null);
+    setActionIntent(intent);
+  }, [selectedCard]);
+
+  const handleCancelConnect = useCallback(() => {
+    setActionIntent(null);
+    focusContextAction("connect");
+  }, [focusContextAction]);
 
   const handleOpenSource = useCallback(() => {
+    if (actionIntent?.kind === "connect") return;
     if (!selectedForm3Source?.patternId) return;
+    setEditDraft(null);
+    if (actionIntent?.kind === "edit") setActionIntent(null);
     setSelectedPatternId(selectedForm3Source.patternId as Form3PatternKey);
     setDrawerMode(selectedForm3Source.kind);
     setFocusedAssessmentId(selectedForm3Source.assessmentId);
@@ -355,28 +566,33 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         : null,
     );
     setDrawerOpen(true);
-  }, [selectedForm3Source]);
+  }, [actionIntent, selectedForm3Source]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
       if (event.key !== "Backspace" && event.key !== "Delete") return;
-      if (!selectedForm3Source || selectedForm3Source.hasConnections) return;
+      if (!selectedCard || !selectedCapabilities?.canDelete) return;
       event.preventDefault();
-      handleDeleteSelected();
+      requestDeleteSelected();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleDeleteSelected, selectedForm3Source]);
+  }, [requestDeleteSelected, selectedCapabilities, selectedCard]);
 
   return (
     <main
       data-rd-workspace="dev-fixture"
       data-rd-source="dev_fixture"
       data-rd-slice="2b1"
+      data-rd-2b2a="true"
+      data-rd-2b2b="true"
+      data-rd-2b2c="true"
+      data-rd-editor-mode={editorMode}
+      data-rd-editor-selection={diagramSelection.kind}
       className="relative flex h-[100dvh] min-h-0 min-w-0 flex-col overflow-hidden bg-[#EDEDF0]"
     >
-      <RelatedDiagramWorkspaceToolbar
+      <RelatedDiagramEditorToolbar
         percent={percent}
         onReset100={resetTo100}
         onFit={fitToView}
@@ -385,40 +601,24 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         onRedo={handleRedo}
         canUndo={history.past.length > 0}
         canRedo={history.future.length > 0}
-        title="Related Diagram Slice 2B-1 · DEV fixture"
-        subtitle={`${scene.knowledgeTitle} · ${scene.knowledgeVersion} · Form3 read-only · not student runtime`}
-        leading={
-          <button
-            type="button"
-            data-rd-form3-open
-            aria-label="様式3"
-            aria-expanded={drawerOpen}
-            onClick={() => setDrawerOpen((open) => !open)}
-            className="inline-flex min-h-[44px] items-center rounded-lg border border-[#E5E5EA] px-3 text-[14px] text-[#1D1D1F]"
-          >
-            様式3
-          </button>
-        }
+        title="関連図"
+        caseLabel="統合失調症の事例"
+        form3Open={drawerOpen}
+        onOpenForm3={openForm3Drawer}
+        onAddCardPlaceholder={() => {
+          /* UI placeholder only — no Direct Card. */
+        }}
+        devTitle={`Slice 2B-2C · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
       />
 
-      {selectedForm3Source ? (
-        <RelatedDiagramForm3SourceTrace
-          originLabel={selectedForm3Source.originLabel}
-          patternName={selectedForm3Source.patternName}
-          soType={selectedForm3Source.soType}
-          cardState={selectedForm3Source.cardState}
-          selectedText={selectedForm3Source.selectedText}
-          cardText={selectedForm3Source.cardText}
-          canDelete={!selectedForm3Source.hasConnections}
-          deleteBlockedReason={
-            selectedForm3Source.hasConnections
-              ? "接続を解除してから削除してください"
-              : null
-          }
-          onOpenSource={handleOpenSource}
-          onDelete={handleDeleteSelected}
-        />
-      ) : null}
+      <RelatedDiagramContextBar
+        model={contextBarModel}
+        onEdit={handleCardEdit}
+        onConnect={handleCardConnect}
+        onDelete={requestDeleteSelected}
+        onOpenSource={handleOpenSource}
+        onCancelConnect={handleCancelConnect}
+      />
 
       <div className="relative min-h-0 flex-1">
       <div
@@ -463,12 +663,42 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         highlightStart={highlightRange?.start}
         highlightEnd={highlightRange?.end}
         addedOriginKeys={addedOriginKeys}
-        onClose={() => setDrawerOpen(false)}
+        onClose={closeForm3Drawer}
         onSelectPattern={setSelectedPatternId}
         onSelectMode={setDrawerMode}
         onAddInformation={handleAddInformation}
         onAddAssessmentSelection={handleAddAssessmentSelection}
       />
+      {selectedCard && editDraft && actionIntent?.kind === "edit" ? (
+        <RelatedDiagramCardEditDrawer
+          editMode={actionIntent.editMode}
+          draft={editDraft}
+          canSave={canCommitCardEdit(selectedCard, editDraft)}
+          onChangeText={(text) =>
+            setEditDraft((current) =>
+              current ? { ...current, text } : current,
+            )
+          }
+          onChangeState={(state) =>
+            setEditDraft((current) =>
+              current ? { ...current, state } : current,
+            )
+          }
+          onCancel={closeEditDrawer}
+          onSave={handleSaveCardEdit}
+        />
+      ) : null}
+      {deleteConfirmOpen && selectedCard ? (
+        <RelatedDiagramCardDeleteConfirm
+          incidentCount={incidentConnectionCount(graph, selectedCard.id)}
+          onCancel={() => {
+            setDeleteConfirmOpen(false);
+            if (actionIntent?.kind === "delete") setActionIntent(null);
+            focusContextAction("delete");
+          }}
+          onConfirm={handleConfirmDelete}
+        />
+      ) : null}
       </div>
 
       <RelatedDiagramPrintPortal>

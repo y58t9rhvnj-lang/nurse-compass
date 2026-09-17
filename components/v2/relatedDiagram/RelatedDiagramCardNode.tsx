@@ -35,6 +35,7 @@ export default function RelatedDiagramCardNode({
       data-rd-card-type={card.cardType}
       data-rd-card-state={card.state ?? "none"}
       data-rd-selected={selected ? "true" : undefined}
+      aria-selected={selected}
       data-rd-movable={movable ? "true" : "false"}
       className="absolute box-border rounded-[2px]"
       style={{
@@ -45,6 +46,7 @@ export default function RelatedDiagramCardNode({
         zIndex: card.layout.zIndex + 2 + (selected ? 24 : 0),
         outline: selected ? "2px solid #8E8E93" : "none",
         outlineOffset: 2,
+        boxShadow: selected ? "0 2px 8px rgba(0,0,0,0.10)" : undefined,
         touchAction: "none",
         userSelect: "none",
         WebkitUserSelect: "none",

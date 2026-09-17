@@ -104,10 +104,12 @@ test("source trace opens the matching pattern / mode and does not route to Form3
   assert.ok(trace.includes("状態："));
   assert.ok(trace.includes("引用："));
   assert.ok(trace.includes("カード："));
-  assert.ok(ws.includes("cardState={selectedForm3Source.cardState}"));
+  assert.ok(ws.includes("form3SourceTrace"));
+  assert.ok(ws.includes("handleOpenSource"));
   assert.ok(ws.includes("setDrawerMode(selectedForm3Source.kind)"));
   assert.ok(ws.includes("setHighlightRange"));
-  assert.ok(ws.includes("接続を解除してから削除してください"));
+  assert.ok(ws.includes("RelatedDiagramCardDeleteConfirm"));
+  assert.equal(ws.includes("RelatedDiagramForm3SourceTrace"), false);
   assert.equal(ws.includes("/v2/student"), false);
   assert.equal(ws.includes("Form3PhaseBWorkspace"), false);
 });

@@ -15,8 +15,11 @@ import {
   type StableRouteState,
 } from "./incrementalRoutes";
 import type { RelatedDiagramRouteTopology } from "./routeTopology";
+import { patchCardInGraph } from "./cardEdit";
+import { restoreDeletedConnections } from "./cardDelete";
 import type {
   RelatedDiagramCard,
+  RelatedDiagramConnection,
   RelatedDiagramSemanticGraph,
 } from "./types";
 
@@ -44,15 +47,47 @@ export type MoveHistoryAction = {
 export type CardEntityHistoryAction = {
   type: "addCard" | "deleteCard";
   entity: CardEntitySnapshot;
+  connections?: RelatedDiagramConnection[];
+  routeStateBefore?: StableRouteState;
+  routeStateAfter?: StableRouteState;
+  topologyBefore?: RelatedDiagramRouteTopology;
+  topologyAfter?: RelatedDiagramRouteTopology;
 };
 
-export type DiagramHistoryAction = MoveHistoryAction | CardEntityHistoryAction;
+export type EditCardHistoryAction = {
+  type: "editCard";
+  cardId: string;
+  before: { text: string; state: RelatedDiagramCard["state"] };
+  after: { text: string; state: RelatedDiagramCard["state"] };
+};
+
+export type DiagramHistoryAction =
+  | MoveHistoryAction
+  | CardEntityHistoryAction
+  | EditCardHistoryAction;
 
 export type HistoryCommand =
   | { kind: "none" }
   | { kind: "applyFragment"; fragment: SceneFragment }
-  | { kind: "insertCard"; entity: CardEntitySnapshot }
-  | { kind: "removeCard"; cardId: string };
+  | {
+      kind: "insertCard";
+      entity: CardEntitySnapshot;
+      connections?: RelatedDiagramConnection[];
+      routeState?: StableRouteState;
+      topology?: RelatedDiagramRouteTopology;
+    }
+  | {
+      kind: "removeCard";
+      cardId: string;
+      routeState?: StableRouteState;
+      topology?: RelatedDiagramRouteTopology;
+    }
+  | {
+      kind: "applyCardEdit";
+      cardId: string;
+      text: string;
+      state: RelatedDiagramCard["state"];
+    };
 
 export type { CardEntitySnapshot };
 
@@ -130,8 +165,26 @@ export function pushDiagramHistory(
 ): DiagramHistory {
   const stored =
     action.type === "addCard" || action.type === "deleteCard"
-      ? { ...action, entity: cloneCardEntity(action.entity) }
-      : action;
+      ? {
+          ...action,
+          entity: cloneCardEntity(action.entity),
+          connections: action.connections?.map((row) => ({ ...row })),
+          routeStateBefore: action.routeStateBefore
+            ? cloneStableRouteState(action.routeStateBefore)
+            : undefined,
+          routeStateAfter: action.routeStateAfter
+            ? cloneStableRouteState(action.routeStateAfter)
+            : undefined,
+          topologyBefore: cloneTopology(action.topologyBefore),
+          topologyAfter: cloneTopology(action.topologyAfter),
+        }
+      : action.type === "editCard"
+        ? {
+            ...action,
+            before: { ...action.before },
+            after: { ...action.after },
+          }
+        : action;
   const past = [...history.past, stored];
   while (past.length > limit) past.shift();
   return { past, future: [] };
@@ -145,7 +198,22 @@ function undoCommand(action: DiagramHistoryAction): HistoryCommand {
     case "addCard":
       return { kind: "removeCard", cardId: action.entity.card.id };
     case "deleteCard":
-      return { kind: "insertCard", entity: cloneCardEntity(action.entity) };
+      return {
+        kind: "insertCard",
+        entity: cloneCardEntity(action.entity),
+        connections: action.connections?.map((row) => ({ ...row })),
+        routeState: action.routeStateBefore
+          ? cloneStableRouteState(action.routeStateBefore)
+          : undefined,
+        topology: cloneTopology(action.topologyBefore),
+      };
+    case "editCard":
+      return {
+        kind: "applyCardEdit",
+        cardId: action.cardId,
+        text: action.before.text,
+        state: action.before.state,
+      };
   }
 }
 
@@ -157,7 +225,21 @@ function redoCommand(action: DiagramHistoryAction): HistoryCommand {
     case "addCard":
       return { kind: "insertCard", entity: cloneCardEntity(action.entity) };
     case "deleteCard":
-      return { kind: "removeCard", cardId: action.entity.card.id };
+      return {
+        kind: "removeCard",
+        cardId: action.entity.card.id,
+        routeState: action.routeStateAfter
+          ? cloneStableRouteState(action.routeStateAfter)
+          : undefined,
+        topology: cloneTopology(action.topologyAfter),
+      };
+    case "editCard":
+      return {
+        kind: "applyCardEdit",
+        cardId: action.cardId,
+        text: action.after.text,
+        state: action.after.state,
+      };
   }
 }
 
@@ -209,8 +291,18 @@ export function applyHistoryCommand(
   if (command.kind === "applyFragment") {
     return applySceneFragmentToGraph(graph, command.fragment);
   }
+  if (command.kind === "applyCardEdit") {
+    const card = graph.cards.find((row) => row.id === command.cardId);
+    if (!card) return graph;
+    return patchCardInGraph(graph, {
+      ...card,
+      text: command.text,
+      state: command.state,
+    });
+  }
   if (command.kind === "insertCard") {
-    return insertCardEntity(graph, cloneCardEntity(command.entity));
+    const inserted = insertCardEntity(graph, cloneCardEntity(command.entity));
+    return restoreDeletedConnections(inserted, command.connections ?? []);
   }
   return removeCardEntity(graph, command.cardId);
 }

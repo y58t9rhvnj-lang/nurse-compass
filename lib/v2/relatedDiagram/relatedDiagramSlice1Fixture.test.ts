@@ -331,7 +331,10 @@ test("toolbar stays outside the canvas transform subtree", () => {
     "../../../components/v2/relatedDiagram/RelatedDiagramReadonlyWorkspace.tsx",
   ]) {
     const src = readFileSync(new URL(rel, import.meta.url), "utf8");
-    const toolbarAt = src.indexOf("RelatedDiagramWorkspaceToolbar");
+    const toolbarAt = Math.max(
+      src.indexOf("RelatedDiagramWorkspaceToolbar"),
+      src.indexOf("RelatedDiagramEditorToolbar"),
+    );
     const transformAt = src.indexOf("data-rd-canvas-transform");
     assert.ok(toolbarAt >= 0, rel);
     assert.ok(transformAt > toolbarAt, rel);

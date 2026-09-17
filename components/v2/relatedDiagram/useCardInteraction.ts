@@ -29,9 +29,11 @@ import {
   type CardInteractionState,
   type DragCommit,
 } from "@/lib/v2/relatedDiagram/cardInteractionState";
+import { isRelatedDiagramSelectionPreserveTarget } from "@/lib/v2/relatedDiagram/diagramSelection";
 import {
   captureSceneFragment,
   fragmentsEqual,
+  isTypingTarget,
   type DiagramHistoryAction,
 } from "@/lib/v2/relatedDiagram/diagramHistory";
 import {
@@ -408,6 +410,7 @@ export function useCardInteraction({
     (event: ReactPointerEvent<HTMLElement>) => {
       if (!enabled) return;
       if (isRelatedDiagramInteractionTarget(event.target)) return;
+      if (isRelatedDiagramSelectionPreserveTarget(event.target)) return;
       if (machineRef.current.phase === "VIEWPORT_GESTURE") return;
       if (
         machineRef.current.phase === "CARD_DRAGGING" ||
@@ -459,6 +462,7 @@ export function useCardInteraction({
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      if (isTypingTarget(event.target)) return;
       const result = applyEscape(machineRef.current);
       applyCommit(result.drop, true);
       releaseCapture();
