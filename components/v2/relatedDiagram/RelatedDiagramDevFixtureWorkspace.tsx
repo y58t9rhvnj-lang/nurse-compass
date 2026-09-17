@@ -38,6 +38,12 @@ import { resolveDevFixtureReadonlyScene } from "@/lib/v2/relatedDiagram/resolveR
 import type { RelatedDiagramRouteTopology } from "@/lib/v2/relatedDiagram/routeTopology";
 import { getCardActionCapabilities } from "@/lib/v2/relatedDiagram/cardActionCapabilities";
 import { getCardSourceCapabilities } from "@/lib/v2/relatedDiagram/cardSourceCapabilities";
+import {
+  buildDirectInsightCard,
+  canCommitDirectInsightCompose,
+  emptyDirectInsightComposeDraft,
+  type DirectInsightComposeDraft,
+} from "@/lib/v2/relatedDiagram/cardDirectInsight";
 import type { ContextBarModel } from "@/lib/v2/relatedDiagram/editorContextBar";
 import { resolveRelatedDiagramEditorMode } from "@/lib/v2/relatedDiagram/editorUiState";
 import {
@@ -80,6 +86,7 @@ import RelatedDiagramA3Surface from "./RelatedDiagramA3Surface";
 import RelatedDiagramCardDeleteConfirm from "./RelatedDiagramCardDeleteConfirm";
 import RelatedDiagramCardEditDrawer from "./RelatedDiagramCardEditDrawer";
 import RelatedDiagramContextBar from "./RelatedDiagramContextBar";
+import RelatedDiagramDirectInsightDrawer from "./RelatedDiagramDirectInsightDrawer";
 import RelatedDiagramEditorToolbar from "./RelatedDiagramEditorToolbar";
 import RelatedDiagramForm3Drawer, {
   type Form3DrawerMode,
@@ -242,12 +249,16 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     null,
   );
   const [editDraft, setEditDraft] = useState<CardEditDraft | null>(null);
+  const [insightDraft, setInsightDraft] = useState<DirectInsightComposeDraft | null>(
+    null,
+  );
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const editorMode = resolveRelatedDiagramEditorMode({
     selection: diagramSelection,
     form3Open: drawerOpen,
     editOpen: editDraft != null && actionIntent?.kind === "edit",
     connecting: actionIntent?.kind === "connect",
+    directInsightOpen: insightDraft != null,
   });
   const selectedSourceCaps = selectedCard
     ? getCardSourceCapabilities(selectedCard)
@@ -283,6 +294,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     if (actionIntent?.kind === "connect") return;
     setActionIntent(null);
     setEditDraft(null);
+    setInsightDraft(null);
     setDeleteConfirmOpen(false);
   }, [selectedCardId]);
 
@@ -396,9 +408,49 @@ export default function RelatedDiagramDevFixtureWorkspace() {
   const openForm3Drawer = useCallback(() => {
     if (actionIntent?.kind === "connect") return;
     setEditDraft(null);
+    setInsightDraft(null);
     if (actionIntent?.kind === "edit") setActionIntent(null);
     setDrawerOpen((open) => !open);
   }, [actionIntent]);
+
+  const openDirectInsightCompose = useCallback(() => {
+    if (actionIntent?.kind === "connect") return;
+    setDrawerOpen(false);
+    setEditDraft(null);
+    if (actionIntent?.kind === "edit") setActionIntent(null);
+    setInsightDraft(emptyDirectInsightComposeDraft());
+  }, [actionIntent]);
+
+  const closeDirectInsightCompose = useCallback(() => {
+    setInsightDraft(null);
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-rd-add-card]")?.focus();
+    });
+  }, []);
+
+  const handleAddDirectInsight = useCallback(() => {
+    if (!insightDraft || !canCommitDirectInsightCompose(insightDraft)) return;
+    if (insightDraft.state !== "current" && insightDraft.state !== "potential") {
+      return;
+    }
+    const placed = placeForm3UnderstandingCard({
+      desiredCenter: viewportCenter(),
+      otherCards: graph.cards,
+    });
+    const entity = buildDirectInsightCard({
+      text: insightDraft.text,
+      state: insightDraft.state,
+      layout: {
+        x: placed.x,
+        y: placed.y,
+        zIndex: nextCardZIndex(graph),
+      },
+    });
+    setInsightDraft(null);
+    setGraph(insertCardEntity(graph, entity));
+    onHistoryPush({ type: "addCard", entity: cloneCardEntity(entity) });
+    selectCard(entity.card.id);
+  }, [graph, insightDraft, onHistoryPush, selectCard, viewportCenter]);
 
   const handleAddInformation = useCallback(
     (source: RelatedDiagramForm3InformationSource) => {
@@ -504,6 +556,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     const intent = createCardEditIntent(selectedCard);
     if (!intent) return;
     setDrawerOpen(false);
+    setInsightDraft(null);
     setActionIntent(intent);
     setEditDraft(cardEditDraftFromCard(selectedCard));
   }, [selectedCard]);
@@ -537,6 +590,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     const intent = createCardConnectIntent(selectedCard);
     if (!intent) return;
     setDrawerOpen(false);
+    setInsightDraft(null);
     setEditDraft(null);
     setActionIntent(intent);
   }, [selectedCard]);
@@ -550,6 +604,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     if (actionIntent?.kind === "connect") return;
     if (!selectedForm3Source?.patternId) return;
     setEditDraft(null);
+    setInsightDraft(null);
     if (actionIntent?.kind === "edit") setActionIntent(null);
     setSelectedPatternId(selectedForm3Source.patternId as Form3PatternKey);
     setDrawerMode(selectedForm3Source.kind);
@@ -588,6 +643,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       data-rd-2b2a="true"
       data-rd-2b2b="true"
       data-rd-2b2c="true"
+      data-rd-2b2d="true"
       data-rd-editor-mode={editorMode}
       data-rd-editor-selection={diagramSelection.kind}
       className="relative flex h-[100dvh] min-h-0 min-w-0 flex-col overflow-hidden bg-[#EDEDF0]"
@@ -605,10 +661,8 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         caseLabel="統合失調症の事例"
         form3Open={drawerOpen}
         onOpenForm3={openForm3Drawer}
-        onAddCardPlaceholder={() => {
-          /* UI placeholder only — no Direct Card. */
-        }}
-        devTitle={`Slice 2B-2C · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
+        onAddCard={openDirectInsightCompose}
+        devTitle={`Slice 2B-2D · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
       />
 
       <RelatedDiagramContextBar
@@ -669,6 +723,24 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         onAddInformation={handleAddInformation}
         onAddAssessmentSelection={handleAddAssessmentSelection}
       />
+      {insightDraft ? (
+        <RelatedDiagramDirectInsightDrawer
+          draft={insightDraft}
+          canAdd={canCommitDirectInsightCompose(insightDraft)}
+          onChangeText={(text) =>
+            setInsightDraft((current) =>
+              current ? { ...current, text } : current,
+            )
+          }
+          onChangeState={(state) =>
+            setInsightDraft((current) =>
+              current ? { ...current, state } : current,
+            )
+          }
+          onCancel={closeDirectInsightCompose}
+          onAdd={handleAddDirectInsight}
+        />
+      ) : null}
       {selectedCard && editDraft && actionIntent?.kind === "edit" ? (
         <RelatedDiagramCardEditDrawer
           editMode={actionIntent.editMode}

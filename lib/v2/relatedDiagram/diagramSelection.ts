@@ -58,6 +58,7 @@ export function isRelatedDiagramSelectionPreserveTarget(
       el.closest("[data-rd-card-delete-confirm]") ||
       el.closest("[data-rd-toolbar]") ||
       el.closest("[data-rd-form3-compose]") ||
+      el.closest("[data-rd-insight-compose]") ||
       el.closest("textarea") ||
       el.closest("input") ||
       el.closest("select"),

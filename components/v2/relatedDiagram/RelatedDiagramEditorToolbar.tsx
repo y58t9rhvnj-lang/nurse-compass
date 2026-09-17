@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  EDITOR_ADD_CARD_PLACEHOLDER,
-  EDITOR_TOOLBAR_HEIGHT_PX,
-} from "@/lib/v2/relatedDiagram/editorUiState";
+import { useState } from "react";
+import { EDITOR_TOOLBAR_HEIGHT_PX } from "@/lib/v2/relatedDiagram/editorUiState";
 
 function ToolbarSep() {
   return (
@@ -29,7 +26,7 @@ export default function RelatedDiagramEditorToolbar({
   caseLabel,
   form3Open,
   onOpenForm3,
-  onAddCardPlaceholder,
+  onAddCard,
   devTitle,
 }: {
   percent: number;
@@ -44,21 +41,13 @@ export default function RelatedDiagramEditorToolbar({
   caseLabel: string;
   form3Open: boolean;
   onOpenForm3: () => void;
-  onAddCardPlaceholder: () => void;
+  onAddCard: () => void;
   devTitle: string;
 }) {
   const [overflowOpen, setOverflowOpen] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!notice) return;
-    const id = window.setTimeout(() => setNotice(null), 2800);
-    return () => window.clearTimeout(id);
-  }, [notice]);
 
   const addCard = () => {
-    onAddCardPlaceholder();
-    setNotice(EDITOR_ADD_CARD_PLACEHOLDER);
+    onAddCard();
     setOverflowOpen(false);
   };
 
@@ -86,7 +75,7 @@ export default function RelatedDiagramEditorToolbar({
         <button
           type="button"
           data-rd-add-card
-          aria-label="カードを追加"
+          aria-label="新しい気づきを追加"
           onClick={addCard}
           className="hidden h-[44px] min-h-[44px] shrink-0 items-center rounded-lg border border-[#E5E5EA] px-3 text-[14px] text-[#1D1D1F] min-[900px]:inline-flex"
         >
@@ -187,6 +176,7 @@ export default function RelatedDiagramEditorToolbar({
             >
               <button
                 type="button"
+                aria-label="新しい気づきを追加"
                 className="flex min-h-[44px] w-full items-center rounded-md px-3 text-left text-[14px] text-[#1D1D1F]"
                 onClick={addCard}
               >
@@ -206,15 +196,6 @@ export default function RelatedDiagramEditorToolbar({
           ) : null}
         </div>
       </div>
-      {notice ? (
-        <p
-          data-rd-editor-placeholder-notice
-          role="status"
-          className="pointer-events-none absolute left-3 top-[54px] z-50 rounded-md bg-[#1D1D1F] px-3 py-2 text-[13px] text-white"
-        >
-          {notice}
-        </p>
-      ) : null}
     </header>
   );
 }

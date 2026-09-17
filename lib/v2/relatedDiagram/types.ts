@@ -25,7 +25,8 @@ export type RelatedDiagramCardOrigin =
   | "form3_information"
   | "form3_assessment"
   | "diagram_integration"
-  | "knowledge_library";
+  | "knowledge_library"
+  | "direct_insight";
 
 export type RelatedDiagramConnectionRelationType =
   | "current"

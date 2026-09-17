@@ -8,7 +8,11 @@ import type {
   RelatedDiagramCardOrigin,
 } from "./types";
 
-export type CardSourceKind = "form3" | "knowledge_library" | "none";
+export type CardSourceKind =
+  | "form3"
+  | "knowledge_library"
+  | "direct_insight"
+  | "none";
 
 export type CardSourceCapabilities = {
   canOpenSource: boolean;
@@ -27,6 +31,9 @@ export function getCardSourceCapabilities(card: {
   }
   if (card.origin === "knowledge_library") {
     return { canOpenSource: false, sourceKind: "knowledge_library" };
+  }
+  if (card.origin === "direct_insight") {
+    return { canOpenSource: false, sourceKind: "direct_insight" };
   }
   return { canOpenSource: false, sourceKind: "none" };
 }

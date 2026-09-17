@@ -10,6 +10,7 @@ export type RelatedDiagramEditorMode =
   | "card_selected"
   | "form3_reference"
   | "card_edit"
+  | "direct_insight_compose"
   | "connecting"
   | "connection_selected";
 
@@ -18,12 +19,14 @@ export type EditorChromeInput = {
   form3Open: boolean;
   editOpen: boolean;
   connecting: boolean;
+  directInsightOpen?: boolean;
 };
 
 export function resolveRelatedDiagramEditorMode(
   input: EditorChromeInput,
 ): RelatedDiagramEditorMode {
   if (input.connecting) return "connecting";
+  if (input.directInsightOpen) return "direct_insight_compose";
   if (input.editOpen) return "card_edit";
   if (input.form3Open) return "form3_reference";
   if (input.selection.kind === "connection") return "connection_selected";
@@ -34,7 +37,11 @@ export function resolveRelatedDiagramEditorMode(
 export function editorModeIsDrawer(
   mode: RelatedDiagramEditorMode,
 ): boolean {
-  return mode === "form3_reference" || mode === "card_edit";
+  return (
+    mode === "form3_reference" ||
+    mode === "card_edit" ||
+    mode === "direct_insight_compose"
+  );
 }
 
 export function editorModeBlocksDrawer(

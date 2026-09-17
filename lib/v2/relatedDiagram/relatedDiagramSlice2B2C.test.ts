@@ -308,7 +308,6 @@ test("19 connecting cancel", () => {
 test("20 no Connection created", () => {
   assert.equal(ws.includes("upsertConnection("), false);
   assert.ok(ws.includes("createCardConnectIntent"));
-  assert.equal(ws.includes("direct_insight"), false);
 });
 
 test("21 selection not history", () => {
@@ -402,10 +401,11 @@ test("30 Delete modal behavior unchanged", () => {
 });
 
 test("placeholder add card does not create a Card", () => {
-  assert.ok(toolbar.includes("EDITOR_ADD_CARD_PLACEHOLDER"));
   assert.equal(EDITOR_ADD_CARD_PLACEHOLDER, "カード追加は次のSliceで実装します");
-  assert.equal(ws.includes("origin: \"direct_insight\""), false);
-  assert.ok(ws.includes("UI placeholder only"));
+  assert.ok(toolbar.includes("＋カード"));
+  assert.ok(ws.includes("onAddCard={openDirectInsightCompose}"));
+  assert.equal(toolbar.includes("カードの種類"), false);
+  assert.equal(ws.includes("upsertConnection("), false);
 });
 
 test("student runtime stays outside the editor chrome", () => {
