@@ -59,6 +59,9 @@ export function isRelatedDiagramSelectionPreserveTarget(
       el.closest("[data-rd-toolbar]") ||
       el.closest("[data-rd-form3-compose]") ||
       el.closest("[data-rd-insight-compose]") ||
+      el.closest("[data-rd-relation-compose]") ||
+      el.closest("[data-rd-action-popover]") ||
+      el.closest("[data-rd-connecting-hint]") ||
       el.closest("textarea") ||
       el.closest("input") ||
       el.closest("select"),

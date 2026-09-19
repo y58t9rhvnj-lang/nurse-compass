@@ -32,6 +32,8 @@ export default function RelatedDiagramA3Surface({
   routeTopology,
   interactive = false,
   selectedCardId = null,
+  connectSourceCardId = null,
+  connectTargetCardId = null,
   selectedGroup = false,
   previewCardId = null,
   onCardPointerDown,
@@ -49,6 +51,8 @@ export default function RelatedDiagramA3Surface({
   stableRouteState?: StableRouteState;
   interactive?: boolean;
   selectedCardId?: string | null;
+  connectSourceCardId?: string | null;
+  connectTargetCardId?: string | null;
   selectedGroup?: boolean;
   previewCardId?: string | null;
   onCardPointerDown?: (
@@ -157,6 +161,13 @@ export default function RelatedDiagramA3Surface({
           key={card.id}
           card={card}
           selected={card.id === selectedCardId}
+          connectRole={
+            card.id === connectSourceCardId
+              ? "source"
+              : card.id === connectTargetCardId
+                ? "target"
+                : null
+          }
           interactive={interactive}
           onPointerDown={onCardPointerDown}
           onPointerMove={onCardPointerMove}

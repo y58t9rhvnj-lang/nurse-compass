@@ -47,15 +47,18 @@ const movableDown = {
 
 test("6px未満 = tap (stays CARD_SELECTED)", () => {
   let s = applyPointerDownOnCard(createIdleState(), movableDown);
+  assert.equal(s.phase, "CARD_PRESSING");
+  assert.equal(s.selectedCardId, null);
   s = applyPointerMove(s, {
     pointerId: 1,
     clientX: 100 + CARD_DRAG_THRESHOLD_PX - 1,
     clientY: 100,
     scale: 1,
   });
-  assert.equal(s.phase, "CARD_SELECTED");
+  assert.equal(s.phase, "CARD_PRESSING");
   const up = applyPointerUp(s, { pointerId: 1 });
   assert.equal(up.drop, null);
+  assert.equal(up.state.phase, "CARD_SELECTED");
   assert.equal(up.state.selectedCardId, "demo_info");
 });
 
@@ -87,7 +90,7 @@ test("locked Card drag不可", () => {
     clientY: 140,
     scale: 1,
   });
-  assert.equal(s.phase, "CARD_SELECTED");
+  assert.equal(s.phase, "CARD_PRESSING");
   assert.equal(s.currentX, 200);
 });
 
@@ -264,6 +267,41 @@ test("group handle drag applies one delta and handoff does not revert", () => {
     scale: 1,
   });
   assert.equal(after.currentX, 30);
+});
+
+test("first card + second blank cancels tap", () => {
+  const s = applyPointerDownOnCard(createIdleState(), movableDown);
+  assert.equal(s.phase, "CARD_PRESSING");
+  const handoff = applySecondTouch(s);
+  assert.equal(handoff.state.phase, "VIEWPORT_GESTURE");
+  assert.equal(handoff.state.selectedCardId, null);
+  assert.equal(handoff.commit, null);
+  const up = applyPointerUp(handoff.state, { pointerId: 1 });
+  assert.equal(up.state.selectedCardId, null);
+  assert.equal(up.drop, null);
+});
+
+test("first blank + second card does not select", () => {
+  const blank = applyPointerDownOnBlank(createIdleState());
+  const pinch = applySecondTouch(blank);
+  const onCard = applyPointerDownOnCard(pinch.state, movableDown);
+  assert.equal(onCard.phase, "VIEWPORT_GESTURE");
+  assert.equal(onCard.selectedCardId, null);
+});
+
+test("both fingers on card do not tap", () => {
+  const first = applyPointerDownOnCard(createIdleState(), movableDown);
+  const second = applySecondTouch(first);
+  const ended = applyViewportGestureEnd(second.state);
+  assert.equal(ended.phase, "IDLE");
+  assert.equal(ended.selectedCardId, null);
+});
+
+test("both blank pinch does not select a card", () => {
+  const pinch = applySecondTouch(createIdleState());
+  const ended = applyViewportGestureEnd(pinch.state);
+  assert.equal(ended.selectedCardId, null);
+  assert.equal(ended.phase, "IDLE");
 });
 
 console.log(`\n${passed} passed`);

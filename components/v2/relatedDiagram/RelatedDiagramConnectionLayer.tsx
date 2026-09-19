@@ -1,10 +1,18 @@
 "use client";
 
+import { useId } from "react";
 import type {
   RelatedDiagramCard,
   RelatedDiagramConnection,
 } from "@/lib/v2/relatedDiagram/types";
 import { getA3LegendBounds } from "@/lib/v2/relatedDiagram/a3Legend";
+import {
+  CONNECTION_ARROW_MARKER_BASE_ID,
+  CONNECTION_ARROW_THICK_MARKER_BASE_ID,
+  connectionPathMarkerAttrs,
+  sanitizeSvgIdToken,
+  scopedConnectionArrowMarkerId,
+} from "@/lib/v2/relatedDiagram/connectionArrowMarker";
 import {
   stableRoutesList,
   type StableRouteState,
@@ -42,6 +50,9 @@ export default function RelatedDiagramConnectionLayer({
   previewCardId?: string | null;
   stableRouteState?: StableRouteState;
 }) {
+  const markerScope = sanitizeSvgIdToken(useId());
+  const arrowMarkerId = `${CONNECTION_ARROW_MARKER_BASE_ID}-${markerScope}`;
+  const thickMarkerId = `${CONNECTION_ARROW_THICK_MARKER_BASE_ID}-${markerScope}`;
   const legend = getA3LegendBounds(width, height);
   const plan = stableRouteState
     ? {
@@ -80,7 +91,9 @@ export default function RelatedDiagramConnectionLayer({
     const conn = byConn.get(route.connectionId);
     if (!conn) return null;
     const stroke = resolveConnectionStrokeVisual(conn.relationType);
-    const markerId = stroke.marker === "arrow-thick" ? "rd-arrow-thick" : "rd-arrow";
+    const { markerEnd } = connectionPathMarkerAttrs(
+      scopedConnectionArrowMarkerId(conn.relationType, markerScope),
+    );
     const isPreview = previewIds.has(conn.id);
     const d =
       sharedHops.length > 0
@@ -101,7 +114,7 @@ export default function RelatedDiagramConnectionLayer({
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
-          markerEnd={`url(#${markerId})`}
+          markerEnd={markerEnd}
         />
       </g>
     );
@@ -117,7 +130,7 @@ export default function RelatedDiagramConnectionLayer({
     >
       <defs>
         <marker
-          id="rd-arrow"
+          id={arrowMarkerId}
           viewBox="0 0 10 10"
           refX="10"
           refY="5"
@@ -129,7 +142,7 @@ export default function RelatedDiagramConnectionLayer({
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#1D1D1F" />
         </marker>
         <marker
-          id="rd-arrow-thick"
+          id={thickMarkerId}
           viewBox="0 0 10 10"
           refX="10"
           refY="5"

@@ -18,6 +18,7 @@ export const CARD_DRAG_THRESHOLD_PX = 6;
 
 export type InteractionPhase =
   | "IDLE"
+  | "CARD_PRESSING"
   | "CARD_SELECTED"
   | "CARD_DRAGGING"
   | "GROUP_SELECTED"
@@ -27,6 +28,7 @@ export type InteractionPhase =
 export type CardInteractionState = {
   phase: InteractionPhase;
   selectedCardId: string | null;
+  pendingCardId: string | null;
   selectedGroup: boolean;
   pointerId: number | null;
   pointerType: string | null;
@@ -114,6 +116,7 @@ export function createIdleState(): CardInteractionState {
   return {
     phase: "IDLE",
     selectedCardId: null,
+    pendingCardId: null,
     selectedGroup: false,
     pointerId: null,
     pointerType: null,
@@ -174,6 +177,7 @@ export function applySelectCard(
     ...createIdleState(),
     phase: "CARD_SELECTED",
     selectedCardId: cardId,
+    pendingCardId: null,
     movable: true,
   };
 }
@@ -197,8 +201,9 @@ export function applyPointerDownOnCard(
     return state;
   }
   return withPointerSample(state, input, {
-    phase: "CARD_SELECTED",
-    selectedCardId: input.cardId,
+    phase: "CARD_PRESSING",
+    selectedCardId: state.selectedCardId,
+    pendingCardId: input.cardId,
     selectedGroup: false,
     movable: input.movable,
     originX: input.originX,
@@ -276,7 +281,7 @@ export function applyPointerMove(
   );
   let phase = state.phase;
   if (
-    phase === "CARD_SELECTED" &&
+    (phase === "CARD_PRESSING" || phase === "CARD_SELECTED") &&
     state.movable &&
     dist >= CARD_DRAG_THRESHOLD_PX
   ) {
@@ -335,6 +340,10 @@ export function applyPointerMove(
   return {
     ...state,
     phase,
+    selectedCardId:
+      phase === "CARD_DRAGGING"
+        ? (state.pendingCardId ?? state.selectedCardId)
+        : state.selectedCardId,
     lastClientX: input.clientX,
     lastClientY: input.clientY,
     currentX: clamped.x,
@@ -351,6 +360,20 @@ export function applyPointerUp(
   }
   if (state.phase === "VIEWPORT_GESTURE") {
     return { state: { ...state, pointerId: null }, drop: null };
+  }
+  if (state.phase === "CARD_PRESSING") {
+    const cardId = state.pendingCardId;
+    return {
+      state: {
+        ...state,
+        phase: cardId ? "CARD_SELECTED" : "IDLE",
+        selectedCardId: cardId,
+        pendingCardId: null,
+        pointerId: null,
+        pointerType: null,
+      },
+      drop: null,
+    };
   }
   if (state.phase === "GROUP_DRAGGING" && state.selectedGroup) {
     return {
@@ -401,6 +424,19 @@ export function applyPointerUp(
 export function applySecondTouch(
   state: CardInteractionState,
 ): { state: CardInteractionState; commit: DragCommit | null } {
+  if (state.phase === "CARD_PRESSING") {
+    return {
+      state: {
+        ...state,
+        phase: "VIEWPORT_GESTURE",
+        selectedCardId: null,
+        pendingCardId: null,
+        pointerId: null,
+        pointerType: null,
+      },
+      commit: null,
+    };
+  }
   if (state.phase === "GROUP_DRAGGING" && state.selectedGroup) {
     return {
       state: {

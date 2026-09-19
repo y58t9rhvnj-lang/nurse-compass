@@ -145,11 +145,12 @@ test("4 tap does not move Card", () => {
     clientY: 100,
     scale: 1,
   });
-  assert.equal(s.phase, "CARD_SELECTED");
+  assert.equal(s.phase, "CARD_PRESSING");
   assert.equal(s.currentX, 40);
   assert.equal(s.currentY, 50);
   const up = applyPointerUp(s, { pointerId: 1 });
   assert.equal(up.drop, null);
+  assert.equal(up.state.phase, "CARD_SELECTED");
   assert.equal(up.state.selectedCardId, "info1");
 });
 

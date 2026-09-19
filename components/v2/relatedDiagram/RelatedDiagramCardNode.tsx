@@ -9,6 +9,7 @@ import { resolveCardBorderVisual } from "@/lib/v2/relatedDiagram/visualStyle";
 export default function RelatedDiagramCardNode({
   card,
   selected = false,
+  connectRole = null,
   interactive = false,
   onPointerDown,
   onPointerMove,
@@ -16,6 +17,7 @@ export default function RelatedDiagramCardNode({
 }: {
   card: RelatedDiagramCard;
   selected?: boolean;
+  connectRole?: "source" | "target" | null;
   interactive?: boolean;
   onPointerDown?: (
     card: RelatedDiagramCard,
@@ -35,6 +37,7 @@ export default function RelatedDiagramCardNode({
       data-rd-card-type={card.cardType}
       data-rd-card-state={card.state ?? "none"}
       data-rd-selected={selected ? "true" : undefined}
+      data-rd-connect-role={connectRole ?? undefined}
       aria-selected={selected}
       data-rd-movable={movable ? "true" : "false"}
       className="absolute box-border rounded-[2px]"

@@ -49,3 +49,17 @@ export function truncateContextTitle(text: string, max = 40): string {
   if (trimmed.length <= max) return trimmed;
   return `${trimmed.slice(0, max)}…`;
 }
+
+export type VisibleContextAction = "edit" | "connect" | "delete" | "source";
+
+export function visibleContextActions(
+  capabilities: CardActionCapabilities,
+  canOpenSource: boolean,
+): VisibleContextAction[] {
+  const actions: VisibleContextAction[] = [];
+  if (capabilities.canEdit) actions.push("edit");
+  if (capabilities.canConnect) actions.push("connect");
+  if (capabilities.canDelete) actions.push("delete");
+  if (canOpenSource) actions.push("source");
+  return actions;
+}

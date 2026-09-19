@@ -151,17 +151,22 @@ test("2 Card selected Context Bar", () => {
     }),
     "card_selected",
   );
-  assert.ok(bar.includes("選択："));
   assert.ok(bar.includes('action="edit"'));
   assert.ok(bar.includes('action="connect"'));
   assert.ok(bar.includes('action="delete"'));
   assert.ok(ws.includes("RelatedDiagramContextBar"));
+  assert.ok(ws.includes("RelatedDiagramActionPopover"));
 });
 
-test("3 only one Context Bar row", () => {
+test("3 Context Bar is overlay not document flow", () => {
   assert.equal(EDITOR_CONTEXT_BAR_HEIGHT_PX, 52);
   assert.ok(bar.includes("flex-nowrap"));
-  assert.ok(bar.includes("EDITOR_CONTEXT_BAR_HEIGHT_PX"));
+  const chrome = ws.slice(
+    ws.indexOf("<RelatedDiagramEditorToolbar"),
+    ws.indexOf("data-rd-viewport"),
+  );
+  assert.equal(chrome.includes("RelatedDiagramContextBar"), false);
+  assert.equal(chrome.includes("RelatedDiagramRelationComposeBar"), false);
   assert.equal(bar.includes("basis-full"), false);
   assert.equal(ws.includes("RelatedDiagramForm3SourceTrace"), false);
 });
@@ -185,7 +190,8 @@ test("6 Information edit disabled", () => {
   assert.equal(getCardActionCapabilities(info).canEdit, false);
   assert.ok(ws.includes("forbidden_original"));
   assert.ok(ws.includes("様式3の情報は原文のまま使用します"));
-  assert.ok(bar.includes("aria-description"));
+  assert.ok(bar.includes("visibleContextActions"));
+  assert.ok(bar.includes('actions.includes("edit")'));
   assert.equal(bar.includes("basis-full"), false);
 });
 
@@ -284,7 +290,7 @@ test("17 connect intent → Connecting Context", () => {
     "connecting",
   );
   assert.ok(bar.includes("接続元："));
-  assert.ok(bar.includes("接続先のカードをタップ"));
+  assert.ok(bar.includes("接続先のカードを選択"));
   assert.equal(bar.includes("からつなぐ"), false);
   assert.equal(bar.includes("接続先のカードをタップしてください"), false);
   assert.ok(bar.includes('data-rd-connect-source'));

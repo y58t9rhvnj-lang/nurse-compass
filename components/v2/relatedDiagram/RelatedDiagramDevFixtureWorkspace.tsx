@@ -39,6 +39,12 @@ import type { RelatedDiagramRouteTopology } from "@/lib/v2/relatedDiagram/routeT
 import { getCardActionCapabilities } from "@/lib/v2/relatedDiagram/cardActionCapabilities";
 import { getCardSourceCapabilities } from "@/lib/v2/relatedDiagram/cardSourceCapabilities";
 import {
+  commitStudentConnectionCreate,
+  connectNoticeForCode,
+  evaluateConnectTarget,
+  type RelationComposeDraft,
+} from "@/lib/v2/relatedDiagram/cardConnectionCreate";
+import {
   buildDirectInsightCard,
   canCommitDirectInsightCompose,
   emptyDirectInsightComposeDraft,
@@ -82,12 +88,19 @@ import type {
   RelatedDiagramForm3InformationSource,
 } from "@/lib/v2/relatedDiagram/form3AssessmentReadModel";
 import type { NormalizedAssessmentSelection } from "@/lib/v2/relatedDiagram/form3AssessmentSelection";
+import {
+  trackPointerDown,
+  trackPointerUp,
+} from "@/lib/v2/relatedDiagram/actionPopoverGesture";
+import { cardScreenRect } from "@/lib/v2/relatedDiagram/actionPopoverPlacement";
 import RelatedDiagramA3Surface from "./RelatedDiagramA3Surface";
+import RelatedDiagramActionPopover from "./RelatedDiagramActionPopover";
 import RelatedDiagramCardDeleteConfirm from "./RelatedDiagramCardDeleteConfirm";
 import RelatedDiagramCardEditDrawer from "./RelatedDiagramCardEditDrawer";
 import RelatedDiagramContextBar from "./RelatedDiagramContextBar";
 import RelatedDiagramDirectInsightDrawer from "./RelatedDiagramDirectInsightDrawer";
 import RelatedDiagramEditorToolbar from "./RelatedDiagramEditorToolbar";
+import RelatedDiagramRelationComposeBar from "./RelatedDiagramRelationComposeBar";
 import RelatedDiagramForm3Drawer, {
   type Form3DrawerMode,
 } from "./RelatedDiagramForm3Drawer";
@@ -252,6 +265,15 @@ export default function RelatedDiagramDevFixtureWorkspace() {
   const [insightDraft, setInsightDraft] = useState<DirectInsightComposeDraft | null>(
     null,
   );
+  const [relationCompose, setRelationCompose] =
+    useState<RelationComposeDraft | null>(null);
+  const [connectNotice, setConnectNotice] = useState<string | null>(null);
+  const connectTapRef = useRef<{
+    cardId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const suppressConnectTapRef = useRef(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const editorMode = resolveRelatedDiagramEditorMode({
     selection: diagramSelection,
@@ -295,6 +317,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     setActionIntent(null);
     setEditDraft(null);
     setInsightDraft(null);
+    setRelationCompose(null);
     setDeleteConfirmOpen(false);
   }, [selectedCardId]);
 
@@ -304,6 +327,12 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       selectCard(actionIntent.sourceCardId);
     }
   }, [actionIntent, selectCard, selectedCardId]);
+
+  useEffect(() => {
+    if (!connectNotice) return;
+    const id = window.setTimeout(() => setConnectNotice(null), 2500);
+    return () => window.clearTimeout(id);
+  }, [connectNotice]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -592,13 +621,154 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     setDrawerOpen(false);
     setInsightDraft(null);
     setEditDraft(null);
+    setRelationCompose(null);
+    setConnectNotice(null);
+    suppressConnectTapRef.current = false;
     setActionIntent(intent);
   }, [selectedCard]);
 
   const handleCancelConnect = useCallback(() => {
+    suppressConnectTapRef.current = true;
+    connectTapRef.current = null;
+    setRelationCompose(null);
+    setConnectNotice(null);
     setActionIntent(null);
     focusContextAction("connect");
   }, [focusContextAction]);
+
+  useEffect(() => {
+    if (actionIntent?.kind !== "connect" || relationCompose) return;
+    const pointers = new Set<number>();
+    const onDown = (event: PointerEvent) => {
+      if (trackPointerDown(pointers, event.pointerId) >= 2) {
+        handleCancelConnect();
+      }
+    };
+    const onUp = (event: PointerEvent) => {
+      trackPointerUp(pointers, event.pointerId);
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("pointerup", onUp, true);
+    document.addEventListener("pointercancel", onUp, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("pointerup", onUp, true);
+      document.removeEventListener("pointercancel", onUp, true);
+    };
+  }, [actionIntent, handleCancelConnect, relationCompose]);
+
+  const handleConnectTargetTap = useCallback(
+    (targetCardId: string) => {
+      if (actionIntent?.kind !== "connect") return;
+      const evaluated = evaluateConnectTarget({
+        graph,
+        sourceCardId: actionIntent.sourceCardId,
+        targetCardId,
+      });
+      if (!evaluated.ok) {
+        setConnectNotice(evaluated.message);
+        if (evaluated.code === "self_connection") return;
+        setRelationCompose(null);
+        return;
+      }
+      setConnectNotice(null);
+      setRelationCompose({
+        sourceCardId: actionIntent.sourceCardId,
+        targetCardId,
+      });
+    },
+    [actionIntent, graph],
+  );
+
+  const handleCancelRelationCompose = useCallback(() => {
+    suppressConnectTapRef.current = true;
+    connectTapRef.current = null;
+    setRelationCompose(null);
+    setConnectNotice(null);
+    setActionIntent(null);
+  }, []);
+
+  const handleChooseRelation = useCallback(
+    (relationType: "current" | "potential" | "treatment") => {
+      if (actionIntent?.kind !== "connect" || !relationCompose) return;
+      const created = commitStudentConnectionCreate({
+        graph,
+        routeState,
+        topology,
+        sourceCardId: relationCompose.sourceCardId,
+        targetCardId: relationCompose.targetCardId,
+        relationType,
+      });
+      if (!created.ok) {
+        setConnectNotice(connectNoticeForCode(created.code));
+        return;
+      }
+      setGraph(created.graph);
+      setRouteState(created.routeState);
+      if (created.topology) setTopology(created.topology);
+      onHistoryPush({
+        type: "addConnection",
+        connection: created.connection,
+        routeStateBefore: cloneStableRouteState(routeState),
+        routeStateAfter: cloneStableRouteState(created.routeState),
+        topologyBefore: topology,
+        topologyAfter: created.topology,
+      });
+      setRelationCompose(null);
+      setConnectNotice(null);
+      setActionIntent(null);
+      selectCard(null);
+    },
+    [
+      actionIntent,
+      graph,
+      onHistoryPush,
+      relationCompose,
+      routeState,
+      selectCard,
+      topology,
+    ],
+  );
+
+  const handleConnectingCardPointerDown = useCallback(
+    (
+      card: Parameters<typeof onCardPointerDown>[0],
+      event: Parameters<typeof onCardPointerDown>[1],
+    ) => {
+      if (actionIntent?.kind === "connect") {
+        if (suppressConnectTapRef.current) return;
+        connectTapRef.current = {
+          cardId: card.id,
+          x: event.clientX,
+          y: event.clientY,
+        };
+        return;
+      }
+      onCardPointerDown(card, event);
+    },
+    [actionIntent, onCardPointerDown],
+  );
+
+  const handleConnectingCardPointerUp = useCallback(
+    (event: Parameters<typeof onCardPointerUp>[0]) => {
+      if (suppressConnectTapRef.current) {
+        suppressConnectTapRef.current = false;
+        connectTapRef.current = null;
+        return;
+      }
+      if (actionIntent?.kind === "connect" && connectTapRef.current) {
+        const start = connectTapRef.current;
+        connectTapRef.current = null;
+        const dx = event.clientX - start.x;
+        const dy = event.clientY - start.y;
+        if (dx * dx + dy * dy > 256) return;
+        handleConnectTargetTap(start.cardId);
+        return;
+      }
+      onCardPointerUp(event);
+    },
+    [actionIntent, handleConnectTargetTap, onCardPointerUp],
+  );
 
   const handleOpenSource = useCallback(() => {
     if (actionIntent?.kind === "connect") return;
@@ -644,9 +814,10 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       data-rd-2b2b="true"
       data-rd-2b2c="true"
       data-rd-2b2d="true"
+      data-rd-2b2e1="true"
       data-rd-editor-mode={editorMode}
       data-rd-editor-selection={diagramSelection.kind}
-      className="relative flex h-[100dvh] min-h-0 min-w-0 flex-col overflow-hidden bg-[#EDEDF0]"
+      className="fixed inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden overscroll-none bg-[#EDEDF0]"
     >
       <RelatedDiagramEditorToolbar
         percent={percent}
@@ -662,19 +833,13 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         form3Open={drawerOpen}
         onOpenForm3={openForm3Drawer}
         onAddCard={openDirectInsightCompose}
-        devTitle={`Slice 2B-2D · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
+        devTitle={`Slice 2B-2E-1 · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
       />
 
-      <RelatedDiagramContextBar
-        model={contextBarModel}
-        onEdit={handleCardEdit}
-        onConnect={handleCardConnect}
-        onDelete={requestDeleteSelected}
-        onOpenSource={handleOpenSource}
-        onCancelConnect={handleCancelConnect}
-      />
-
-      <div className="relative min-h-0 flex-1">
+      <div
+        data-rd-canvas-shell
+        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+      >
       <div
         ref={viewportRef}
         data-rd-viewport
@@ -695,18 +860,110 @@ export default function RelatedDiagramDevFixtureWorkspace() {
             stableRouteState={routeState}
             interactive
             selectedCardId={selectedCardId}
+            connectSourceCardId={
+              actionIntent?.kind === "connect" ? actionIntent.sourceCardId : null
+            }
+            connectTargetCardId={relationCompose?.targetCardId ?? null}
             selectedGroup={selectedGroup}
             previewCardId={draggingCardId}
-            onCardPointerDown={onCardPointerDown}
+            onCardPointerDown={handleConnectingCardPointerDown}
             onCardPointerMove={onCardPointerMove}
-            onCardPointerUp={onCardPointerUp}
-            onGroupHandlePointerDown={onGroupHandlePointerDown}
-            onSurfacePointerDown={onSurfacePointerDown}
+            onCardPointerUp={handleConnectingCardPointerUp}
+            onGroupHandlePointerDown={
+              actionIntent?.kind === "connect"
+                ? undefined
+                : onGroupHandlePointerDown
+            }
+            onSurfacePointerDown={
+              actionIntent?.kind === "connect" ? undefined : onSurfacePointerDown
+            }
             routeDebug={routeDebug}
             routeCost={routeCost}
           />
         </div>
       </div>
+      {(() => {
+        const viewportBox = viewportElRef.current?.getBoundingClientRect();
+        const viewportRect = viewportBox
+          ? {
+              x: viewportBox.left,
+              y: viewportBox.top,
+              width: viewportBox.width,
+              height: viewportBox.height,
+            }
+          : { x: 0, y: 0, width: 0, height: 0 };
+        const viewportOrigin = viewportBox
+          ? { left: viewportBox.left, top: viewportBox.top }
+          : { left: 0, top: 0 };
+        const showCardPopover =
+          selectedCard != null &&
+          contextBarModel.kind === "card" &&
+          editDraft == null &&
+          !deleteConfirmOpen &&
+          actionIntent?.kind !== "connect";
+        const targetCard = relationCompose
+          ? graph.cards.find((card) => card.id === relationCompose.targetCardId)
+          : null;
+        return (
+          <>
+            {showCardPopover && selectedCard ? (
+              <RelatedDiagramActionPopover
+                kind="card"
+                anchor={cardScreenRect(selectedCard, viewportOrigin, transform)}
+                viewport={viewportRect}
+                estimatedSize={{ width: 220, height: 60 }}
+                onDismiss={() => selectCard(null)}
+              >
+                <RelatedDiagramContextBar
+                  model={contextBarModel}
+                  onEdit={handleCardEdit}
+                  onConnect={handleCardConnect}
+                  onDelete={requestDeleteSelected}
+                  onOpenSource={handleOpenSource}
+                  onCancelConnect={handleCancelConnect}
+                />
+              </RelatedDiagramActionPopover>
+            ) : null}
+            {relationCompose && targetCard ? (
+              <RelatedDiagramActionPopover
+                kind="relation"
+                anchor={cardScreenRect(targetCard, viewportOrigin, transform)}
+                viewport={viewportRect}
+                estimatedSize={{ width: 280, height: 168 }}
+                onDismiss={handleCancelRelationCompose}
+              >
+                <RelatedDiagramRelationComposeBar
+                  sourceTitle={
+                    graph.cards.find(
+                      (card) => card.id === relationCompose.sourceCardId,
+                    )?.text ?? ""
+                  }
+                  targetTitle={targetCard.text}
+                  onChooseRelation={handleChooseRelation}
+                  onCancel={handleCancelRelationCompose}
+                />
+              </RelatedDiagramActionPopover>
+            ) : null}
+            {contextBarModel.kind === "connecting" && !relationCompose ? (
+              <div className="pointer-events-none absolute inset-x-0 top-2 z-40 flex justify-center">
+                <RelatedDiagramContextBar
+                  model={contextBarModel}
+                  onCancelConnect={handleCancelConnect}
+                />
+              </div>
+            ) : null}
+            {connectNotice ? (
+              <p
+                data-rd-connect-notice
+                role="status"
+                className="pointer-events-none absolute left-3 top-14 z-50 rounded-md bg-[#1D1D1F] px-3 py-2 text-[13px] text-white"
+              >
+                {connectNotice}
+              </p>
+            ) : null}
+          </>
+        );
+      })()}
       <RelatedDiagramForm3Drawer
         open={drawerOpen}
         model={form3Model}

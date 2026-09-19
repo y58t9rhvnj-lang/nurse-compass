@@ -328,6 +328,14 @@ export function useCardInteraction({
     (card: RelatedDiagramCard, event: ReactPointerEvent<HTMLElement>) => {
       if (!enabled) return;
       if (machineRef.current.phase === "VIEWPORT_GESTURE") return;
+      if (event.pointerType === "touch" && touchIdsRef.current.size >= 2) {
+        const handoff = applySecondTouch(machineRef.current);
+        applyCommit(handoff.commit, true);
+        releaseCapture();
+        clearRouteBase();
+        publishMachine(handoff.state);
+        return;
+      }
       if (
         machineRef.current.pointerId != null &&
         event.pointerId !== machineRef.current.pointerId
@@ -351,7 +359,7 @@ export function useCardInteraction({
       captureElRef.current = event.currentTarget;
       event.currentTarget.setPointerCapture?.(event.pointerId);
     },
-    [enabled, publishMachine],
+    [applyCommit, clearRouteBase, enabled, publishMachine, releaseCapture],
   );
 
   const onGroupHandlePointerDown = useCallback(
@@ -426,6 +434,7 @@ export function useCardInteraction({
   useEffect(() => {
     if (!enabled) return;
     const draggingPhases = new Set([
+      "CARD_PRESSING",
       "CARD_SELECTED",
       "CARD_DRAGGING",
       "GROUP_SELECTED",

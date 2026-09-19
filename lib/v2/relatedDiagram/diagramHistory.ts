@@ -15,8 +15,10 @@ import {
   type StableRouteState,
 } from "./incrementalRoutes";
 import type { RelatedDiagramRouteTopology } from "./routeTopology";
+import { cloneConnection } from "./cardConnectionCreate";
 import { patchCardInGraph } from "./cardEdit";
 import { restoreDeletedConnections } from "./cardDelete";
+import { deleteConnection, upsertConnection } from "./semanticGraph";
 import type {
   RelatedDiagramCard,
   RelatedDiagramConnection,
@@ -61,10 +63,20 @@ export type EditCardHistoryAction = {
   after: { text: string; state: RelatedDiagramCard["state"] };
 };
 
+export type AddConnectionHistoryAction = {
+  type: "addConnection";
+  connection: RelatedDiagramConnection;
+  routeStateBefore: StableRouteState;
+  routeStateAfter: StableRouteState;
+  topologyBefore?: RelatedDiagramRouteTopology;
+  topologyAfter?: RelatedDiagramRouteTopology;
+};
+
 export type DiagramHistoryAction =
   | MoveHistoryAction
   | CardEntityHistoryAction
-  | EditCardHistoryAction;
+  | EditCardHistoryAction
+  | AddConnectionHistoryAction;
 
 export type HistoryCommand =
   | { kind: "none" }
@@ -87,6 +99,18 @@ export type HistoryCommand =
       cardId: string;
       text: string;
       state: RelatedDiagramCard["state"];
+    }
+  | {
+      kind: "addConnection";
+      connection: RelatedDiagramConnection;
+      routeState?: StableRouteState;
+      topology?: RelatedDiagramRouteTopology;
+    }
+  | {
+      kind: "removeConnection";
+      connectionId: string;
+      routeState?: StableRouteState;
+      topology?: RelatedDiagramRouteTopology;
     };
 
 export type { CardEntitySnapshot };
@@ -184,7 +208,16 @@ export function pushDiagramHistory(
             before: { ...action.before },
             after: { ...action.after },
           }
-        : action;
+        : action.type === "addConnection"
+          ? {
+              ...action,
+              connection: cloneConnection(action.connection),
+              routeStateBefore: cloneStableRouteState(action.routeStateBefore),
+              routeStateAfter: cloneStableRouteState(action.routeStateAfter),
+              topologyBefore: cloneTopology(action.topologyBefore),
+              topologyAfter: cloneTopology(action.topologyAfter),
+            }
+          : action;
   const past = [...history.past, stored];
   while (past.length > limit) past.shift();
   return { past, future: [] };
@@ -214,6 +247,13 @@ function undoCommand(action: DiagramHistoryAction): HistoryCommand {
         text: action.before.text,
         state: action.before.state,
       };
+    case "addConnection":
+      return {
+        kind: "removeConnection",
+        connectionId: action.connection.id,
+        routeState: cloneStableRouteState(action.routeStateBefore),
+        topology: cloneTopology(action.topologyBefore),
+      };
   }
 }
 
@@ -239,6 +279,13 @@ function redoCommand(action: DiagramHistoryAction): HistoryCommand {
         cardId: action.cardId,
         text: action.after.text,
         state: action.after.state,
+      };
+    case "addConnection":
+      return {
+        kind: "addConnection",
+        connection: cloneConnection(action.connection),
+        routeState: cloneStableRouteState(action.routeStateAfter),
+        topology: cloneTopology(action.topologyAfter),
       };
   }
 }
@@ -303,6 +350,21 @@ export function applyHistoryCommand(
   if (command.kind === "insertCard") {
     const inserted = insertCardEntity(graph, cloneCardEntity(command.entity));
     return restoreDeletedConnections(inserted, command.connections ?? []);
+  }
+  if (command.kind === "addConnection") {
+    const result = upsertConnection(graph, {
+      id: command.connection.id,
+      sourceCardId: command.connection.sourceCardId,
+      targetCardId: command.connection.targetCardId,
+      relationType: command.connection.relationType,
+      origin: command.connection.origin,
+      now: command.connection.createdAt,
+    });
+    return result.ok ? result.graph : graph;
+  }
+  if (command.kind === "removeConnection") {
+    const result = deleteConnection(graph, command.connectionId);
+    return result.ok ? result.graph : graph;
   }
   return removeCardEntity(graph, command.cardId);
 }

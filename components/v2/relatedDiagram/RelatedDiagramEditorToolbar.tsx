@@ -8,7 +8,7 @@ function ToolbarSep() {
     <span
       data-rd-toolbar-sep
       aria-hidden
-      className="mx-1 hidden h-6 w-px shrink-0 bg-[#E5E5EA] min-[720px]:block"
+      className="mx-1 hidden h-6 w-px shrink-0 bg-[#E5E5EA] min-[1280px]:block"
     />
   );
 }
@@ -55,20 +55,24 @@ export default function RelatedDiagramEditorToolbar({
     <header
       data-rd-toolbar
       data-rd-editor-toolbar
-      className="rd-no-print relative z-40 shrink-0 border-b border-[#E5E5EA] bg-white"
+      className="rd-no-print relative z-40 w-full min-w-0 shrink-0 border-b border-[#E5E5EA] bg-white"
     >
       <div
         data-rd-toolbar-row
-        className="flex flex-nowrap items-center gap-2 overflow-hidden px-3"
+        className="flex w-full min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-hidden px-3 max-[1279px]:gap-1 max-[1279px]:px-2"
         style={{ height: EDITOR_TOOLBAR_HEIGHT_PX }}
       >
+        <div
+          data-rd-toolbar-left
+          className="flex shrink-0 items-center gap-2"
+        >
         <button
           type="button"
           data-rd-form3-open
           aria-label="様式3"
           aria-expanded={form3Open}
           onClick={onOpenForm3}
-          className="inline-flex h-[44px] min-h-[44px] shrink-0 items-center rounded-lg border border-[#E5E5EA] px-3 text-[14px] text-[#1D1D1F]"
+          className="inline-flex h-[44px] min-h-[44px] shrink-0 items-center rounded-lg border border-[#E5E5EA] px-3 text-[14px] text-[#1D1D1F] max-[1279px]:px-2"
         >
           様式3
         </button>
@@ -77,7 +81,7 @@ export default function RelatedDiagramEditorToolbar({
           data-rd-add-card
           aria-label="新しい気づきを追加"
           onClick={addCard}
-          className="hidden h-[44px] min-h-[44px] shrink-0 items-center rounded-lg border border-[#E5E5EA] px-3 text-[14px] text-[#1D1D1F] min-[900px]:inline-flex"
+          className="hidden h-[44px] min-h-[44px] shrink-0 items-center rounded-lg border border-[#E5E5EA] px-3 text-[14px] text-[#1D1D1F] max-[1279px]:px-2 min-[900px]:inline-flex"
         >
           ＋カード
         </button>
@@ -104,17 +108,21 @@ export default function RelatedDiagramEditorToolbar({
             ↷
           </button>
         </div>
-        <ToolbarSep />
-        <div className="min-w-0 flex-1">
+        </div>
+        <div data-rd-toolbar-title className="min-w-0 flex-1 overflow-hidden">
           <h1 className="truncate text-[15px] font-semibold leading-tight text-[#1D1D1F]">
             {title}
             <span className="ml-2 font-normal text-[#6E6E73]">{caseLabel}</span>
           </h1>
         </div>
+        <div
+          data-rd-toolbar-right
+          className="flex shrink-0 items-center gap-2"
+        >
         <span
           data-rd-dev-badge
           title={devTitle}
-          className="hidden shrink-0 rounded bg-[#F2F2F7] px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-[#6E6E73] min-[720px]:inline"
+          className="hidden shrink-0 rounded bg-[#F2F2F7] px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-[#6E6E73] min-[1280px]:inline"
         >
           DEV
         </span>
@@ -136,7 +144,7 @@ export default function RelatedDiagramEditorToolbar({
             data-rd-zoom-100
             aria-label="実際の100%表示"
             onClick={onReset100}
-            className="h-[44px] min-h-[44px] rounded-lg px-3 text-[13px] text-[#1D1D1F]"
+            className="h-[44px] min-h-[44px] rounded-lg px-3 text-[13px] text-[#1D1D1F] max-[1279px]:px-2"
           >
             100%
           </button>
@@ -145,7 +153,7 @@ export default function RelatedDiagramEditorToolbar({
             data-rd-zoom-fit
             aria-label="A3全体を画面に合わせる"
             onClick={onFit}
-            className="h-[44px] min-h-[44px] rounded-lg bg-[#0A5FCC] px-3 text-[13px] font-medium text-white"
+            className="h-[44px] min-h-[44px] rounded-lg bg-[#0A5FCC] px-3 text-[13px] font-medium text-white max-[1279px]:px-2"
           >
             全体表示
           </button>
@@ -154,7 +162,7 @@ export default function RelatedDiagramEditorToolbar({
           type="button"
           data-rd-print
           onClick={onPrint}
-          className="hidden h-[44px] min-h-[44px] shrink-0 items-center rounded-lg border border-[#E5E5EA] px-3 text-[13px] text-[#1D1D1F] min-[900px]:inline-flex"
+          className="hidden h-[44px] min-h-[44px] shrink-0 items-center rounded-lg border border-[#E5E5EA] px-3 text-[13px] text-[#1D1D1F] max-[1279px]:px-2 min-[900px]:inline-flex"
         >
           印刷
         </button>
@@ -194,6 +202,7 @@ export default function RelatedDiagramEditorToolbar({
               </button>
             </div>
           ) : null}
+        </div>
         </div>
       </div>
     </header>
