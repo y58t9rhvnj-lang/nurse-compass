@@ -41,9 +41,11 @@ export default function RelatedDiagramA3Surface({
   onCardPointerUp,
   onGroupHandlePointerDown,
   onSurfacePointerDown,
+  onConnectionPointerDown,
   routeDebug = false,
   routeCost = false,
   stableRouteState,
+  selectedConnectionId = null,
 }: {
   graph: RelatedDiagramSemanticGraph;
   knowledgeLabel?: string | null;
@@ -63,6 +65,8 @@ export default function RelatedDiagramA3Surface({
   onCardPointerUp?: (event: ReactPointerEvent<HTMLElement>) => void;
   onGroupHandlePointerDown?: (event: ReactPointerEvent<HTMLElement>) => void;
   onSurfacePointerDown?: (event: ReactPointerEvent<HTMLElement>) => void;
+  onConnectionPointerDown?: (event: ReactPointerEvent<SVGPathElement>) => void;
+  selectedConnectionId?: string | null;
   /** DEV query-param overlay only. Never on in production student UI. */
   routeDebug?: boolean;
   routeCost?: boolean;
@@ -102,6 +106,10 @@ export default function RelatedDiagramA3Surface({
         routeTopology={routeTopology}
         previewCardId={previewCardId}
         stableRouteState={stableRouteState}
+        selectedConnectionId={selectedConnectionId}
+        onConnectionPointerDown={
+          interactive ? onConnectionPointerDown : undefined
+        }
       />
       {routeDebug || routeCost ? (
         <RelatedDiagramRouteDebugOverlay

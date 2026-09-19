@@ -1,11 +1,18 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type PointerEvent as ReactPointerEvent } from "react";
 import type {
   RelatedDiagramCard,
   RelatedDiagramConnection,
 } from "@/lib/v2/relatedDiagram/types";
 import { getA3LegendBounds } from "@/lib/v2/relatedDiagram/a3Legend";
+import {
+  CONNECTION_HALO_OPACITY,
+  CONNECTION_HALO_STROKE,
+  CONNECTION_HIT_STROKE_PX,
+  connectionHaloStrokeWidth,
+  connectionPermissions,
+} from "@/lib/v2/relatedDiagram/cardConnectionManage";
 import {
   CONNECTION_ARROW_MARKER_BASE_ID,
   CONNECTION_ARROW_THICK_MARKER_BASE_ID,
@@ -41,6 +48,8 @@ export default function RelatedDiagramConnectionLayer({
   routeTopology,
   previewCardId,
   stableRouteState,
+  selectedConnectionId = null,
+  onConnectionPointerDown,
 }: {
   cards: RelatedDiagramCard[];
   connections: RelatedDiagramConnection[];
@@ -49,6 +58,8 @@ export default function RelatedDiagramConnectionLayer({
   routeTopology?: RelatedDiagramRouteTopology;
   previewCardId?: string | null;
   stableRouteState?: StableRouteState;
+  selectedConnectionId?: string | null;
+  onConnectionPointerDown?: (event: ReactPointerEvent<SVGPathElement>) => void;
 }) {
   const markerScope = sanitizeSvgIdToken(useId());
   const arrowMarkerId = `${CONNECTION_ARROW_MARKER_BASE_ID}-${markerScope}`;
@@ -99,13 +110,29 @@ export default function RelatedDiagramConnectionLayer({
       sharedHops.length > 0
         ? buildOrthogonalSpineDFromHops(route.points, sharedHops)
         : buildOrthogonalSpineD(route.points, [], BRIDGE_RADIUS_PX);
+    const selected = selectedConnectionId === conn.id;
     return (
       <g
         key={conn.id}
         data-rd-connection={conn.id}
         data-rd-route={isPreview ? "preview" : "orthogonal"}
         data-rd-bridge={hopOwners.has(conn.id) ? "hop" : undefined}
+        data-rd-connection-selected={selected ? "true" : undefined}
       >
+        {selected ? (
+          <path
+            className="rd-no-print"
+            data-rd-connection-halo
+            d={d}
+            stroke={CONNECTION_HALO_STROKE}
+            strokeOpacity={CONNECTION_HALO_OPACITY}
+            strokeWidth={connectionHaloStrokeWidth(stroke.strokeWidthPx)}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+            pointerEvents="none"
+          />
+        ) : null}
         <path
           d={d}
           stroke={stroke.stroke}
@@ -116,6 +143,21 @@ export default function RelatedDiagramConnectionLayer({
           fill="none"
           markerEnd={markerEnd}
         />
+        {onConnectionPointerDown &&
+        connectionPermissions(conn).selectable ? (
+          <path
+            className="rd-no-print"
+            data-rd-connection-hit={conn.id}
+            d={d}
+            stroke="transparent"
+            strokeWidth={CONNECTION_HIT_STROKE_PX}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+            pointerEvents="stroke"
+            onPointerDown={onConnectionPointerDown}
+          />
+        ) : null}
       </g>
     );
   };
@@ -160,18 +202,51 @@ export default function RelatedDiagramConnectionLayer({
           const conn = byConn.get(entry.connectionId);
           if (!conn) return null;
           const stroke = resolveConnectionStrokeVisual(conn.relationType);
+          const selected = selectedConnectionId === conn.id;
           return (
-            <path
-              key={entry.key}
-              data-rd-bridge-arc
-              data-rd-bridge-owner={entry.connectionId}
-              d={hopArcPathD(entry.hop)}
-              stroke={stroke.stroke}
-              strokeWidth={stroke.strokeWidthPx}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
+            <g key={entry.key}>
+              {selected ? (
+                <path
+                  className="rd-no-print"
+                  data-rd-connection-halo
+                  data-rd-bridge-halo
+                  d={hopArcPathD(entry.hop)}
+                  stroke={CONNECTION_HALO_STROKE}
+                  strokeOpacity={CONNECTION_HALO_OPACITY}
+                  strokeWidth={connectionHaloStrokeWidth(stroke.strokeWidthPx)}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
+                  pointerEvents="none"
+                />
+              ) : null}
+              <path
+                data-rd-bridge-arc
+                data-rd-bridge-owner={entry.connectionId}
+                d={hopArcPathD(entry.hop)}
+                stroke={stroke.stroke}
+                strokeWidth={stroke.strokeWidthPx}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+              {onConnectionPointerDown &&
+              connectionPermissions(conn).selectable ? (
+                <path
+                  className="rd-no-print"
+                  data-rd-connection-hit={conn.id}
+                  data-rd-bridge-hit
+                  d={hopArcPathD(entry.hop)}
+                  stroke="transparent"
+                  strokeWidth={CONNECTION_HIT_STROKE_PX}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
+                  pointerEvents="stroke"
+                  onPointerDown={onConnectionPointerDown}
+                />
+              ) : null}
+            </g>
           );
         })}
       </g>

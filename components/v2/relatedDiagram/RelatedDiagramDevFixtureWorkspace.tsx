@@ -7,7 +7,14 @@
  * Positions stay in local React state. No draft persistence.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { FORM3_PATTERN_ORDER, type Form3PatternKey } from "@/lib/form3/form3Types";
 import { clientToLogical } from "@/lib/v2/relatedDiagram/a3PointerMath";
 import {
@@ -82,12 +89,29 @@ import {
   type CardActionIntent,
 } from "@/lib/v2/relatedDiagram/cardActionIntents";
 import {
+  applyConnectionTapCancel,
+  applyConnectionTapPointerDown,
+  applyConnectionTapPointerUp,
+  applyConnectionTapSecondPointer,
+  changeStudentConnectionRelation,
+  connectionPermissions,
+  connectionTapAnchorRect,
+  createIdleConnectionTap,
+  deleteManagedConnection,
+  isRelatedDiagramConnectionHitTarget,
+  pickSelectableConnectionAtPoint,
+  REVERSE_CONNECTION_NOTICE,
+  reverseStudentConnection,
+} from "@/lib/v2/relatedDiagram/cardConnectionManage";
+import {
   cloneStableRouteState,
   seedStableRouteState,
+  stableRoutesList,
   type StableRouteState,
 } from "@/lib/v2/relatedDiagram/incrementalRoutes";
 import {
   selectedCardIdFromSelection,
+  selectedConnectionIdFromSelection,
   selectionFromCardId,
 } from "@/lib/v2/relatedDiagram/diagramSelection";
 import type { RelatedDiagramSemanticGraph } from "@/lib/v2/relatedDiagram/types";
@@ -103,6 +127,7 @@ import {
 import { cardScreenRect } from "@/lib/v2/relatedDiagram/actionPopoverPlacement";
 import RelatedDiagramA3Surface from "./RelatedDiagramA3Surface";
 import RelatedDiagramActionPopover from "./RelatedDiagramActionPopover";
+import RelatedDiagramConnectionActionBar from "./RelatedDiagramConnectionActionBar";
 import RelatedDiagramCardDeleteConfirm from "./RelatedDiagramCardDeleteConfirm";
 import RelatedDiagramCardEditDrawer from "./RelatedDiagramCardEditDrawer";
 import RelatedDiagramContextBar from "./RelatedDiagramContextBar";
@@ -253,10 +278,27 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     onHistoryPush,
   });
 
-  const diagramSelection = useMemo(
-    () => selectionFromCardId(selectedCardId),
-    [selectedCardId],
-  );
+  const [selectedConnectionId, setSelectedConnectionId] = useState<
+    string | null
+  >(null);
+  const [connectionAnchor, setConnectionAnchor] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const connectionTapRef = useRef(createIdleConnectionTap());
+  const connectionPointersRef = useRef(new Set<number>());
+
+  const diagramSelection = useMemo(() => {
+    if (selectedConnectionId) {
+      return {
+        kind: "connection" as const,
+        connectionId: selectedConnectionId,
+      };
+    }
+    return selectionFromCardId(selectedCardId);
+  }, [selectedCardId, selectedConnectionId]);
   const selectedCard = useMemo(
     () =>
       graph.cards.find(
@@ -264,6 +306,16 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       ) ?? null,
     [diagramSelection, graph.cards],
   );
+  const selectedConnection = useMemo(() => {
+    const connectionId = selectedConnectionIdFromSelection(diagramSelection);
+    if (!connectionId) return null;
+    const connection =
+      graph.connections.find((row) => row.id === connectionId) ?? null;
+    if (!connection || !connectionPermissions(connection).selectable) {
+      return null;
+    }
+    return connection;
+  }, [diagramSelection, graph.connections]);
   const selectedCapabilities = useMemo(
     () => (selectedCard ? getCardActionCapabilities(selectedCard) : null),
     [selectedCard],
@@ -338,6 +390,13 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     setCardTypeChooserOpen(false);
     setRelationCompose(null);
     setDeleteConfirmOpen(false);
+  }, [selectedCardId]);
+
+  useEffect(() => {
+    if (!selectedCardId) return;
+    setSelectedConnectionId(null);
+    setConnectionAnchor(null);
+    connectionTapRef.current = createIdleConnectionTap();
   }, [selectedCardId]);
 
   useEffect(() => {
@@ -733,6 +792,9 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     setRelationCompose(null);
     setConnectNotice(null);
     suppressConnectTapRef.current = false;
+    setSelectedConnectionId(null);
+    setConnectionAnchor(null);
+    connectionTapRef.current = createIdleConnectionTap();
     setActionIntent(intent);
   }, [selectedCard]);
 
@@ -839,6 +901,172 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     ],
   );
 
+  const clearConnectionSelection = useCallback(() => {
+    connectionTapRef.current = createIdleConnectionTap();
+    setSelectedConnectionId(null);
+    setConnectionAnchor(null);
+  }, []);
+
+  const handleStudentConnectionRelationChange = useCallback(
+    (relationType: "current" | "potential" | "treatment") => {
+      if (!selectedConnection) return;
+      const result = changeStudentConnectionRelation({
+        graph,
+        connectionId: selectedConnection.id,
+        relationType,
+        now: new Date().toISOString(),
+      });
+      if (!result.ok || result.kind === "unchanged") return;
+      setGraph(result.graph);
+      onHistoryPush({
+        type: "editConnectionRelation",
+        before: result.before,
+        after: result.after,
+      });
+    },
+    [graph, onHistoryPush, selectedConnection],
+  );
+
+  const handleManagedConnectionDelete = useCallback(() => {
+    if (!selectedConnection) return;
+    const result = deleteManagedConnection({
+      graph,
+      routeState,
+      topology,
+      connectionId: selectedConnection.id,
+    });
+    if (!result.ok) return;
+    setGraph(result.graph);
+    setRouteState(result.routeState);
+    if (result.topology) setTopology(result.topology);
+    onHistoryPush({
+      type: "deleteConnection",
+      connection: result.connection,
+      routeStateBefore: cloneStableRouteState(routeState),
+      routeStateAfter: cloneStableRouteState(result.routeState),
+      topologyBefore: topology,
+      topologyAfter: result.topology,
+    });
+    clearConnectionSelection();
+  }, [
+    clearConnectionSelection,
+    graph,
+    onHistoryPush,
+    routeState,
+    selectedConnection,
+    topology,
+  ]);
+
+  const handleStudentConnectionReverse = useCallback(() => {
+    if (!selectedConnection) return;
+    const result = reverseStudentConnection({
+      graph,
+      routeState,
+      topology,
+      connectionId: selectedConnection.id,
+      now: new Date().toISOString(),
+    });
+    if (!result.ok) {
+      if (result.code === "reverse_failed") {
+        setConnectNotice(result.notice ?? REVERSE_CONNECTION_NOTICE);
+      }
+      return;
+    }
+    setGraph(result.graph);
+    setRouteState(result.routeState);
+    if (result.topology) setTopology(result.topology);
+    onHistoryPush({
+      type: "reverseConnection",
+      before: result.before,
+      after: result.after,
+      routeStateBefore: cloneStableRouteState(routeState),
+      routeStateAfter: cloneStableRouteState(result.routeState),
+      topologyBefore: topology,
+      topologyAfter: result.topology,
+    });
+  }, [graph, onHistoryPush, routeState, selectedConnection, topology]);
+
+  const handleConnectionPointerDown = useCallback(
+    (event: ReactPointerEvent<SVGPathElement>) => {
+      if (actionIntent?.kind === "connect") return;
+      if (event.pointerType === "touch" && event.isPrimary === false) return;
+      const viewport = viewportElRef.current?.getBoundingClientRect();
+      if (!viewport) return;
+      const picked = pickSelectableConnectionAtPoint({
+        point: clientToLogical(
+          { x: event.clientX, y: event.clientY },
+          { x: viewport.left, y: viewport.top },
+          transform,
+        ),
+        cards: graph.cards,
+        connections: graph.connections,
+        routes: stableRoutesList(routeState),
+      });
+      if (!picked) return;
+      connectionTapRef.current = applyConnectionTapPointerDown(
+        connectionTapRef.current,
+        {
+          pointerId: event.pointerId,
+          connectionId: picked.connectionId,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          isPrimary: event.isPrimary,
+          pointerCount: Math.max(1, connectionPointersRef.current.size),
+        },
+      );
+    },
+    [actionIntent, graph.cards, graph.connections, routeState, transform],
+  );
+
+  const handleSurfacePointerDownWrapped = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      if (isRelatedDiagramConnectionHitTarget(event.target)) return;
+      clearConnectionSelection();
+      onSurfacePointerDown(event);
+    },
+    [clearConnectionSelection, onSurfacePointerDown],
+  );
+
+  useEffect(() => {
+    const pointers = connectionPointersRef.current;
+    const onDown = (event: PointerEvent) => {
+      const count = trackPointerDown(pointers, event.pointerId);
+      if (count >= 2) {
+        connectionTapRef.current = applyConnectionTapSecondPointer(
+          connectionTapRef.current,
+        );
+      }
+    };
+    const onUp = (event: PointerEvent) => {
+      trackPointerUp(pointers, event.pointerId);
+      const result = applyConnectionTapPointerUp(
+        connectionTapRef.current,
+        event.pointerId,
+      );
+      connectionTapRef.current = result.state;
+      if (!result.commit) return;
+      selectCard(null);
+      setSelectedConnectionId(result.commit.connectionId);
+      setConnectionAnchor(
+        connectionTapAnchorRect(result.commit.clientX, result.commit.clientY),
+      );
+    };
+    const onCancel = (event: PointerEvent) => {
+      trackPointerUp(pointers, event.pointerId);
+      connectionTapRef.current = applyConnectionTapCancel(
+        connectionTapRef.current,
+      );
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onCancel, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onCancel, true);
+    };
+  }, [selectCard]);
+
   const handleConnectingCardPointerDown = useCallback(
     (
       card: Parameters<typeof onCardPointerDown>[0],
@@ -927,6 +1155,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       data-rd-2b2e1="true"
       data-rd-2b2f1="true"
       data-rd-2b2f2="true"
+      data-rd-2b2g1="true"
       data-rd-editor-mode={editorMode}
       data-rd-editor-selection={diagramSelection.kind}
       className="fixed inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden overscroll-none bg-[#EDEDF0]"
@@ -946,7 +1175,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         onOpenForm3={openForm3Drawer}
         onAddCard={openCardTypeChooser}
         addCardOpen={cardTypeChooserOpen}
-        devTitle={`Slice 2B-2F-2 · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
+        devTitle={`Slice 2B-2G-1 · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
       />
 
       <div
@@ -973,6 +1202,12 @@ export default function RelatedDiagramDevFixtureWorkspace() {
             stableRouteState={routeState}
             interactive
             selectedCardId={selectedCardId}
+            selectedConnectionId={selectedConnectionId}
+            onConnectionPointerDown={
+              actionIntent?.kind === "connect"
+                ? undefined
+                : handleConnectionPointerDown
+            }
             connectSourceCardId={
               actionIntent?.kind === "connect" ? actionIntent.sourceCardId : null
             }
@@ -988,7 +1223,9 @@ export default function RelatedDiagramDevFixtureWorkspace() {
                 : onGroupHandlePointerDown
             }
             onSurfacePointerDown={
-              actionIntent?.kind === "connect" ? undefined : onSurfacePointerDown
+              actionIntent?.kind === "connect"
+                ? undefined
+                : handleSurfacePointerDownWrapped
             }
             routeDebug={routeDebug}
             routeCost={routeCost}
@@ -1035,6 +1272,35 @@ export default function RelatedDiagramDevFixtureWorkspace() {
                   onDelete={requestDeleteSelected}
                   onOpenSource={handleOpenSource}
                   onCancelConnect={handleCancelConnect}
+                />
+              </RelatedDiagramActionPopover>
+            ) : null}
+            {selectedConnection && connectionAnchor ? (
+              <RelatedDiagramActionPopover
+                kind="connection"
+                anchor={connectionAnchor}
+                viewport={viewportRect}
+                estimatedSize={{ width: 280, height: 188 }}
+                onDismiss={clearConnectionSelection}
+              >
+                <RelatedDiagramConnectionActionBar
+                  relation={selectedConnection.relationType}
+                  permissions={connectionPermissions(selectedConnection)}
+                  onChangeRelation={
+                    connectionPermissions(selectedConnection).relationEditable
+                      ? handleStudentConnectionRelationChange
+                      : undefined
+                  }
+                  onReverse={
+                    connectionPermissions(selectedConnection).reversible
+                      ? handleStudentConnectionReverse
+                      : undefined
+                  }
+                  onDelete={
+                    connectionPermissions(selectedConnection).deletable
+                      ? handleManagedConnectionDelete
+                      : undefined
+                  }
                 />
               </RelatedDiagramActionPopover>
             ) : null}

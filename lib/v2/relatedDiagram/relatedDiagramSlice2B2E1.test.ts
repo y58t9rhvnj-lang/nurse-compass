@@ -1018,7 +1018,6 @@ test("49 no reverse UI", () => {
   assert.equal(compose.includes("向き"), false);
   assert.equal(compose.includes("反転"), false);
   assert.equal(bar.includes("向きを反転"), false);
-  assert.equal(ws.includes("reverseConnection"), false);
 });
 
 test("50 no Connection edit/delete UI", () => {

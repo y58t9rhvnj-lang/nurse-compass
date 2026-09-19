@@ -34,7 +34,7 @@ export default function RelatedDiagramActionPopover({
   onDismiss,
   children,
 }: {
-  kind: "card" | "relation" | "card_type";
+  kind: "card" | "relation" | "card_type" | "connection";
   anchor: ScreenRect;
   viewport: ScreenRect;
   estimatedSize: ScreenSize;

@@ -100,7 +100,8 @@ export function isRelatedDiagramInteractionTarget(
   if (!(target instanceof Element)) return false;
   return Boolean(
     target.closest("[data-rd-card-id]") ||
-      target.closest("[data-rd-knowledge-group-handle]"),
+      target.closest("[data-rd-knowledge-group-handle]") ||
+      target.closest("[data-rd-connection-hit]"),
   );
 }
 

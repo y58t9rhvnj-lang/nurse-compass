@@ -16,6 +16,7 @@ import {
 } from "./incrementalRoutes";
 import type { RelatedDiagramRouteTopology } from "./routeTopology";
 import { cloneConnection } from "./cardConnectionCreate";
+import { replaceConnectionExact } from "./cardConnectionManage";
 import { patchCardInGraph } from "./cardEdit";
 import { restoreDeletedConnections } from "./cardDelete";
 import { deleteConnection, upsertConnection } from "./semanticGraph";
@@ -72,11 +73,39 @@ export type AddConnectionHistoryAction = {
   topologyAfter?: RelatedDiagramRouteTopology;
 };
 
+export type EditConnectionRelationHistoryAction = {
+  type: "editConnectionRelation";
+  before: RelatedDiagramConnection;
+  after: RelatedDiagramConnection;
+};
+
+export type DeleteConnectionHistoryAction = {
+  type: "deleteConnection";
+  connection: RelatedDiagramConnection;
+  routeStateBefore: StableRouteState;
+  routeStateAfter: StableRouteState;
+  topologyBefore?: RelatedDiagramRouteTopology;
+  topologyAfter?: RelatedDiagramRouteTopology;
+};
+
+export type ReverseConnectionHistoryAction = {
+  type: "reverseConnection";
+  before: RelatedDiagramConnection;
+  after: RelatedDiagramConnection;
+  routeStateBefore: StableRouteState;
+  routeStateAfter: StableRouteState;
+  topologyBefore?: RelatedDiagramRouteTopology;
+  topologyAfter?: RelatedDiagramRouteTopology;
+};
+
 export type DiagramHistoryAction =
   | MoveHistoryAction
   | CardEntityHistoryAction
   | EditCardHistoryAction
-  | AddConnectionHistoryAction;
+  | AddConnectionHistoryAction
+  | EditConnectionRelationHistoryAction
+  | DeleteConnectionHistoryAction
+  | ReverseConnectionHistoryAction;
 
 export type HistoryCommand =
   | { kind: "none" }
@@ -109,6 +138,12 @@ export type HistoryCommand =
   | {
       kind: "removeConnection";
       connectionId: string;
+      routeState?: StableRouteState;
+      topology?: RelatedDiagramRouteTopology;
+    }
+  | {
+      kind: "replaceConnection";
+      connection: RelatedDiagramConnection;
       routeState?: StableRouteState;
       topology?: RelatedDiagramRouteTopology;
     };
@@ -217,7 +252,38 @@ export function pushDiagramHistory(
               topologyBefore: cloneTopology(action.topologyBefore),
               topologyAfter: cloneTopology(action.topologyAfter),
             }
-          : action;
+          : action.type === "editConnectionRelation"
+            ? {
+                ...action,
+                before: cloneConnection(action.before),
+                after: cloneConnection(action.after),
+              }
+            : action.type === "deleteConnection"
+              ? {
+                  ...action,
+                  connection: cloneConnection(action.connection),
+                  routeStateBefore: cloneStableRouteState(
+                    action.routeStateBefore,
+                  ),
+                  routeStateAfter: cloneStableRouteState(action.routeStateAfter),
+                  topologyBefore: cloneTopology(action.topologyBefore),
+                  topologyAfter: cloneTopology(action.topologyAfter),
+                }
+              : action.type === "reverseConnection"
+                ? {
+                    ...action,
+                    before: cloneConnection(action.before),
+                    after: cloneConnection(action.after),
+                    routeStateBefore: cloneStableRouteState(
+                      action.routeStateBefore,
+                    ),
+                    routeStateAfter: cloneStableRouteState(
+                      action.routeStateAfter,
+                    ),
+                    topologyBefore: cloneTopology(action.topologyBefore),
+                    topologyAfter: cloneTopology(action.topologyAfter),
+                  }
+                : action;
   const past = [...history.past, stored];
   while (past.length > limit) past.shift();
   return { past, future: [] };
@@ -254,6 +320,25 @@ function undoCommand(action: DiagramHistoryAction): HistoryCommand {
         routeState: cloneStableRouteState(action.routeStateBefore),
         topology: cloneTopology(action.topologyBefore),
       };
+    case "editConnectionRelation":
+      return {
+        kind: "replaceConnection",
+        connection: cloneConnection(action.before),
+      };
+    case "deleteConnection":
+      return {
+        kind: "replaceConnection",
+        connection: cloneConnection(action.connection),
+        routeState: cloneStableRouteState(action.routeStateBefore),
+        topology: cloneTopology(action.topologyBefore),
+      };
+    case "reverseConnection":
+      return {
+        kind: "replaceConnection",
+        connection: cloneConnection(action.before),
+        routeState: cloneStableRouteState(action.routeStateBefore),
+        topology: cloneTopology(action.topologyBefore),
+      };
   }
 }
 
@@ -284,6 +369,25 @@ function redoCommand(action: DiagramHistoryAction): HistoryCommand {
       return {
         kind: "addConnection",
         connection: cloneConnection(action.connection),
+        routeState: cloneStableRouteState(action.routeStateAfter),
+        topology: cloneTopology(action.topologyAfter),
+      };
+    case "editConnectionRelation":
+      return {
+        kind: "replaceConnection",
+        connection: cloneConnection(action.after),
+      };
+    case "deleteConnection":
+      return {
+        kind: "removeConnection",
+        connectionId: action.connection.id,
+        routeState: cloneStableRouteState(action.routeStateAfter),
+        topology: cloneTopology(action.topologyAfter),
+      };
+    case "reverseConnection":
+      return {
+        kind: "replaceConnection",
+        connection: cloneConnection(action.after),
         routeState: cloneStableRouteState(action.routeStateAfter),
         topology: cloneTopology(action.topologyAfter),
       };
@@ -365,6 +469,9 @@ export function applyHistoryCommand(
   if (command.kind === "removeConnection") {
     const result = deleteConnection(graph, command.connectionId);
     return result.ok ? result.graph : graph;
+  }
+  if (command.kind === "replaceConnection") {
+    return replaceConnectionExact(graph, command.connection);
   }
   return removeCardEntity(graph, command.cardId);
 }

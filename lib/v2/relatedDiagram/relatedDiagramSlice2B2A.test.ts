@@ -281,7 +281,7 @@ test("19 edit intent only", () => {
 test("20 connect intent only", () => {
   const intent = createCardConnectIntent(understanding);
   assert.deepEqual(intent, { kind: "connect", sourceCardId: "u1" });
-  assert.equal(connectionSelectionReady("c1"), false);
+  assert.equal(connectionSelectionReady("c1"), true);
 });
 
 test("21 Drawer interaction does not clear unexpectedly", () => {

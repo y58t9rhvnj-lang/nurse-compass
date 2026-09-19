@@ -37,9 +37,30 @@ export function isCardSelected(
   return selection.kind === "card" && selection.cardId === cardId;
 }
 
-/** Connection selection is typed only. Slice 2B-2A does not activate it. */
-export function connectionSelectionReady(_connectionId: string): boolean {
-  return false;
+export function connectionDiagramSelection(
+  connectionId: string,
+): DiagramSelection {
+  return { kind: "connection", connectionId };
+}
+
+export function selectedConnectionIdFromSelection(
+  selection: DiagramSelection,
+): string | null {
+  return selection.kind === "connection" ? selection.connectionId : null;
+}
+
+export function isConnectionSelected(
+  selection: DiagramSelection,
+  connectionId: string,
+): boolean {
+  return (
+    selection.kind === "connection" && selection.connectionId === connectionId
+  );
+}
+
+/** Slice 2B-2G-1 activates Connection selection. */
+export function connectionSelectionReady(connectionId: string): boolean {
+  return connectionId.length > 0;
 }
 
 export function isRelatedDiagramSelectionPreserveTarget(
