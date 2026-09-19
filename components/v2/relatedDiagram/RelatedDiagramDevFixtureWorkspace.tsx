@@ -125,8 +125,14 @@ import {
   trackPointerUp,
 } from "@/lib/v2/relatedDiagram/actionPopoverGesture";
 import { cardScreenRect } from "@/lib/v2/relatedDiagram/actionPopoverPlacement";
+import {
+  canSetNursingProblemPriority,
+  commitNursingProblemPriorityPickerSelection,
+  nursingProblemPriorityPickerOptions,
+} from "@/lib/v2/relatedDiagram/nursingProblemPriorityUi";
 import RelatedDiagramA3Surface from "./RelatedDiagramA3Surface";
 import RelatedDiagramActionPopover from "./RelatedDiagramActionPopover";
+import RelatedDiagramPriorityPicker from "./RelatedDiagramPriorityPicker";
 import RelatedDiagramConnectionActionBar from "./RelatedDiagramConnectionActionBar";
 import RelatedDiagramCardDeleteConfirm from "./RelatedDiagramCardDeleteConfirm";
 import RelatedDiagramCardEditDrawer from "./RelatedDiagramCardEditDrawer";
@@ -343,6 +349,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
   } | null>(null);
   const suppressConnectTapRef = useRef(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [priorityPickerOpen, setPriorityPickerOpen] = useState(false);
   const editorMode = resolveRelatedDiagramEditorMode({
     selection: diagramSelection,
     form3Open: drawerOpen,
@@ -372,6 +379,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         title: selectedCard.text,
         capabilities: selectedCapabilities,
         canOpenSource: selectedSourceCaps?.canOpenSource === true,
+        canSetPriority: canSetNursingProblemPriority(graph, selectedCard.id),
         editDisabledReason:
           selectedCapabilities.editMode === "forbidden_original"
             ? "様式3の情報は原文のまま使用します"
@@ -390,6 +398,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     setCardTypeChooserOpen(false);
     setRelationCompose(null);
     setDeleteConfirmOpen(false);
+    setPriorityPickerOpen(false);
   }, [selectedCardId]);
 
   useEffect(() => {
@@ -714,6 +723,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     if (!selectedCard) return;
     const intent = createCardDeleteIntent(selectedCard);
     if (!intent) return;
+    setPriorityPickerOpen(false);
     setActionIntent(intent);
     setDeleteConfirmOpen(true);
   }, [selectedCard]);
@@ -731,7 +741,14 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     );
     const topologyBefore = topology;
     const topologyAfter = pruneTopologyForConnections(topology, connectionIds);
-    setGraph(removeCardAndIncidentConnections(graph, selectedCard.id));
+    const nursingProblemsBefore = graph.nursingProblems.map((row) => ({
+      ...row,
+    }));
+    const nextGraph = removeCardAndIncidentConnections(graph, selectedCard.id);
+    const nursingProblemsAfter = nextGraph.nursingProblems.map((row) => ({
+      ...row,
+    }));
+    setGraph(nextGraph);
     setRouteState(routeStateAfter);
     if (topologyAfter) setTopology(topologyAfter);
     onHistoryPush({
@@ -742,6 +759,8 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       routeStateAfter,
       topologyBefore,
       topologyAfter,
+      nursingProblemsBefore,
+      nursingProblemsAfter,
     });
     setDeleteConfirmOpen(false);
     setActionIntent(null);
@@ -754,6 +773,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     if (!intent) return;
     setDrawerOpen(false);
     setInsightDraft(null);
+    setPriorityPickerOpen(false);
     setActionIntent(intent);
     setEditDraft(cardEditDraftFromCard(selectedCard));
   }, [selectedCard]);
@@ -791,12 +811,36 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     setEditDraft(null);
     setRelationCompose(null);
     setConnectNotice(null);
+    setPriorityPickerOpen(false);
     suppressConnectTapRef.current = false;
     setSelectedConnectionId(null);
     setConnectionAnchor(null);
     connectionTapRef.current = createIdleConnectionTap();
     setActionIntent(intent);
   }, [selectedCard]);
+
+  const handleOpenPriorityPicker = useCallback(() => {
+    if (!selectedCard) return;
+    if (!canSetNursingProblemPriority(graph, selectedCard.id)) return;
+    setPriorityPickerOpen(true);
+  }, [graph, selectedCard]);
+
+  const handlePriorityPickerSelect = useCallback(
+    (priority: number | null) => {
+      if (!selectedCard) return;
+      const result = commitNursingProblemPriorityPickerSelection({
+        graph,
+        cardId: selectedCard.id,
+        priority,
+      });
+      if (result.ok && result.changed) {
+        setGraph(result.graph);
+        onHistoryPush(result.action);
+      }
+      setPriorityPickerOpen(false);
+    },
+    [graph, onHistoryPush, selectedCard],
+  );
 
   const handleCancelConnect = useCallback(() => {
     suppressConnectTapRef.current = true;
@@ -989,6 +1033,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
   const handleConnectionPointerDown = useCallback(
     (event: ReactPointerEvent<SVGPathElement>) => {
       if (actionIntent?.kind === "connect") return;
+      if (priorityPickerOpen) return;
       if (event.pointerType === "touch" && event.isPrimary === false) return;
       const viewport = viewportElRef.current?.getBoundingClientRect();
       if (!viewport) return;
@@ -1015,16 +1060,17 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         },
       );
     },
-    [actionIntent, graph.cards, graph.connections, routeState, transform],
+    [actionIntent, graph.cards, graph.connections, priorityPickerOpen, routeState, transform],
   );
 
   const handleSurfacePointerDownWrapped = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
+      if (priorityPickerOpen) return;
       if (isRelatedDiagramConnectionHitTarget(event.target)) return;
       clearConnectionSelection();
       onSurfacePointerDown(event);
     },
-    [clearConnectionSelection, onSurfacePointerDown],
+    [clearConnectionSelection, onSurfacePointerDown, priorityPickerOpen],
   );
 
   useEffect(() => {
@@ -1081,9 +1127,10 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         };
         return;
       }
+      if (priorityPickerOpen) return;
       onCardPointerDown(card, event);
     },
-    [actionIntent, onCardPointerDown],
+    [actionIntent, onCardPointerDown, priorityPickerOpen],
   );
 
   const handleConnectingCardPointerUp = useCallback(
@@ -1218,7 +1265,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
             onCardPointerMove={onCardPointerMove}
             onCardPointerUp={handleConnectingCardPointerUp}
             onGroupHandlePointerDown={
-              actionIntent?.kind === "connect"
+              actionIntent?.kind === "connect" || priorityPickerOpen
                 ? undefined
                 : onGroupHandlePointerDown
             }
@@ -1245,12 +1292,24 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         const viewportOrigin = viewportBox
           ? { left: viewportBox.left, top: viewportBox.top }
           : { left: 0, top: 0 };
+        const priorityOptions =
+          selectedCard != null
+            ? nursingProblemPriorityPickerOptions(graph, selectedCard.id)
+            : null;
+        const showPriorityPicker =
+          priorityPickerOpen &&
+          selectedCard != null &&
+          priorityOptions != null &&
+          editDraft == null &&
+          !deleteConfirmOpen &&
+          actionIntent?.kind !== "connect";
         const showCardPopover =
           selectedCard != null &&
           revealCardActions &&
           contextBarModel.kind === "card" &&
           editDraft == null &&
           !deleteConfirmOpen &&
+          !showPriorityPicker &&
           actionIntent?.kind !== "connect";
         const targetCard = relationCompose
           ? graph.cards.find((card) => card.id === relationCompose.targetCardId)
@@ -1269,9 +1328,36 @@ export default function RelatedDiagramDevFixtureWorkspace() {
                   model={contextBarModel}
                   onEdit={handleCardEdit}
                   onConnect={handleCardConnect}
+                  onPriority={handleOpenPriorityPicker}
                   onDelete={requestDeleteSelected}
                   onOpenSource={handleOpenSource}
                   onCancelConnect={handleCancelConnect}
+                />
+              </RelatedDiagramActionPopover>
+            ) : null}
+            {showPriorityPicker && selectedCard && priorityOptions ? (
+              <RelatedDiagramActionPopover
+                kind="priority"
+                anchor={cardScreenRect(selectedCard, viewportOrigin, transform)}
+                viewport={
+                  typeof window === "undefined"
+                    ? viewportRect
+                    : {
+                        x: 0,
+                        y: 0,
+                        width: window.innerWidth,
+                        height: window.innerHeight,
+                      }
+                }
+                estimatedSize={{
+                  width: 216,
+                  height: Math.min(320, 28 + 44 * priorityOptions.length),
+                }}
+                onDismiss={() => setPriorityPickerOpen(false)}
+              >
+                <RelatedDiagramPriorityPicker
+                  options={priorityOptions}
+                  onSelect={handlePriorityPickerSelect}
                 />
               </RelatedDiagramActionPopover>
             ) : null}

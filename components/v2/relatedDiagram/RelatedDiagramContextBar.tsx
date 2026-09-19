@@ -50,6 +50,7 @@ export default function RelatedDiagramContextBar({
   model,
   onEdit,
   onConnect,
+  onPriority,
   onDelete,
   onOpenSource,
   onCancelConnect,
@@ -57,6 +58,7 @@ export default function RelatedDiagramContextBar({
   model: ContextBarModel;
   onEdit?: () => void;
   onConnect?: () => void;
+  onPriority?: () => void;
   onDelete?: () => void;
   onOpenSource?: () => void;
   onCancelConnect?: () => void;
@@ -118,6 +120,7 @@ export default function RelatedDiagramContextBar({
   const actions = visibleContextActions(
     model.capabilities,
     model.canOpenSource,
+    model.canSetPriority === true,
   );
 
   return (
@@ -125,7 +128,7 @@ export default function RelatedDiagramContextBar({
       data-rd-context-bar
       data-rd-context-kind="card"
       data-rd-card-action-bar="true"
-      className="flex flex-nowrap items-center gap-0.5"
+      className="rd-no-print flex flex-nowrap items-center gap-0.5"
       onPointerDown={isolateSinglePointer}
       onPointerMove={isolateSinglePointer}
       onPointerUp={isolateSinglePointer}
@@ -144,6 +147,13 @@ export default function RelatedDiagramContextBar({
           action="connect"
           label="つなぐ"
           onClick={() => onConnect?.()}
+        />
+      ) : null}
+      {actions.includes("priority") ? (
+        <ContextButton
+          action="priority"
+          label="優先順位"
+          onClick={() => onPriority?.()}
         />
       ) : null}
       {actions.includes("delete") ? (

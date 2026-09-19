@@ -4,6 +4,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import type { RelatedDiagramCard } from "@/lib/v2/relatedDiagram/types";
 import { A3_BODY_PT } from "@/lib/v2/relatedDiagram/a3Canvas";
 import { isCardLayoutMovable } from "@/lib/v2/relatedDiagram/cardInteractionState";
+import { formatNursingProblemPriorityBadge } from "@/lib/v2/relatedDiagram/nursingProblemPriority";
 import { resolveCardBorderVisual } from "@/lib/v2/relatedDiagram/visualStyle";
 
 export default function RelatedDiagramCardNode({
@@ -11,6 +12,7 @@ export default function RelatedDiagramCardNode({
   selected = false,
   connectRole = null,
   interactive = false,
+  priority = null,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -19,6 +21,7 @@ export default function RelatedDiagramCardNode({
   selected?: boolean;
   connectRole?: "source" | "target" | null;
   interactive?: boolean;
+  priority?: number | null;
   onPointerDown?: (
     card: RelatedDiagramCard,
     event: ReactPointerEvent<HTMLElement>,
@@ -30,6 +33,10 @@ export default function RelatedDiagramCardNode({
   const { x, y, width, height } = card.layout;
   const isKnowledge = card.cardType === "knowledge";
   const movable = isCardLayoutMovable(card);
+  const priorityBadge =
+    card.cardType === "nursing_problem"
+      ? formatNursingProblemPriorityBadge(priority)
+      : null;
 
   return (
     <div
@@ -102,6 +109,15 @@ export default function RelatedDiagramCardNode({
         ) : null}
         <div className="whitespace-pre-wrap break-words">{card.text}</div>
       </div>
+      {priorityBadge ? (
+        <span
+          data-rd-np-priority-badge
+          data-rd-np-priority={priority}
+          className="pointer-events-none absolute right-[5px] top-[4px] text-[8pt] font-semibold leading-none text-[#0A5FCC]"
+        >
+          {priorityBadge}
+        </span>
+      ) : null}
     </div>
   );
 }

@@ -14,6 +14,7 @@ export type CardContextBarModel = {
   title: string;
   capabilities: CardActionCapabilities;
   canOpenSource: boolean;
+  canSetPriority?: boolean;
   editDisabledReason?: string | null;
 };
 
@@ -50,15 +51,22 @@ export function truncateContextTitle(text: string, max = 40): string {
   return `${trimmed.slice(0, max)}…`;
 }
 
-export type VisibleContextAction = "edit" | "connect" | "delete" | "source";
+export type VisibleContextAction =
+  | "edit"
+  | "connect"
+  | "priority"
+  | "delete"
+  | "source";
 
 export function visibleContextActions(
   capabilities: CardActionCapabilities,
   canOpenSource: boolean,
+  canSetPriority = false,
 ): VisibleContextAction[] {
   const actions: VisibleContextAction[] = [];
   if (capabilities.canEdit) actions.push("edit");
   if (capabilities.canConnect) actions.push("connect");
+  if (canSetPriority) actions.push("priority");
   if (capabilities.canDelete) actions.push("delete");
   if (canOpenSource) actions.push("source");
   return actions;

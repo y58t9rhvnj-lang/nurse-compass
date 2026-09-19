@@ -34,7 +34,7 @@ export default function RelatedDiagramActionPopover({
   onDismiss,
   children,
 }: {
-  kind: "card" | "relation" | "card_type" | "connection";
+  kind: "card" | "relation" | "card_type" | "connection" | "priority";
   anchor: ScreenRect;
   viewport: ScreenRect;
   estimatedSize: ScreenSize;
@@ -96,7 +96,7 @@ export default function RelatedDiagramActionPopover({
       data-rd-action-popover
       data-rd-action-popover-kind={kind}
       data-rd-action-popover-side={placed.side}
-      className="fixed z-50 max-w-[min(360px,calc(100vw-16px))] rounded-[18px] border border-black/[0.06] bg-white/80 p-2 shadow-[0_8px_28px_rgba(0,0,0,0.14)] backdrop-blur-xl"
+      className="rd-no-print fixed z-50 max-w-[min(360px,calc(100vw-16px))] rounded-[18px] border border-black/[0.06] bg-white/80 p-2 shadow-[0_8px_28px_rgba(0,0,0,0.14)] backdrop-blur-xl"
       style={{ left: placed.x, top: placed.y }}
       onPointerDown={isolateSinglePointer}
       onPointerMove={isolateSinglePointer}

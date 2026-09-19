@@ -17,6 +17,7 @@ import {
   knowledgeGroupBounds,
   knowledgeGroupHandleBounds,
 } from "@/lib/v2/relatedDiagram/knowledgeGroupLayout";
+import { resolveNursingProblemPriority } from "@/lib/v2/relatedDiagram/nursingProblemPriority";
 import RelatedDiagramCardNode from "./RelatedDiagramCardNode";
 import RelatedDiagramConnectionLayer from "./RelatedDiagramConnectionLayer";
 import RelatedDiagramLegend from "./RelatedDiagramLegend";
@@ -168,6 +169,7 @@ export default function RelatedDiagramA3Surface({
         <RelatedDiagramCardNode
           key={card.id}
           card={card}
+          priority={resolveNursingProblemPriority(graph, card.id)}
           selected={card.id === selectedCardId}
           connectRole={
             card.id === connectSourceCardId

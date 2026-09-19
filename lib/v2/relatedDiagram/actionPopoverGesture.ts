@@ -3,7 +3,12 @@
  * Never steal viewport pointer events for pinch / pan.
  */
 
-export type ActionPopoverKind = "card" | "relation" | "card_type" | "connection";
+export type ActionPopoverKind =
+  | "card"
+  | "relation"
+  | "card_type"
+  | "connection"
+  | "priority";
 
 export type ActionPopoverPointerDecision =
   | "ignore"
@@ -37,6 +42,9 @@ export function classifyActionPopoverPointer(input: {
     return "dismiss-outside";
   }
   if (input.kind === "connection" && !input.targetIsPopover) {
+    return "dismiss-outside";
+  }
+  if (input.kind === "priority" && !input.targetIsPopover) {
     return "dismiss-outside";
   }
   return "ignore";

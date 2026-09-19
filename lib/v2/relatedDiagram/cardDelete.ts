@@ -5,6 +5,7 @@
 
 import { cloneStableRouteState, type StableRouteState } from "./incrementalRoutes";
 import { cloneCardEntity, removeCardEntity, type CardEntitySnapshot } from "./form3ToUnderstandingCard";
+import { compactActiveNursingProblemPriorities } from "./nursingProblemPriority";
 import type { RelatedDiagramRouteTopology } from "./routeTopology";
 import type {
   RelatedDiagramConnection,
@@ -94,8 +95,10 @@ export function pruneTopologyForConnections(
 export function removeCardAndIncidentConnections(
   graph: RelatedDiagramSemanticGraph,
   cardId: string,
+  now?: string,
 ): RelatedDiagramSemanticGraph {
-  return removeCardEntity(graph, cardId);
+  const removed = removeCardEntity(graph, cardId);
+  return compactActiveNursingProblemPriorities(removed, now).graph;
 }
 
 export function restoreDeletedConnections(

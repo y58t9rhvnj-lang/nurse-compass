@@ -19,10 +19,15 @@ import { cloneConnection } from "./cardConnectionCreate";
 import { replaceConnectionExact } from "./cardConnectionManage";
 import { patchCardInGraph } from "./cardEdit";
 import { restoreDeletedConnections } from "./cardDelete";
+import {
+  cloneNursingProblems,
+  restoreNursingProblemsExact,
+} from "./nursingProblemPriority";
 import { deleteConnection, upsertConnection } from "./semanticGraph";
 import type {
   RelatedDiagramCard,
   RelatedDiagramConnection,
+  RelatedDiagramNursingProblem,
   RelatedDiagramSemanticGraph,
 } from "./types";
 
@@ -55,6 +60,14 @@ export type CardEntityHistoryAction = {
   routeStateAfter?: StableRouteState;
   topologyBefore?: RelatedDiagramRouteTopology;
   topologyAfter?: RelatedDiagramRouteTopology;
+  nursingProblemsBefore?: RelatedDiagramNursingProblem[];
+  nursingProblemsAfter?: RelatedDiagramNursingProblem[];
+};
+
+export type SetNursingProblemPrioritiesHistoryAction = {
+  type: "setNursingProblemPriorities";
+  before: RelatedDiagramNursingProblem[];
+  after: RelatedDiagramNursingProblem[];
 };
 
 export type EditCardHistoryAction = {
@@ -105,7 +118,8 @@ export type DiagramHistoryAction =
   | AddConnectionHistoryAction
   | EditConnectionRelationHistoryAction
   | DeleteConnectionHistoryAction
-  | ReverseConnectionHistoryAction;
+  | ReverseConnectionHistoryAction
+  | SetNursingProblemPrioritiesHistoryAction;
 
 export type HistoryCommand =
   | { kind: "none" }
@@ -116,12 +130,18 @@ export type HistoryCommand =
       connections?: RelatedDiagramConnection[];
       routeState?: StableRouteState;
       topology?: RelatedDiagramRouteTopology;
+      nursingProblems?: RelatedDiagramNursingProblem[];
     }
   | {
       kind: "removeCard";
       cardId: string;
       routeState?: StableRouteState;
       topology?: RelatedDiagramRouteTopology;
+      nursingProblems?: RelatedDiagramNursingProblem[];
+    }
+  | {
+      kind: "restoreNursingProblems";
+      nursingProblems: RelatedDiagramNursingProblem[];
     }
   | {
       kind: "applyCardEdit";
@@ -236,6 +256,12 @@ export function pushDiagramHistory(
             : undefined,
           topologyBefore: cloneTopology(action.topologyBefore),
           topologyAfter: cloneTopology(action.topologyAfter),
+          nursingProblemsBefore: action.nursingProblemsBefore
+            ? cloneNursingProblems(action.nursingProblemsBefore)
+            : undefined,
+          nursingProblemsAfter: action.nursingProblemsAfter
+            ? cloneNursingProblems(action.nursingProblemsAfter)
+            : undefined,
         }
       : action.type === "editCard"
         ? {
@@ -283,7 +309,13 @@ export function pushDiagramHistory(
                     topologyBefore: cloneTopology(action.topologyBefore),
                     topologyAfter: cloneTopology(action.topologyAfter),
                   }
-                : action;
+                : action.type === "setNursingProblemPriorities"
+                  ? {
+                      ...action,
+                      before: cloneNursingProblems(action.before),
+                      after: cloneNursingProblems(action.after),
+                    }
+                  : action;
   const past = [...history.past, stored];
   while (past.length > limit) past.shift();
   return { past, future: [] };
@@ -305,6 +337,14 @@ function undoCommand(action: DiagramHistoryAction): HistoryCommand {
           ? cloneStableRouteState(action.routeStateBefore)
           : undefined,
         topology: cloneTopology(action.topologyBefore),
+        nursingProblems: action.nursingProblemsBefore
+          ? cloneNursingProblems(action.nursingProblemsBefore)
+          : undefined,
+      };
+    case "setNursingProblemPriorities":
+      return {
+        kind: "restoreNursingProblems",
+        nursingProblems: cloneNursingProblems(action.before),
       };
     case "editCard":
       return {
@@ -357,6 +397,14 @@ function redoCommand(action: DiagramHistoryAction): HistoryCommand {
           ? cloneStableRouteState(action.routeStateAfter)
           : undefined,
         topology: cloneTopology(action.topologyAfter),
+        nursingProblems: action.nursingProblemsAfter
+          ? cloneNursingProblems(action.nursingProblemsAfter)
+          : undefined,
+      };
+    case "setNursingProblemPriorities":
+      return {
+        kind: "restoreNursingProblems",
+        nursingProblems: cloneNursingProblems(action.after),
       };
     case "editCard":
       return {
@@ -451,9 +499,18 @@ export function applyHistoryCommand(
       state: command.state,
     });
   }
+  if (command.kind === "restoreNursingProblems") {
+    return restoreNursingProblemsExact(graph, command.nursingProblems);
+  }
   if (command.kind === "insertCard") {
     const inserted = insertCardEntity(graph, cloneCardEntity(command.entity));
-    return restoreDeletedConnections(inserted, command.connections ?? []);
+    const restored = restoreDeletedConnections(
+      inserted,
+      command.connections ?? [],
+    );
+    return command.nursingProblems
+      ? restoreNursingProblemsExact(restored, command.nursingProblems)
+      : restored;
   }
   if (command.kind === "addConnection") {
     const result = upsertConnection(graph, {
@@ -473,7 +530,10 @@ export function applyHistoryCommand(
   if (command.kind === "replaceConnection") {
     return replaceConnectionExact(graph, command.connection);
   }
-  return removeCardEntity(graph, command.cardId);
+  const removed = removeCardEntity(graph, command.cardId);
+  return command.nursingProblems
+    ? restoreNursingProblemsExact(removed, command.nursingProblems)
+    : removed;
 }
 
 export function applySceneFragmentToGraph(
