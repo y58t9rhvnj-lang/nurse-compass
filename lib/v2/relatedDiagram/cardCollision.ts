@@ -102,6 +102,24 @@ function isLegalRect(
   return collidingCards(rect, others, minGap).length === 0;
 }
 
+export function isLegalCardPlacement(
+  rect: CardRect,
+  otherCards: Array<RelatedDiagramCard | CardCollisionBody>,
+  options?: {
+    minGap?: number;
+    canvasWidth?: number;
+    canvasHeight?: number;
+  },
+): boolean {
+  const canvasWidth = options?.canvasWidth ?? A3_WIDTH_PX;
+  const canvasHeight = options?.canvasHeight ?? A3_HEIGHT_PX;
+  const minGap = options?.minGap ?? CARD_MIN_GAP;
+  const others = otherCards.map((card) =>
+    "layout" in card ? cardLayoutRect(card) : card,
+  );
+  return isLegalRect(rect, others, minGap, canvasWidth, canvasHeight);
+}
+
 function escapeCandidates(
   desired: CardRect,
   blockers: CardCollisionBody[],

@@ -11,6 +11,7 @@ export type RelatedDiagramEditorMode =
   | "form3_reference"
   | "card_edit"
   | "direct_insight_compose"
+  | "direct_nursing_problem_compose"
   | "connecting"
   | "connection_selected";
 
@@ -20,12 +21,14 @@ export type EditorChromeInput = {
   editOpen: boolean;
   connecting: boolean;
   directInsightOpen?: boolean;
+  directNursingProblemOpen?: boolean;
 };
 
 export function resolveRelatedDiagramEditorMode(
   input: EditorChromeInput,
 ): RelatedDiagramEditorMode {
   if (input.connecting) return "connecting";
+  if (input.directNursingProblemOpen) return "direct_nursing_problem_compose";
   if (input.directInsightOpen) return "direct_insight_compose";
   if (input.editOpen) return "card_edit";
   if (input.form3Open) return "form3_reference";
@@ -40,7 +43,8 @@ export function editorModeIsDrawer(
   return (
     mode === "form3_reference" ||
     mode === "card_edit" ||
-    mode === "direct_insight_compose"
+    mode === "direct_insight_compose" ||
+    mode === "direct_nursing_problem_compose"
   );
 }
 

@@ -11,6 +11,7 @@ import {
 import {
   classifyActionPopoverPointer,
   isActionPopoverSurface,
+  isAddCardControl,
   trackPointerDown,
   trackPointerUp,
 } from "@/lib/v2/relatedDiagram/actionPopoverGesture";
@@ -33,7 +34,7 @@ export default function RelatedDiagramActionPopover({
   onDismiss,
   children,
 }: {
-  kind: "card" | "relation";
+  kind: "card" | "relation" | "card_type";
   anchor: ScreenRect;
   viewport: ScreenRect;
   estimatedSize: ScreenSize;
@@ -60,6 +61,7 @@ export default function RelatedDiagramActionPopover({
     const pointers = new Set<number>();
     const onDown = (event: PointerEvent) => {
       const count = trackPointerDown(pointers, event.pointerId);
+      if (kind === "card_type" && isAddCardControl(event.target)) return;
       const decision = classifyActionPopoverPointer({
         kind,
         pointerCount: count,

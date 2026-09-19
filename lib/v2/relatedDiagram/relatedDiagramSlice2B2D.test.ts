@@ -147,8 +147,9 @@ function addInsight(
 
 test("1 ＋カードでDirect Insight Composeが開く", () => {
   assert.ok(toolbar.includes("＋カード"));
-  assert.ok(toolbar.includes('aria-label="新しい気づきを追加"'));
-  assert.ok(ws.includes("onAddCard={openDirectInsightCompose}"));
+  assert.ok(toolbar.includes('aria-label="カードを追加"'));
+  assert.ok(ws.includes("onAddCard={openCardTypeChooser}"));
+  assert.ok(ws.includes("openDirectInsightCompose"));
   assert.ok(ws.includes("emptyDirectInsightComposeDraft()"));
   assert.ok(ws.includes("RelatedDiagramDirectInsightDrawer"));
   assert.ok(drawer.includes("新しい気づきを追加"));
@@ -165,13 +166,13 @@ test("1 ＋カードでDirect Insight Composeが開く", () => {
   assert.equal(editorModeIsDrawer("direct_insight_compose"), true);
 });
 
-test("2 Card type chooserは出ない", () => {
+test("2 Information / Knowledge はChooserに出ない", () => {
   assert.equal(toolbar.includes("カードの種類"), false);
   assert.equal(toolbar.includes("Information"), false);
   assert.equal(toolbar.includes("Knowledge"), false);
   assert.equal(drawer.includes("カードの種類"), false);
   assert.equal(drawer.includes("看護問題"), false);
-  assert.equal(ws.includes("CardTypeChooser"), false);
+  assert.equal(drawer.includes("Information"), false);
   assert.equal(ws.includes("card type chooser"), false);
 });
 
@@ -613,7 +614,7 @@ test("33 Information直接作成なし", () => {
   );
   assert.equal(addInsightFn.includes("buildInformationCardFromForm3"), false);
   assert.equal(addInsightFn.includes('cardType: "information"'), false);
-  assert.ok(ws.includes("buildDirectInsightCard"));
+  assert.ok(ws.includes("commitDirectUnderstandingCreate"));
   assert.equal(drawer.includes("情報を追加"), false);
 });
 

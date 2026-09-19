@@ -45,11 +45,19 @@ import {
   type RelationComposeDraft,
 } from "@/lib/v2/relatedDiagram/cardConnectionCreate";
 import {
-  buildDirectInsightCard,
   canCommitDirectInsightCompose,
   emptyDirectInsightComposeDraft,
   type DirectInsightComposeDraft,
 } from "@/lib/v2/relatedDiagram/cardDirectInsight";
+import {
+  canOpenDirectCardTypeChooser,
+  commitDirectNursingProblemCreate,
+  commitDirectUnderstandingCreate,
+  directCardCreateSelectionUi,
+  resolveAddCardAnchorRect,
+  type DirectCardCreateType,
+  type DirectCardPlacementNotice,
+} from "@/lib/v2/relatedDiagram/cardDirectCreate";
 import type { ContextBarModel } from "@/lib/v2/relatedDiagram/editorContextBar";
 import { resolveRelatedDiagramEditorMode } from "@/lib/v2/relatedDiagram/editorUiState";
 import {
@@ -98,7 +106,9 @@ import RelatedDiagramActionPopover from "./RelatedDiagramActionPopover";
 import RelatedDiagramCardDeleteConfirm from "./RelatedDiagramCardDeleteConfirm";
 import RelatedDiagramCardEditDrawer from "./RelatedDiagramCardEditDrawer";
 import RelatedDiagramContextBar from "./RelatedDiagramContextBar";
+import RelatedDiagramCardTypeChooser from "./RelatedDiagramCardTypeChooser";
 import RelatedDiagramDirectInsightDrawer from "./RelatedDiagramDirectInsightDrawer";
+import RelatedDiagramDirectNursingProblemDrawer from "./RelatedDiagramDirectNursingProblemDrawer";
 import RelatedDiagramEditorToolbar from "./RelatedDiagramEditorToolbar";
 import RelatedDiagramRelationComposeBar from "./RelatedDiagramRelationComposeBar";
 import RelatedDiagramForm3Drawer, {
@@ -265,6 +275,12 @@ export default function RelatedDiagramDevFixtureWorkspace() {
   const [insightDraft, setInsightDraft] = useState<DirectInsightComposeDraft | null>(
     null,
   );
+  const [nursingProblemDraft, setNursingProblemDraft] =
+    useState<DirectInsightComposeDraft | null>(null);
+  const [cardTypeChooserOpen, setCardTypeChooserOpen] = useState(false);
+  const [revealCardActions, setRevealCardActions] = useState(true);
+  const [placementNotice, setPlacementNotice] =
+    useState<DirectCardPlacementNotice | null>(null);
   const [relationCompose, setRelationCompose] =
     useState<RelationComposeDraft | null>(null);
   const [connectNotice, setConnectNotice] = useState<string | null>(null);
@@ -281,6 +297,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     editOpen: editDraft != null && actionIntent?.kind === "edit",
     connecting: actionIntent?.kind === "connect",
     directInsightOpen: insightDraft != null,
+    directNursingProblemOpen: nursingProblemDraft != null,
   });
   const selectedSourceCaps = selectedCard
     ? getCardSourceCapabilities(selectedCard)
@@ -317,6 +334,8 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     setActionIntent(null);
     setEditDraft(null);
     setInsightDraft(null);
+    setNursingProblemDraft(null);
+    setCardTypeChooserOpen(false);
     setRelationCompose(null);
     setDeleteConfirmOpen(false);
   }, [selectedCardId]);
@@ -333,6 +352,12 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     const id = window.setTimeout(() => setConnectNotice(null), 2500);
     return () => window.clearTimeout(id);
   }, [connectNotice]);
+
+  useEffect(() => {
+    if (!placementNotice) return;
+    const id = window.setTimeout(() => setPlacementNotice(null), 4000);
+    return () => window.clearTimeout(id);
+  }, [placementNotice]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -438,17 +463,65 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     if (actionIntent?.kind === "connect") return;
     setEditDraft(null);
     setInsightDraft(null);
+    setNursingProblemDraft(null);
+    setCardTypeChooserOpen(false);
     if (actionIntent?.kind === "edit") setActionIntent(null);
     setDrawerOpen((open) => !open);
   }, [actionIntent]);
 
-  const openDirectInsightCompose = useCallback(() => {
-    if (actionIntent?.kind === "connect") return;
+  const closeCardTypeChooser = useCallback(() => {
+    setCardTypeChooserOpen(false);
+  }, []);
+
+  const openCardTypeChooser = useCallback(() => {
+    if (!canOpenDirectCardTypeChooser({ connecting: actionIntent?.kind === "connect" })) {
+      return;
+    }
+    if (cardTypeChooserOpen) {
+      setCardTypeChooserOpen(false);
+      return;
+    }
     setDrawerOpen(false);
     setEditDraft(null);
+    setInsightDraft(null);
+    setNursingProblemDraft(null);
+    if (actionIntent?.kind === "edit") setActionIntent(null);
+    setCardTypeChooserOpen(true);
+  }, [actionIntent, cardTypeChooserOpen]);
+
+  const openDirectInsightCompose = useCallback(() => {
+    if (actionIntent?.kind === "connect") return;
+    setCardTypeChooserOpen(false);
+    setDrawerOpen(false);
+    setEditDraft(null);
+    setNursingProblemDraft(null);
     if (actionIntent?.kind === "edit") setActionIntent(null);
     setInsightDraft(emptyDirectInsightComposeDraft());
   }, [actionIntent]);
+
+  const openDirectNursingProblemCompose = useCallback(() => {
+    if (actionIntent?.kind === "connect") return;
+    setCardTypeChooserOpen(false);
+    setDrawerOpen(false);
+    setEditDraft(null);
+    setInsightDraft(null);
+    if (actionIntent?.kind === "edit") setActionIntent(null);
+    setNursingProblemDraft(emptyDirectInsightComposeDraft());
+  }, [actionIntent]);
+
+  const handleChooseCardType = useCallback(
+    (type: DirectCardCreateType) => {
+      setCardTypeChooserOpen(false);
+      if (type === "understanding") {
+        openDirectInsightCompose();
+        return;
+      }
+      if (type === "nursing_problem") {
+        openDirectNursingProblemCompose();
+      }
+    },
+    [openDirectInsightCompose, openDirectNursingProblemCompose],
+  );
 
   const closeDirectInsightCompose = useCallback(() => {
     setInsightDraft(null);
@@ -462,24 +535,60 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     if (insightDraft.state !== "current" && insightDraft.state !== "potential") {
       return;
     }
-    const placed = placeForm3UnderstandingCard({
+    const committed = commitDirectUnderstandingCreate({
+      draft: insightDraft,
+      graph,
       desiredCenter: viewportCenter(),
-      otherCards: graph.cards,
     });
-    const entity = buildDirectInsightCard({
-      text: insightDraft.text,
-      state: insightDraft.state,
-      layout: {
-        x: placed.x,
-        y: placed.y,
-        zIndex: nextCardZIndex(graph),
-      },
-    });
+    if (!committed.ok) {
+      if (committed.reason === "no_space" && committed.notice) {
+        setPlacementNotice(committed.notice);
+      }
+      return;
+    }
     setInsightDraft(null);
-    setGraph(insertCardEntity(graph, entity));
-    onHistoryPush({ type: "addCard", entity: cloneCardEntity(entity) });
-    selectCard(entity.card.id);
+    setGraph(committed.graph);
+    onHistoryPush({ type: "addCard", entity: cloneCardEntity(committed.entity) });
+    const selection = directCardCreateSelectionUi(committed.entity.card.id);
+    selectCard(selection.selectedCardId);
+    setRevealCardActions(selection.revealCardActions);
   }, [graph, insightDraft, onHistoryPush, selectCard, viewportCenter]);
+
+  const closeDirectNursingProblemCompose = useCallback(() => {
+    setNursingProblemDraft(null);
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-rd-add-card]")?.focus();
+    });
+  }, []);
+
+  const handleAddDirectNursingProblem = useCallback(() => {
+    if (!nursingProblemDraft || !canCommitDirectInsightCompose(nursingProblemDraft)) {
+      return;
+    }
+    if (
+      nursingProblemDraft.state !== "current" &&
+      nursingProblemDraft.state !== "potential"
+    ) {
+      return;
+    }
+    const committed = commitDirectNursingProblemCreate({
+      draft: nursingProblemDraft,
+      graph,
+      desiredCenter: viewportCenter(),
+    });
+    if (!committed.ok) {
+      if (committed.reason === "no_space" && committed.notice) {
+        setPlacementNotice(committed.notice);
+      }
+      return;
+    }
+    setNursingProblemDraft(null);
+    setGraph(committed.graph);
+    onHistoryPush({ type: "addCard", entity: cloneCardEntity(committed.entity) });
+    const selection = directCardCreateSelectionUi(committed.entity.card.id);
+    selectCard(selection.selectedCardId);
+    setRevealCardActions(selection.revealCardActions);
+  }, [graph, nursingProblemDraft, onHistoryPush, selectCard, viewportCenter]);
 
   const handleAddInformation = useCallback(
     (source: RelatedDiagramForm3InformationSource) => {
@@ -766,6 +875,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         return;
       }
       onCardPointerUp(event);
+      setRevealCardActions(true);
     },
     [actionIntent, handleConnectTargetTap, onCardPointerUp],
   );
@@ -815,6 +925,8 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       data-rd-2b2c="true"
       data-rd-2b2d="true"
       data-rd-2b2e1="true"
+      data-rd-2b2f1="true"
+      data-rd-2b2f2="true"
       data-rd-editor-mode={editorMode}
       data-rd-editor-selection={diagramSelection.kind}
       className="fixed inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden overscroll-none bg-[#EDEDF0]"
@@ -832,8 +944,9 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         caseLabel="統合失調症の事例"
         form3Open={drawerOpen}
         onOpenForm3={openForm3Drawer}
-        onAddCard={openDirectInsightCompose}
-        devTitle={`Slice 2B-2E-1 · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
+        onAddCard={openCardTypeChooser}
+        addCardOpen={cardTypeChooserOpen}
+        devTitle={`Slice 2B-2F-2 · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
       />
 
       <div
@@ -897,6 +1010,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
           : { left: 0, top: 0 };
         const showCardPopover =
           selectedCard != null &&
+          revealCardActions &&
           contextBarModel.kind === "card" &&
           editDraft == null &&
           !deleteConfirmOpen &&
@@ -961,6 +1075,32 @@ export default function RelatedDiagramDevFixtureWorkspace() {
                 {connectNotice}
               </p>
             ) : null}
+            {cardTypeChooserOpen ? (
+              <RelatedDiagramCardTypeChooser
+                anchor={resolveAddCardAnchorRect()}
+                viewport={
+                  typeof window === "undefined"
+                    ? viewportRect
+                    : {
+                        x: 0,
+                        y: 0,
+                        width: window.innerWidth,
+                        height: window.innerHeight,
+                      }
+                }
+                onDismiss={closeCardTypeChooser}
+                onChoose={handleChooseCardType}
+              />
+            ) : null}
+            {placementNotice ? (
+              <p
+                data-rd-direct-card-notice={placementNotice.kind}
+                role="status"
+                className="pointer-events-none absolute left-3 top-14 z-50 max-w-[min(360px,calc(100vw-24px))] rounded-md bg-[#1D1D1F] px-3 py-2 text-[13px] text-white"
+              >
+                {placementNotice.message}
+              </p>
+            ) : null}
           </>
         );
       })()}
@@ -996,6 +1136,24 @@ export default function RelatedDiagramDevFixtureWorkspace() {
           }
           onCancel={closeDirectInsightCompose}
           onAdd={handleAddDirectInsight}
+        />
+      ) : null}
+      {nursingProblemDraft ? (
+        <RelatedDiagramDirectNursingProblemDrawer
+          draft={nursingProblemDraft}
+          canAdd={canCommitDirectInsightCompose(nursingProblemDraft)}
+          onChangeText={(text) =>
+            setNursingProblemDraft((current) =>
+              current ? { ...current, text } : current,
+            )
+          }
+          onChangeState={(state) =>
+            setNursingProblemDraft((current) =>
+              current ? { ...current, state } : current,
+            )
+          }
+          onCancel={closeDirectNursingProblemCompose}
+          onAdd={handleAddDirectNursingProblem}
         />
       ) : null}
       {selectedCard && editDraft && actionIntent?.kind === "edit" ? (

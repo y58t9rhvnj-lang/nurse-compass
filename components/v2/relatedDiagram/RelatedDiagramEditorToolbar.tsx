@@ -27,6 +27,7 @@ export default function RelatedDiagramEditorToolbar({
   form3Open,
   onOpenForm3,
   onAddCard,
+  addCardOpen = false,
   devTitle,
 }: {
   percent: number;
@@ -42,6 +43,7 @@ export default function RelatedDiagramEditorToolbar({
   form3Open: boolean;
   onOpenForm3: () => void;
   onAddCard: () => void;
+  addCardOpen?: boolean;
   devTitle: string;
 }) {
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -79,7 +81,9 @@ export default function RelatedDiagramEditorToolbar({
         <button
           type="button"
           data-rd-add-card
-          aria-label="新しい気づきを追加"
+          aria-label="カードを追加"
+          aria-expanded={addCardOpen}
+          aria-haspopup="dialog"
           onClick={addCard}
           className="hidden h-[44px] min-h-[44px] shrink-0 items-center rounded-lg border border-[#E5E5EA] px-3 text-[14px] text-[#1D1D1F] max-[1279px]:px-2 min-[900px]:inline-flex"
         >
@@ -184,7 +188,9 @@ export default function RelatedDiagramEditorToolbar({
             >
               <button
                 type="button"
-                aria-label="新しい気づきを追加"
+                data-rd-add-card
+                aria-label="カードを追加"
+                aria-expanded={addCardOpen}
                 className="flex min-h-[44px] w-full items-center rounded-md px-3 text-left text-[14px] text-[#1D1D1F]"
                 onClick={addCard}
               >

@@ -37,6 +37,7 @@ export function snapshotCardForDelete(
   return cloneCardEntity({
     card,
     sources: graph.cardSources.filter((row) => row.cardId === cardId),
+    nursingProblem: graph.nursingProblems.find((row) => row.cardId === cardId),
   });
 }
 

@@ -20,6 +20,7 @@ import type {
   RelatedDiagramCard,
   RelatedDiagramCardSource,
   RelatedDiagramCardState,
+  RelatedDiagramNursingProblem,
   RelatedDiagramSemanticGraph,
 } from "./types";
 
@@ -31,6 +32,7 @@ export const INFORMATION_CARD_HEIGHT = 72;
 export type CardEntitySnapshot = {
   card: RelatedDiagramCard;
   sources: RelatedDiagramCardSource[];
+  nursingProblem?: RelatedDiagramNursingProblem;
 };
 
 export function form3InformationCardId(informationId: string): string {
@@ -334,6 +336,25 @@ export function insertCardEntity(
       ),
     };
   }
+  if (entity.card.cardType === "nursing_problem") {
+    const row =
+      entity.nursingProblem ??
+      next.nursingProblems.find((problem) => problem.cardId === entity.card.id) ??
+      {
+        cardId: entity.card.id,
+        status: "active" as const,
+        priority: null,
+        createdAt: entity.card.createdAt,
+        updatedAt: entity.card.updatedAt,
+      };
+    next = {
+      ...next,
+      nursingProblems: [
+        ...next.nursingProblems.filter((problem) => problem.cardId !== entity.card.id),
+        { ...row },
+      ],
+    };
+  }
   return next;
 }
 
@@ -352,6 +373,9 @@ export function cloneCardEntity(entity: CardEntitySnapshot): CardEntitySnapshot 
       ...source,
       sourcePatterns: source.sourcePatterns ? [...source.sourcePatterns] : source.sourcePatterns,
     })),
+    nursingProblem: entity.nursingProblem
+      ? { ...entity.nursingProblem }
+      : entity.nursingProblem,
   };
 }
 

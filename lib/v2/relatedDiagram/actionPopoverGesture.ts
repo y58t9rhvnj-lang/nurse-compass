@@ -3,7 +3,7 @@
  * Never steal viewport pointer events for pinch / pan.
  */
 
-export type ActionPopoverKind = "card" | "relation";
+export type ActionPopoverKind = "card" | "relation" | "card_type";
 
 export type ActionPopoverPointerDecision =
   | "ignore"
@@ -17,6 +17,13 @@ export function isActionPopoverSurface(target: EventTarget | null): boolean {
   return Boolean(el.closest("[data-rd-action-popover]"));
 }
 
+export function isAddCardControl(target: EventTarget | null): boolean {
+  if (target == null || typeof target !== "object") return false;
+  const el = target as { closest?: (selector: string) => unknown };
+  if (typeof el.closest !== "function") return false;
+  return Boolean(el.closest("[data-rd-add-card]"));
+}
+
 export function classifyActionPopoverPointer(input: {
   kind: ActionPopoverKind;
   pointerCount: number;
@@ -24,6 +31,9 @@ export function classifyActionPopoverPointer(input: {
 }): ActionPopoverPointerDecision {
   if (input.pointerCount >= 2) return "dismiss-gesture";
   if (input.kind === "relation" && !input.targetIsPopover) {
+    return "dismiss-outside";
+  }
+  if (input.kind === "card_type" && !input.targetIsPopover) {
     return "dismiss-outside";
   }
   return "ignore";

@@ -409,7 +409,7 @@ test("30 Delete modal behavior unchanged", () => {
 test("placeholder add card does not create a Card", () => {
   assert.equal(EDITOR_ADD_CARD_PLACEHOLDER, "カード追加は次のSliceで実装します");
   assert.ok(toolbar.includes("＋カード"));
-  assert.ok(ws.includes("onAddCard={openDirectInsightCompose}"));
+  assert.ok(ws.includes("onAddCard={openCardTypeChooser}"));
   assert.equal(toolbar.includes("カードの種類"), false);
   assert.equal(ws.includes("upsertConnection("), false);
 });
