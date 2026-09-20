@@ -40,6 +40,7 @@ import {
   BRAND_UNSELECTED_PILL,
 } from "@/components/v2/workspace/darkSelectedSegment";
 import { requestWorkspaceBack } from "@/components/v2/workspace/requestWorkspaceBack";
+import { useDocumentUndoRedoShortcuts } from "@/hooks/v2/useDocumentUndoRedoShortcuts";
 import { useForm3DocumentHistory } from "@/hooks/v2/useForm3DocumentHistory";
 import { useForm3Supabase } from "@/hooks/v2/useForm3Supabase";
 import { form3UndoRedoLocked } from "@/lib/form3/v2/form3DocumentHistory";
@@ -377,6 +378,14 @@ export default function Form3PhaseBWorkspace({
     if (historyLocked) return;
     restoreSnapshot(redoHistory());
   }, [historyLocked, redoHistory, restoreSnapshot]);
+
+  useDocumentUndoRedoShortcuts({
+    enabled: !historyLocked,
+    canUndo,
+    canRedo,
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+  });
 
   const onAddInfo = useCallback(
     (values: { soType: Form3SoType; content: string }) => {

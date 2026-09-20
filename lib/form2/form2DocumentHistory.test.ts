@@ -366,7 +366,8 @@ test("AQ AR AS AT AU AV scope: Evidence / reflection / Form3 / RD untouched", ()
   }
   assert.match(workspaceSrc, /restoreFromUserEdit/);
   assert.doesNotMatch(workspaceSrc, /saveForm2Action/);
-  assert.doesNotMatch(workspaceSrc, /addEventListener\("keydown"/);
+  assert.match(workspaceSrc, /useDocumentUndoRedoShortcuts/);
+  assert.doesNotMatch(workspaceSrc, /window\.addEventListener\("keydown"/);
   assert.match(form3WorkspaceSrc, /markUserEditedV2\(after, reason\)/);
   assert.match(form3AdapterSrc, /documentHistory/);
   assert.match(editFormSrc, /onCompositionStart/);

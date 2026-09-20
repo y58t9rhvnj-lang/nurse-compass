@@ -566,8 +566,8 @@ test("AE AF wiring: preview lock / edit return", () => {
   assert.match(workspaceSrc, /mode,/);
   assert.match(workspaceSrc, /dialogOpen: formDialogOpen/);
   assert.match(workspaceSrc, /submitConfirmOpen: false/);
-  assert.doesNotMatch(workspaceSrc, /addEventListener\("keydown"/);
-  assert.doesNotMatch(workspaceSrc, /Meta\+Z|cmd\+z|Cmd\+Z/i);
+  assert.match(workspaceSrc, /useDocumentUndoRedoShortcuts/);
+  assert.doesNotMatch(workspaceSrc, /window\.addEventListener\("keydown"/);
 });
 
 test("AR AS Related Diagram / Priority untouched by Form3 history", () => {

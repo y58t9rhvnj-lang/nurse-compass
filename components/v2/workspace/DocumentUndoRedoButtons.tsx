@@ -46,6 +46,7 @@ export default function DocumentUndoRedoButtons({
         data-form-undo=""
         data-form3-undo=""
         aria-label="戻す"
+        aria-keyshortcuts="Meta+Z Control+Z"
         disabled={!undoEnabled}
         onPointerDown={onUndoPointerDown}
         onClick={onUndo}
@@ -59,6 +60,7 @@ export default function DocumentUndoRedoButtons({
         data-form-redo=""
         data-form3-redo=""
         aria-label="やり直す"
+        aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z Control+Y"
         disabled={!redoEnabled}
         onPointerDown={onRedoPointerDown}
         onClick={onRedo}

@@ -28,6 +28,7 @@ import {
   BRAND_UNSELECTED_PILL,
 } from "@/components/v2/workspace/darkSelectedSegment";
 import { requestWorkspaceBack } from "@/components/v2/workspace/requestWorkspaceBack";
+import { useDocumentUndoRedoShortcuts } from "@/hooks/v2/useDocumentUndoRedoShortcuts";
 import { useForm2DocumentHistory } from "@/hooks/v2/useForm2DocumentHistory";
 import { useForm2FieldReflections } from "@/hooks/v2/useForm2FieldReflections";
 import { useForm2UnderstandingHistory } from "@/hooks/v2/useForm2UnderstandingHistory";
@@ -366,6 +367,15 @@ export default function Form2Workspace({
     if (historyLocked) return;
     runRedoIntent(restoreWorkingPayload);
   }, [historyLocked, restoreWorkingPayload, runRedoIntent]);
+
+  const inUnderstandingPanel = workspacePanel === "understanding";
+  useDocumentUndoRedoShortcuts({
+    enabled: inUnderstandingPanel || mode === "edit",
+    canUndo: inUnderstandingPanel ? understandingCanUndo : canUndo,
+    canRedo: inUnderstandingPanel ? understandingCanRedo : canRedo,
+    onUndo: inUnderstandingPanel ? handleUnderstandingUndo : handleUndo,
+    onRedo: inUnderstandingPanel ? handleUnderstandingRedo : handleRedo,
+  });
 
   const headerActions = (
     <>
