@@ -16,11 +16,23 @@ import { ArrowLeft, ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 import type { Patient } from "@/lib/wardData";
 import type { Form2Data } from "@/lib/form2/form2Types";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
+import type { UseForm2FieldReflectionsResult } from "@/hooks/v2/useForm2FieldReflections";
+import type { UsePatientUnderstandingResult } from "@/hooks/v2/usePatientUnderstanding";
 import { useForm2Supabase } from "@/hooks/v2/useForm2Supabase";
 import { getQuestionsForCase } from "@/lib/v2/question/questionFixtures";
 import Form2SheetView from "@/components/form2/Form2SheetView";
 import Form2ReflectionSection from "./Form2ReflectionSection";
 import PatientOverviewEditor from "./PatientOverviewEditor";
+
+export type UnderstandingHistoryBindings = {
+  reflections?: UseForm2FieldReflectionsResult;
+  overview?: UsePatientUnderstandingResult;
+  onReflectionFocus?: (fieldKey: string) => void;
+  onOverviewFocus?: () => void;
+  onUnderstandingFieldBlur?: () => void;
+  onUnderstandingCompositionStart?: () => void;
+  onUnderstandingCompositionEnd?: () => void;
+};
 
 export type EvidenceReviewLayout = "split" | "formOnly";
 
@@ -34,19 +46,26 @@ export type EvidenceReviewBodyProps = {
   showBackButton?: boolean;
   onBackToWorkspace?: () => void;
   className?: string;
-};
+} & UnderstandingHistoryBindings;
 
 function UnderstandingFormColumns({
   patientId,
   data,
   hydrated,
   showIntro = false,
+  reflections,
+  overview,
+  onReflectionFocus,
+  onOverviewFocus,
+  onUnderstandingFieldBlur,
+  onUnderstandingCompositionStart,
+  onUnderstandingCompositionEnd,
 }: {
   patientId: string;
   data: Form2Data;
   hydrated: boolean;
   showIntro?: boolean;
-}) {
+} & UnderstandingHistoryBindings) {
   return (
     <div className="space-y-4 px-4 py-5">
       {showIntro ? (
@@ -63,8 +82,20 @@ function UnderstandingFormColumns({
         patientId={patientId}
         data={data}
         hydrated={hydrated}
+        reflections={reflections}
+        onFieldFocus={onReflectionFocus}
+        onFieldBlur={onUnderstandingFieldBlur}
+        onFieldCompositionStart={onUnderstandingCompositionStart}
+        onFieldCompositionEnd={onUnderstandingCompositionEnd}
       />
-      <PatientOverviewEditor patientId={patientId} />
+      <PatientOverviewEditor
+        patientId={patientId}
+        overview={overview}
+        onFieldFocus={onOverviewFocus}
+        onFieldBlur={onUnderstandingFieldBlur}
+        onFieldCompositionStart={onUnderstandingCompositionStart}
+        onFieldCompositionEnd={onUnderstandingCompositionEnd}
+      />
       <CoachPrompts />
     </div>
   );
@@ -79,7 +110,24 @@ export function EvidenceReviewBody({
   showBackButton = false,
   onBackToWorkspace,
   className = "",
+  reflections,
+  overview,
+  onReflectionFocus,
+  onOverviewFocus,
+  onUnderstandingFieldBlur,
+  onUnderstandingCompositionStart,
+  onUnderstandingCompositionEnd,
 }: EvidenceReviewBodyProps) {
+  const understandingBindings: UnderstandingHistoryBindings = {
+    reflections,
+    overview,
+    onReflectionFocus,
+    onOverviewFocus,
+    onUnderstandingFieldBlur,
+    onUnderstandingCompositionStart,
+    onUnderstandingCompositionEnd,
+  };
+
   if (layout === "formOnly") {
     return (
       <div
@@ -92,6 +140,7 @@ export function EvidenceReviewBody({
           data={data}
           hydrated={hydrated}
           showIntro
+          {...understandingBindings}
         />
       </div>
     );
@@ -149,6 +198,7 @@ export function EvidenceReviewBody({
           patientId={patientId}
           data={data}
           hydrated={hydrated}
+          {...understandingBindings}
         />
       </aside>
     </div>

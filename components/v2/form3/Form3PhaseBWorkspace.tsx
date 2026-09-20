@@ -24,6 +24,7 @@ import Form3PrintPortal, {
   measureForm3PrintPortal,
 } from "@/components/v2/form3/Form3PrintPortal";
 import Form3SheetView from "@/components/v2/form3/Form3SheetView";
+import Form3UndoRedoButtons from "@/components/v2/form3/Form3UndoRedoButtons";
 import { getForm3PhaseBPersistLabel } from "@/components/v2/form3/form3PhaseBLabels";
 import {
   buildForm3PrintLayout,
@@ -39,7 +40,9 @@ import {
   BRAND_UNSELECTED_PILL,
 } from "@/components/v2/workspace/darkSelectedSegment";
 import { requestWorkspaceBack } from "@/components/v2/workspace/requestWorkspaceBack";
+import { useForm3DocumentHistory } from "@/hooks/v2/useForm3DocumentHistory";
 import { useForm3Supabase } from "@/hooks/v2/useForm3Supabase";
+import { form3UndoRedoLocked } from "@/lib/form3/v2/form3DocumentHistory";
 import {
   FORM3_PATTERN_ORDER,
   isForm3PatternKey,
@@ -164,7 +167,19 @@ export default function Form3PhaseBWorkspace({
   );
 
   const {
+    canUndo,
+    canRedo,
+    record: recordHistory,
+    undo: undoHistory,
+    redo: redoHistory,
+    clear: clearHistory,
+    beginRestore,
+    endRestore,
+  } = useForm3DocumentHistory({ patientId, userId });
+
+  const {
     dataV2,
+    getDataV2,
     markUserEditedV2,
     dirtyV2,
     hydrated,
@@ -176,6 +191,7 @@ export default function Form3PhaseBWorkspace({
     userId,
     initial,
     onPersistedV2,
+    onDocumentBaselineReset: clearHistory,
   });
 
   const [mode, setMode] = useState<Mode>("edit");
@@ -325,10 +341,42 @@ export default function Form3PhaseBWorkspace({
       recipe: (current: Form3DataV2) => Form3DataV2,
       reason: Form3V2AutosaveReason,
     ) => {
-      markUserEditedV2(recipe, reason);
+      const before = getDataV2() ?? createEmptyForm3V2(patientId);
+      const after = recipe(before);
+      recordHistory(before, after, reason);
+      markUserEditedV2(after, reason);
     },
-    [markUserEditedV2],
+    [getDataV2, markUserEditedV2, patientId, recordHistory],
   );
+
+  const historyLocked = form3UndoRedoLocked({
+    mode,
+    dialogOpen: formDialogOpen,
+    submitConfirmOpen: false,
+  });
+
+  const restoreSnapshot = useCallback(
+    (result: { snapshot: Form3DataV2 | null; reason: Form3V2AutosaveReason }) => {
+      if (!result.snapshot || historyLocked) return;
+      beginRestore();
+      try {
+        markUserEditedV2(result.snapshot, result.reason);
+      } finally {
+        endRestore();
+      }
+    },
+    [beginRestore, endRestore, historyLocked, markUserEditedV2],
+  );
+
+  const handleUndo = useCallback(() => {
+    if (historyLocked) return;
+    restoreSnapshot(undoHistory());
+  }, [historyLocked, restoreSnapshot, undoHistory]);
+
+  const handleRedo = useCallback(() => {
+    if (historyLocked) return;
+    restoreSnapshot(redoHistory());
+  }, [historyLocked, redoHistory, restoreSnapshot]);
 
   const onAddInfo = useCallback(
     (values: { soType: Form3SoType; content: string }) => {
@@ -502,6 +550,13 @@ export default function Form3PhaseBWorkspace({
 
   const headerActions = (
     <div className="flex flex-wrap items-center gap-y-2">
+      <Form3UndoRedoButtons
+        canUndo={canUndo}
+        canRedo={canRedo}
+        locked={historyLocked}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+      />
       <div className="flex items-center">
         <div className="flex overflow-hidden rounded-2xl border border-[#D0D5DD]">
           <button

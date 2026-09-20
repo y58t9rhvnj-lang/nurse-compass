@@ -77,6 +77,8 @@ export interface UseForm2SupabaseArgs {
   onPersisted?: (snapshot: Form2Snapshot) => void;
   /** Version 2.2 講義デモ: Server Action / draft を使わずメモリ内のみ。 */
   localOnly?: boolean;
+  /** conflict loadLatest / draft restore など、新しい document baseline に切替わったとき */
+  onDocumentBaselineReset?: () => void;
 }
 
 export function useForm2Supabase({
@@ -85,6 +87,7 @@ export function useForm2Supabase({
   initial,
   onPersisted,
   localOnly: localOnlyProp = false,
+  onDocumentBaselineReset,
 }: UseForm2SupabaseArgs) {
   const lectureLocalOnly = useLectureLocalOnly();
   const localOnly = localOnlyProp || lectureLocalOnly;
@@ -121,9 +124,13 @@ export function useForm2Supabase({
   // onPersisted は毎レンダーで変わりうる（親がインライン関数を渡す）ため ref 経由で参照し、
   // doSave の依存に含めない（保存経路を安定させる）。アンマウント後の flush からも呼べる。
   const onPersistedRef = useRef(onPersisted);
+  const onDocumentBaselineResetRef = useRef(onDocumentBaselineReset);
   useEffect(() => {
     onPersistedRef.current = onPersisted;
   }, [onPersisted]);
+  useEffect(() => {
+    onDocumentBaselineResetRef.current = onDocumentBaselineReset;
+  }, [onDocumentBaselineReset]);
 
   const setDataAndRef = useCallback((next: Form2Data) => {
     dataRef.current = next;
@@ -344,6 +351,7 @@ export function useForm2Supabase({
     clearForm2Draft(userId, caseId);
     setConflictLatest(null);
     setSaveStatus("saved");
+    onDocumentBaselineResetRef.current?.();
   }, [conflictLatest, setDataAndRef, userId, caseId]);
 
   // 下書き復元候補（ハイドレーション後・未破棄のときのみ）。
@@ -356,6 +364,7 @@ export function useForm2Supabase({
     versionRef.current = draft.version;
     setDraftDismissed(true);
     scheduleSave();
+    onDocumentBaselineResetRef.current?.();
   }, [draft, setDataAndRef, scheduleSave]);
 
   const discardDraft = useCallback(() => {
@@ -376,6 +385,8 @@ export function useForm2Supabase({
     updateTreatment,
     updateStudent,
     updatePeriod,
+    getData: () => dataRef.current,
+    restoreFromUserEdit: onEdited,
     saveNow,
     retry: saveNow,
     loadLatest,

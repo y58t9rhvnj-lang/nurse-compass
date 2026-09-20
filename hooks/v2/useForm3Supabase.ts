@@ -86,6 +86,8 @@ export interface UseForm3SupabaseArgs {
   onPersistedV2?: (snapshot: Form3SnapshotV2) => void;
   /** Version 2.2 講義デモ: Server Action / draft を使わずメモリ内のみ。 */
   localOnly?: boolean;
+  /** conflict loadLatest / draft restore など、新しい document baseline に切替わったとき */
+  onDocumentBaselineReset?: () => void;
 }
 
 export type SaveNowV2Result =
@@ -101,6 +103,7 @@ export function useForm3Supabase({
   onPersisted,
   onPersistedV2,
   localOnly: localOnlyProp = false,
+  onDocumentBaselineReset,
 }: UseForm3SupabaseArgs) {
   const lectureLocalOnly = useLectureLocalOnly();
   const localOnly = localOnlyProp || lectureLocalOnly;
@@ -175,6 +178,7 @@ export function useForm3Supabase({
   const saveRef = useRef<() => Promise<void>>(async () => {});
   const onPersistedRef = useRef(onPersisted);
   const onPersistedV2Ref = useRef(onPersistedV2);
+  const onDocumentBaselineResetRef = useRef(onDocumentBaselineReset);
   const saveNowV2Ref = useRef<
     (opts?: { requireUserEdit?: boolean }) => Promise<SaveNowV2Result>
   >(async () => ({
@@ -191,6 +195,10 @@ export function useForm3Supabase({
   useEffect(() => {
     onPersistedV2Ref.current = onPersistedV2;
   }, [onPersistedV2]);
+
+  useEffect(() => {
+    onDocumentBaselineResetRef.current = onDocumentBaselineReset;
+  }, [onDocumentBaselineReset]);
 
   useEffect(() => {
     statusRef.current = saveStatus;
@@ -688,6 +696,7 @@ export function useForm3Supabase({
       );
       clearForm3V2Draft(userId, caseId);
       setConflictSnapshotV2(null);
+      onDocumentBaselineResetRef.current?.();
       return;
     }
 
@@ -734,6 +743,7 @@ export function useForm3Supabase({
           hydration.dataV2,
         ).flags,
       );
+      onDocumentBaselineResetRef.current?.();
       return;
     }
     scheduleAutosave();
@@ -773,6 +783,7 @@ export function useForm3Supabase({
     markReviewed,
     unmarkReviewed,
     flush,
+    getDataV2: () => dataV2Ref.current,
     markUserEditedV2,
     saveNowV2,
     flushV2,

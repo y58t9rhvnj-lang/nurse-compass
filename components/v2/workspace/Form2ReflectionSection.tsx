@@ -31,8 +31,16 @@ import {
 import {
   useForm2FieldReflections,
   type ReflectionSaveStatus,
+  type UseForm2FieldReflectionsResult,
 } from "@/hooks/v2/useForm2FieldReflections";
 import type { Form2Data } from "@/lib/form2/form2Types";
+
+export type Form2ReflectionHistoryBindings = {
+  onFieldFocus?: (fieldKey: string) => void;
+  onFieldBlur?: () => void;
+  onFieldCompositionStart?: () => void;
+  onFieldCompositionEnd?: () => void;
+};
 
 function nonEmpty(value: string): boolean {
   return value.trim().length > 0;
@@ -55,17 +63,52 @@ function SaveStatusLabel({ status }: { status: ReflectionSaveStatus }) {
   return null;
 }
 
-export default function Form2ReflectionSection({
-  patientId,
-  data,
-  hydrated,
-}: {
+export type Form2ReflectionSectionProps = {
   patientId: string;
   data: Form2Data;
   hydrated: boolean;
-}) {
-  const reflections = useForm2FieldReflections({ patientId });
+  reflections?: UseForm2FieldReflectionsResult;
+} & Form2ReflectionHistoryBindings;
 
+export default function Form2ReflectionSection(
+  props: Form2ReflectionSectionProps,
+) {
+  if (props.reflections) {
+    return (
+      <Form2ReflectionSectionView
+        {...props}
+        reflections={props.reflections}
+      />
+    );
+  }
+  return <Form2ReflectionSectionConnected {...props} />;
+}
+
+function Form2ReflectionSectionConnected({
+  patientId,
+  ...rest
+}: Form2ReflectionSectionProps) {
+  const reflections = useForm2FieldReflections({ patientId });
+  return (
+    <Form2ReflectionSectionView
+      {...rest}
+      patientId={patientId}
+      reflections={reflections}
+    />
+  );
+}
+
+function Form2ReflectionSectionView({
+  data,
+  hydrated,
+  reflections,
+  onFieldFocus,
+  onFieldBlur,
+  onFieldCompositionStart,
+  onFieldCompositionEnd,
+}: Form2ReflectionSectionProps & {
+  reflections: UseForm2FieldReflectionsResult;
+}) {
   const ready = hydrated && reflections.loaded;
 
   // 表示対象の項目:
@@ -129,6 +172,10 @@ export default function Form2ReflectionSection({
                 onChange={(next) =>
                   reflections.onChangeReflection(field.key, next)
                 }
+                onFocus={() => onFieldFocus?.(field.key)}
+                onBlur={() => onFieldBlur?.()}
+                onCompositionStart={() => onFieldCompositionStart?.()}
+                onCompositionEnd={() => onFieldCompositionEnd?.()}
               />
             </li>
           );
@@ -144,6 +191,10 @@ function ReflectionItem({
   text,
   status,
   onChange,
+  onFocus,
+  onBlur,
+  onCompositionStart,
+  onCompositionEnd,
 }: {
   field: Form2FieldKeyMeta;
   // 様式2 が空欄（loadedKeys 由来で表示中）かどうか。事実本文は左カラムで参照する。
@@ -151,6 +202,10 @@ function ReflectionItem({
   text: string;
   status: ReflectionSaveStatus;
   onChange: (next: string) => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  onCompositionStart?: () => void;
+  onCompositionEnd?: () => void;
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-[#E5E5EA] bg-white">
@@ -184,6 +239,10 @@ function ReflectionItem({
           id={`reflection-${field.elementId}`}
           value={text}
           onChange={(e) => onChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onCompositionStart={onCompositionStart}
+          onCompositionEnd={onCompositionEnd}
           placeholder="この事実から何が考えられますか。そう考えた根拠もあわせて書いてみましょう。"
           rows={3}
           className="min-h-[72px] w-full resize-y rounded-xl border border-[#D9D9E0] bg-[#FBFBFD] px-3 py-2 text-[12.5px] leading-relaxed text-[#1D1D1F] placeholder:text-[#B0B0B8] focus:border-[#0A84FF] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A84FF]/20"

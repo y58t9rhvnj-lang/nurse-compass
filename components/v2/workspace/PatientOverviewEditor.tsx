@@ -11,7 +11,18 @@
 //   ・保存は usePatientUnderstanding（debounce 自動保存）へ委譲し、本コンポーネントは表示に徹する。
 //   ・将来の履歴保存・AI 評価・教員コメントは、この入力を評価対象として上位で拡張できる（本体は素の記述）。
 
-import { usePatientUnderstanding } from "@/hooks/v2/usePatientUnderstanding";
+import {
+  usePatientUnderstanding,
+  type UsePatientUnderstandingResult,
+} from "@/hooks/v2/usePatientUnderstanding";
+
+export type PatientOverviewHistoryBindings = {
+  overview?: UsePatientUnderstandingResult;
+  onFieldFocus?: () => void;
+  onFieldBlur?: () => void;
+  onFieldCompositionStart?: () => void;
+  onFieldCompositionEnd?: () => void;
+};
 
 const PLACEHOLDER =
   "この患者さんはどのような人でしょうか。\n身体・心理・社会面のつながりや、患者さんらしさ、大切にしていることなどを含めて、自由に記述してください。";
@@ -42,12 +53,78 @@ function SaveStatusLabel({
 
 export default function PatientOverviewEditor({
   patientId,
+  overview,
+  onFieldFocus,
+  onFieldBlur,
+  onFieldCompositionStart,
+  onFieldCompositionEnd,
 }: {
   patientId: string;
-}) {
-  const { text, status, loaded, onChangeText } = usePatientUnderstanding({
-    patientId,
-  });
+} & PatientOverviewHistoryBindings) {
+  if (overview) {
+    return (
+      <PatientOverviewEditorView
+        text={overview.text}
+        status={overview.status}
+        loaded={overview.loaded}
+        onChangeText={overview.onChangeText}
+        onFieldFocus={onFieldFocus}
+        onFieldBlur={onFieldBlur}
+        onFieldCompositionStart={onFieldCompositionStart}
+        onFieldCompositionEnd={onFieldCompositionEnd}
+      />
+    );
+  }
+  return (
+    <PatientOverviewEditorConnected
+      patientId={patientId}
+      onFieldFocus={onFieldFocus}
+      onFieldBlur={onFieldBlur}
+      onFieldCompositionStart={onFieldCompositionStart}
+      onFieldCompositionEnd={onFieldCompositionEnd}
+    />
+  );
+}
+
+function PatientOverviewEditorConnected({
+  patientId,
+  onFieldFocus,
+  onFieldBlur,
+  onFieldCompositionStart,
+  onFieldCompositionEnd,
+}: {
+  patientId: string;
+} & PatientOverviewHistoryBindings) {
+  const overview = usePatientUnderstanding({ patientId });
+  return (
+    <PatientOverviewEditorView
+      text={overview.text}
+      status={overview.status}
+      loaded={overview.loaded}
+      onChangeText={overview.onChangeText}
+      onFieldFocus={onFieldFocus}
+      onFieldBlur={onFieldBlur}
+      onFieldCompositionStart={onFieldCompositionStart}
+      onFieldCompositionEnd={onFieldCompositionEnd}
+    />
+  );
+}
+
+function PatientOverviewEditorView({
+  text,
+  status,
+  loaded,
+  onChangeText,
+  onFieldFocus,
+  onFieldBlur,
+  onFieldCompositionStart,
+  onFieldCompositionEnd,
+}: {
+  text: string;
+  status: UsePatientUnderstandingResult["status"];
+  loaded: boolean;
+  onChangeText: (next: string) => void;
+} & PatientOverviewHistoryBindings) {
 
   return (
     <section
@@ -70,6 +147,10 @@ export default function PatientOverviewEditor({
       <textarea
         value={text}
         onChange={(e) => onChangeText(e.target.value)}
+        onFocus={onFieldFocus}
+        onBlur={onFieldBlur}
+        onCompositionStart={onFieldCompositionStart}
+        onCompositionEnd={onFieldCompositionEnd}
         placeholder={PLACEHOLDER}
         rows={8}
         // 十分な高さを確保しつつ、入力中に画面が跳ねないよう最小高さで固定する（縦方向のみ手動リサイズ可）。

@@ -13,6 +13,10 @@ export default function AutoTextarea({
   id,
   ariaLabel,
   minRows = 3,
+  onFocus,
+  onBlur,
+  onCompositionStart,
+  onCompositionEnd,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -20,6 +24,10 @@ export default function AutoTextarea({
   id?: string;
   ariaLabel?: string;
   minRows?: number;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  onCompositionStart?: () => void;
+  onCompositionEnd?: () => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -39,6 +47,10 @@ export default function AutoTextarea({
       aria-label={ariaLabel}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onCompositionStart={onCompositionStart}
+      onCompositionEnd={onCompositionEnd}
       placeholder={placeholder}
       rows={minRows}
       className="w-full resize-none rounded-md border border-[#C9C9CE] bg-white px-3 py-2 text-[14px] leading-relaxed text-[#1D1D1F] outline-none placeholder:text-[#B0B0B5] focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"

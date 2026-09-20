@@ -36,6 +36,8 @@ export interface UseForm2FieldReflectionsResult {
   loadedKeys: string[];
   loaded: boolean;
   onChangeReflection: (key: string, next: string) => void;
+  statuses: Record<string, ReflectionSaveStatus>;
+  getTexts: () => Record<string, string>;
 }
 
 export function useForm2FieldReflections({
@@ -166,6 +168,16 @@ export function useForm2FieldReflections({
     (key: string): ReflectionSaveStatus => statuses[key] ?? "idle",
     [statuses],
   );
+  const getTexts = useCallback(() => ({ ...latestRef.current }), []);
 
-  return { textOf, statusOf, texts, loadedKeys, loaded, onChangeReflection };
+  return {
+    textOf,
+    statusOf,
+    texts,
+    loadedKeys,
+    loaded,
+    onChangeReflection,
+    statuses,
+    getTexts,
+  };
 }

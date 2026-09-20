@@ -31,6 +31,7 @@ export interface UsePatientUnderstandingResult {
   status: OverviewSaveStatus;
   loaded: boolean;
   onChangeText: (next: string) => void;
+  getText: () => string;
 }
 
 export function usePatientUnderstanding({
@@ -131,5 +132,7 @@ export function usePatientUnderstanding({
     };
   }, [doSave]);
 
-  return { text, status, loaded, onChangeText };
+  const getText = useCallback(() => latestRef.current, []);
+
+  return { text, status, loaded, onChangeText, getText };
 }

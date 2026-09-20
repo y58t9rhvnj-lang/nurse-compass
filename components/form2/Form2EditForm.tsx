@@ -94,11 +94,21 @@ function TextField({
   value,
   onChange,
   placeholder,
+  fieldId,
+  onFieldFocus,
+  onFieldBlur,
+  onFieldCompositionStart,
+  onFieldCompositionEnd,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  fieldId?: string;
+  onFieldFocus?: (fieldId: string) => void;
+  onFieldBlur?: (fieldId: string) => void;
+  onFieldCompositionStart?: (fieldId: string) => void;
+  onFieldCompositionEnd?: (fieldId: string) => void;
 }) {
   return (
     <label className="flex flex-col gap-1">
@@ -107,6 +117,10 @@ function TextField({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={() => fieldId && onFieldFocus?.(fieldId)}
+        onBlur={() => fieldId && onFieldBlur?.(fieldId)}
+        onCompositionStart={() => fieldId && onFieldCompositionStart?.(fieldId)}
+        onCompositionEnd={() => fieldId && onFieldCompositionEnd?.(fieldId)}
         placeholder={placeholder}
         className="w-full rounded-xl border border-[#D1D1D6] bg-white px-3 py-2.5 text-[14px] font-normal text-[#1D1D1F] outline-none placeholder:text-[#AEAEB2] focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
       />
@@ -120,13 +134,24 @@ function FieldWithHelper({
   helper,
   value,
   onChange,
+  fieldId,
+  onFieldFocus,
+  onFieldBlur,
+  onFieldCompositionStart,
+  onFieldCompositionEnd,
 }: {
   id: string;
   label: string;
   helper: string;
   value: string;
   onChange: (value: string) => void;
+  fieldId?: string;
+  onFieldFocus?: (fieldId: string) => void;
+  onFieldBlur?: (fieldId: string) => void;
+  onFieldCompositionStart?: (fieldId: string) => void;
+  onFieldCompositionEnd?: (fieldId: string) => void;
 }) {
+  const resolvedFieldId = fieldId ?? id;
   return (
     <div className="space-y-1">
       <label htmlFor={id} className="text-[13px] font-medium text-[#1D1D1F]">
@@ -139,6 +164,10 @@ function FieldWithHelper({
         value={value}
         onChange={onChange}
         placeholder={helper}
+        onFocus={() => onFieldFocus?.(resolvedFieldId)}
+        onBlur={() => onFieldBlur?.(resolvedFieldId)}
+        onCompositionStart={() => onFieldCompositionStart?.(resolvedFieldId)}
+        onCompositionEnd={() => onFieldCompositionEnd?.(resolvedFieldId)}
       />
     </div>
   );
@@ -151,6 +180,10 @@ export default function Form2EditForm({
   updateTreatment,
   updateStudent,
   updatePeriod,
+  onFieldFocus,
+  onFieldBlur,
+  onFieldCompositionStart,
+  onFieldCompositionEnd,
 }: {
   data: Form2Data;
   updateBasic: (patch: Partial<Form2BasicInformation>) => void;
@@ -158,6 +191,10 @@ export default function Form2EditForm({
   updateTreatment: (patch: Partial<Form2Treatment>) => void;
   updateStudent: (patch: Partial<Form2Student>) => void;
   updatePeriod: (patch: Partial<Form2Period>) => void;
+  onFieldFocus?: (fieldId: string) => void;
+  onFieldBlur?: (fieldId: string) => void;
+  onFieldCompositionStart?: (fieldId: string) => void;
+  onFieldCompositionEnd?: (fieldId: string) => void;
 }) {
   // 「様式2で使う」→項目選択 時に、対象欄へスクロール＆フォーカスする（Sprint D-2B §③）。
   // Provider 配下（思考ワークスペース）でのみ機能し、レビュー画面では何もしない。
@@ -185,24 +222,44 @@ export default function Form2EditForm({
             value={data.period.start}
             onChange={(v) => updatePeriod({ start: v })}
             placeholder="例：◯月◯日"
+            fieldId="period.start"
+            onFieldFocus={onFieldFocus}
+            onFieldBlur={onFieldBlur}
+            onFieldCompositionStart={onFieldCompositionStart}
+            onFieldCompositionEnd={onFieldCompositionEnd}
           />
           <TextField
             label="受け持ち期間（終了）"
             value={data.period.end}
             onChange={(v) => updatePeriod({ end: v })}
             placeholder="例：◯月◯日"
+            fieldId="period.end"
+            onFieldFocus={onFieldFocus}
+            onFieldBlur={onFieldBlur}
+            onFieldCompositionStart={onFieldCompositionStart}
+            onFieldCompositionEnd={onFieldCompositionEnd}
           />
           <TextField
             label="学籍番号"
             value={data.student.studentNumber}
             onChange={(v) => updateStudent({ studentNumber: v })}
             placeholder="自分の学籍番号を記入"
+            fieldId="student.studentNumber"
+            onFieldFocus={onFieldFocus}
+            onFieldBlur={onFieldBlur}
+            onFieldCompositionStart={onFieldCompositionStart}
+            onFieldCompositionEnd={onFieldCompositionEnd}
           />
           <TextField
             label="学生氏名"
             value={data.student.studentName}
             onChange={(v) => updateStudent({ studentName: v })}
             placeholder="自分の氏名を記入"
+            fieldId="student.studentName"
+            onFieldFocus={onFieldFocus}
+            onFieldBlur={onFieldBlur}
+            onFieldCompositionStart={onFieldCompositionStart}
+            onFieldCompositionEnd={onFieldCompositionEnd}
           />
         </div>
       </section>
@@ -223,6 +280,11 @@ export default function Form2EditForm({
                   helper={field.helper}
                   value={data.basicInformation[field.key]}
                   onChange={(v) => updateBasic({ [field.key]: v })}
+                  fieldId={`basicInformation.${field.key}`}
+                  onFieldFocus={onFieldFocus}
+                  onFieldBlur={onFieldBlur}
+                  onFieldCompositionStart={onFieldCompositionStart}
+                  onFieldCompositionEnd={onFieldCompositionEnd}
                 />
               ) : (
                 <div className="space-y-1">
@@ -241,6 +303,22 @@ export default function Form2EditForm({
                     aria-label={field.label}
                     value={data.basicInformation[field.key]}
                     onChange={(e) => updateBasic({ [field.key]: e.target.value })}
+                    onFocus={() =>
+                      onFieldFocus?.(`basicInformation.${field.key}`)
+                    }
+                    onBlur={() =>
+                      onFieldBlur?.(`basicInformation.${field.key}`)
+                    }
+                    onCompositionStart={() =>
+                      onFieldCompositionStart?.(
+                        `basicInformation.${field.key}`,
+                      )
+                    }
+                    onCompositionEnd={() =>
+                      onFieldCompositionEnd?.(
+                        `basicInformation.${field.key}`,
+                      )
+                    }
                     placeholder={field.helper}
                     className="w-full rounded-xl border border-[#D1D1D6] bg-white px-3 py-2.5 text-[14px] font-normal text-[#1D1D1F] outline-none placeholder:text-[#AEAEB2] focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF]"
                   />
@@ -267,6 +345,11 @@ export default function Form2EditForm({
                 helper={field.helper}
                 value={data.history[field.key] ?? ""}
                 onChange={(v) => updateHistory({ [field.key]: v })}
+                fieldId={`history.${field.key}`}
+                onFieldFocus={onFieldFocus}
+                onFieldBlur={onFieldBlur}
+                onFieldCompositionStart={onFieldCompositionStart}
+                onFieldCompositionEnd={onFieldCompositionEnd}
               />
               <FieldEvidenceLinks fieldKey={`history.${field.key}`} />
             </div>
@@ -289,6 +372,11 @@ export default function Form2EditForm({
                 helper={field.helper}
                 value={data.treatment[field.key] ?? ""}
                 onChange={(v) => updateTreatment({ [field.key]: v })}
+                fieldId={`treatment.${field.key}`}
+                onFieldFocus={onFieldFocus}
+                onFieldBlur={onFieldBlur}
+                onFieldCompositionStart={onFieldCompositionStart}
+                onFieldCompositionEnd={onFieldCompositionEnd}
               />
               <FieldEvidenceLinks fieldKey={`treatment.${field.key}`} />
             </div>

@@ -3,7 +3,7 @@
 // Compass Version2 — 様式2 Workspace（Learning Layer 中央）。
 // Phase C6–C8: FormWorkspaceShell 接続・プレビュー/印刷/提出ヘッダー化。
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   FileText,
   Pencil,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Form2EditForm from "@/components/form2/Form2EditForm";
 import Form2PrintPortal from "@/components/form2/Form2PrintPortal";
+import DocumentUndoRedoButtons from "@/components/v2/workspace/DocumentUndoRedoButtons";
 import FormWorkspaceShell from "@/components/v2/workspace/FormWorkspaceShell";
 import { EvidenceReviewBody } from "@/components/v2/workspace/EvidenceReviewWorkspace";
 import Form2ReadonlyPreviewPane from "@/components/v2/workspace/Form2ReadonlyPreviewPane";
@@ -27,7 +28,19 @@ import {
   BRAND_UNSELECTED_PILL,
 } from "@/components/v2/workspace/darkSelectedSegment";
 import { requestWorkspaceBack } from "@/components/v2/workspace/requestWorkspaceBack";
+import { useForm2DocumentHistory } from "@/hooks/v2/useForm2DocumentHistory";
+import { useForm2FieldReflections } from "@/hooks/v2/useForm2FieldReflections";
+import { useForm2UnderstandingHistory } from "@/hooks/v2/useForm2UnderstandingHistory";
 import { useForm2Supabase } from "@/hooks/v2/useForm2Supabase";
+import { usePatientUnderstanding } from "@/hooks/v2/usePatientUnderstanding";
+import { form2UndoRedoLocked } from "@/lib/form2/form2DocumentHistory";
+import {
+  applyForm2UnderstandingRestore,
+  UNDERSTANDING_OVERVIEW_FIELD_ID,
+  understandingReflectionFieldId,
+  type Form2UnderstandingDocument,
+} from "@/lib/form2/form2UnderstandingHistory";
+import { createEmptyForm2, type Form2Data } from "@/lib/form2/form2Types";
 import { formatSavedAtJa } from "@/lib/datetime/formatSavedAtJa";
 import type { FacingConvoState } from "@/lib/patientFacingData";
 import type { Form2Snapshot } from "@/lib/v2/notebook/types";
@@ -74,6 +87,49 @@ export default function Form2Workspace({
   /** focusMode 中に提出画面へ戻る */
   onGoToSubmissions?: () => void;
 }) {
+  const getDataRef = useRef<() => Form2Data>(
+    () => initialForm2?.payload ?? createEmptyForm2(patient.id),
+  );
+  const getUnderstandingDocumentRef = useRef<() => Form2UnderstandingDocument>(
+    () => ({ reflections: {}, overviewText: "" }),
+  );
+
+  const {
+    canUndo,
+    canRedo,
+    beginField,
+    commitActiveField,
+    setComposing,
+    clear: clearHistory,
+    runUndoIntent,
+    runRedoIntent,
+  } = useForm2DocumentHistory({
+    patientId: patient.id,
+    userId,
+    getData: () => getDataRef.current(),
+  });
+
+  const reflections = useForm2FieldReflections({ patientId: patient.id });
+  const overview = usePatientUnderstanding({ patientId: patient.id });
+  getUnderstandingDocumentRef.current = () => ({
+    reflections: reflections.getTexts(),
+    overviewText: overview.getText(),
+  });
+
+  const {
+    canUndo: understandingCanUndo,
+    canRedo: understandingCanRedo,
+    beginField: beginUnderstandingField,
+    commitActiveField: commitUnderstandingActiveField,
+    setComposing: setUnderstandingComposing,
+    runUndoIntent: runUnderstandingUndoIntent,
+    runRedoIntent: runUnderstandingRedoIntent,
+  } = useForm2UnderstandingHistory({
+    patientId: patient.id,
+    userId,
+    getDocument: () => getUnderstandingDocumentRef.current(),
+  });
+
   const {
     data,
     hydrated,
@@ -86,6 +142,8 @@ export default function Form2Workspace({
     updateTreatment,
     updateStudent,
     updatePeriod,
+    getData,
+    restoreFromUserEdit,
     saveNow,
     retry,
     loadLatest,
@@ -96,7 +154,9 @@ export default function Form2Workspace({
     userId,
     initial: initialForm2,
     onPersisted: onForm2Persisted,
+    onDocumentBaselineReset: clearHistory,
   });
+  getDataRef.current = getData;
 
   const [mode, setMode] = useState<Mode>("edit");
   const [workspacePanel, setWorkspacePanel] =
@@ -105,19 +165,34 @@ export default function Form2Workspace({
   const [referenceSheetOpen, setReferenceSheetOpen] = useState(false);
 
   const openUnderstanding = useCallback(() => {
+    commitActiveField({ force: true });
     setReferenceSheetOpen(false);
     setWorkspacePanel("understanding");
-  }, []);
+  }, [commitActiveField]);
 
   const backToForm2Panel = useCallback(() => {
+    commitUnderstandingActiveField({ force: true });
     setReferenceSheetOpen(false);
     setWorkspacePanel("form2");
-  }, []);
+  }, [commitUnderstandingActiveField]);
 
   const savedTime = formatTime(lastSavedAt);
 
+  const understandingSaving =
+    overview.status === "saving" ||
+    Object.values(reflections.statuses).some((status) => status === "saving");
+  const understandingError =
+    overview.status === "error" ||
+    Object.values(reflections.statuses).some((status) => status === "error");
+
   const persistLabel = !hydrated
     ? ""
+    : workspacePanel === "understanding"
+      ? understandingError
+        ? "保存できませんでした"
+        : understandingSaving
+          ? "保存中…"
+          : ""
     : saveStatus === "saving"
       ? "保存中…"
       : saveStatus === "error"
@@ -223,8 +298,39 @@ export default function Form2Workspace({
     </button>
   ) : null;
 
+  const restoreUnderstandingDocument = useCallback(
+    (snapshot: Form2UnderstandingDocument) => {
+      applyForm2UnderstandingRestore(
+        getUnderstandingDocumentRef.current(),
+        snapshot,
+        reflections.onChangeReflection,
+        overview.onChangeText,
+      );
+      if (typeof document === "undefined") return;
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) active.blur();
+    },
+    [overview.onChangeText, reflections.onChangeReflection],
+  );
+
+  const handleUnderstandingUndo = useCallback(() => {
+    runUnderstandingUndoIntent(restoreUnderstandingDocument);
+  }, [restoreUnderstandingDocument, runUnderstandingUndoIntent]);
+
+  const handleUnderstandingRedo = useCallback(() => {
+    runUnderstandingRedoIntent(restoreUnderstandingDocument);
+  }, [restoreUnderstandingDocument, runUnderstandingRedoIntent]);
+
   const understandingHeaderActions = (
     <>
+      <DocumentUndoRedoButtons
+        canUndo={understandingCanUndo}
+        canRedo={understandingCanRedo}
+        onUndo={handleUnderstandingUndo}
+        onRedo={handleUnderstandingRedo}
+        onUndoPointerDown={handleUnderstandingUndo}
+        onRedoPointerDown={handleUnderstandingRedo}
+      />
       <button
         type="button"
         onClick={backToForm2Panel}
@@ -235,6 +341,31 @@ export default function Form2Workspace({
       {learningSupportButton}
     </>
   );
+
+  const historyLocked = form2UndoRedoLocked({
+    mode,
+    understandingOpen: workspacePanel === "understanding",
+  });
+
+  const restoreWorkingPayload = useCallback(
+    (snapshot: Form2Data) => {
+      restoreFromUserEdit(snapshot);
+      if (typeof document === "undefined") return;
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) active.blur();
+    },
+    [restoreFromUserEdit],
+  );
+
+  const handleUndo = useCallback(() => {
+    if (historyLocked) return;
+    runUndoIntent(restoreWorkingPayload);
+  }, [historyLocked, restoreWorkingPayload, runUndoIntent]);
+
+  const handleRedo = useCallback(() => {
+    if (historyLocked) return;
+    runRedoIntent(restoreWorkingPayload);
+  }, [historyLocked, restoreWorkingPayload, runRedoIntent]);
 
   const headerActions = (
     <>
@@ -249,6 +380,15 @@ export default function Form2Workspace({
       )}
       {/* 編集/プレビュー → 印刷（18px）→ 提出（16px）→ 患者理解/学習（24px） */}
       <div className="flex flex-wrap items-center gap-y-2">
+        <DocumentUndoRedoButtons
+          canUndo={canUndo}
+          canRedo={canRedo}
+          locked={historyLocked}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onUndoPointerDown={handleUndo}
+          onRedoPointerDown={handleRedo}
+        />
         <div className="flex items-center">
           <div className="flex overflow-hidden rounded-2xl border border-[#D0D5DD]">
             <button
@@ -398,6 +538,23 @@ export default function Form2Workspace({
           data={data}
           hydrated={hydrated}
           layout="formOnly"
+          reflections={reflections}
+          overview={overview}
+          onReflectionFocus={(fieldKey) =>
+            beginUnderstandingField(understandingReflectionFieldId(fieldKey))
+          }
+          onOverviewFocus={() =>
+            beginUnderstandingField(UNDERSTANDING_OVERVIEW_FIELD_ID)
+          }
+          onUnderstandingFieldBlur={() => {
+            commitUnderstandingActiveField();
+          }}
+          onUnderstandingCompositionStart={() =>
+            setUnderstandingComposing(true)
+          }
+          onUnderstandingCompositionEnd={() =>
+            setUnderstandingComposing(false)
+          }
         />
       ) : (
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
@@ -447,6 +604,12 @@ export default function Form2Workspace({
               updateTreatment={updateTreatment}
               updateStudent={updateStudent}
               updatePeriod={updatePeriod}
+              onFieldFocus={beginField}
+              onFieldBlur={() => {
+                commitActiveField();
+              }}
+              onFieldCompositionStart={() => setComposing(true)}
+              onFieldCompositionEnd={() => setComposing(false)}
             />
           ) : (
             <Form2WorkspacePreview data={data} />
