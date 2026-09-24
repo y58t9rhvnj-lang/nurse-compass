@@ -183,8 +183,11 @@ const studentDraftStore = createRelatedDiagramRepositoryDraftStore({
 
 export default function RelatedDiagramDevFixtureWorkspace({
   form3Model: form3ModelProp,
+  showDevIndicator = true,
 }: {
   form3Model?: RelatedDiagramForm3ReadModel;
+  /** Production Student Editor passes false so the DEV badge never mounts. */
+  showDevIndicator?: boolean;
 } = {}) {
   const router = useRouter();
   const {
@@ -1437,7 +1440,11 @@ export default function RelatedDiagramDevFixtureWorkspace({
         }}
         canSave={canSave}
         onBack={handleBack}
-        devTitle={`Slice 2B-2G-1 · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
+        devTitle={
+          showDevIndicator
+            ? `Slice 2B-2G-1 · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`
+            : undefined
+        }
       />
 
       <div

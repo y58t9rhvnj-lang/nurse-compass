@@ -255,4 +255,32 @@ test("back A-I toolbar 戻る matches Form2/3 and goes to /v2/student", () => {
   assert.equal(ws.includes('router.push("/v2")'), false);
 });
 
+test("L Production Student Editor does not render the DEV badge or tooltip", () => {
+  const editor = src(
+    "../../../components/v2/relatedDiagram/RelatedDiagramStudentEditor.tsx",
+  );
+  const toolbar = src(
+    "../../../components/v2/relatedDiagram/RelatedDiagramEditorToolbar.tsx",
+  );
+  const ws = src(
+    "../../../components/v2/relatedDiagram/RelatedDiagramDevFixtureWorkspace.tsx",
+  );
+  const page = src("../../../app/v2/student/related-diagram/page.tsx");
+  const devAuth = src("../../../app/v2/dev/related-diagram-slice1/page.tsx");
+  const devUnauth = src("../../../app/dev/related-diagram-slice1/page.tsx");
+  assert.ok(editor.includes("showDevIndicator={false}"));
+  assert.equal(editor.includes("not student runtime"), false);
+  assert.equal(editor.includes("data-rd-dev-badge"), false);
+  assert.equal(page.includes("data-rd-dev-badge"), false);
+  assert.equal(page.includes("not student runtime"), false);
+  assert.ok(toolbar.includes("devTitle ?"));
+  assert.ok(toolbar.includes("data-rd-dev-badge"));
+  assert.ok(ws.includes("showDevIndicator"));
+  assert.ok(ws.includes("not student runtime"));
+  assert.ok(devAuth.includes("<RelatedDiagramDevFixtureWorkspace />"));
+  assert.equal(devAuth.includes("showDevIndicator={false}"), false);
+  assert.ok(devUnauth.includes("<RelatedDiagramDevFixtureWorkspace />"));
+  assert.equal(devUnauth.includes("showDevIndicator={false}"), false);
+});
+
 console.log(`\n${passed} passed`);

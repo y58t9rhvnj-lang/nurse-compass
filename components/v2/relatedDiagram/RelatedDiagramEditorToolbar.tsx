@@ -65,7 +65,8 @@ export default function RelatedDiagramEditorToolbar({
   onSave?: () => void;
   canSave?: boolean;
   onBack?: () => void;
-  devTitle: string;
+  /** DEV workspaces only. Production Student Editor omits this and does not render the badge. */
+  devTitle?: string;
 }) {
   const [overflowOpen, setOverflowOpen] = useState(false);
 
@@ -195,14 +196,18 @@ export default function RelatedDiagramEditorToolbar({
           data-rd-toolbar-right
           className="flex shrink-0 items-center gap-2"
         >
-        <span
-          data-rd-dev-badge
-          title={devTitle}
-          className="hidden shrink-0 rounded bg-[#F2F2F7] px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-[#6E6E73] min-[1280px]:inline"
-        >
-          DEV
-        </span>
-        <ToolbarSep />
+        {devTitle ? (
+          <>
+            <span
+              data-rd-dev-badge
+              title={devTitle}
+              className="hidden shrink-0 rounded bg-[#F2F2F7] px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-[#6E6E73] min-[1280px]:inline"
+            >
+              DEV
+            </span>
+            <ToolbarSep />
+          </>
+        ) : null}
         <div
           data-rd-zoom-group
           className="flex shrink-0 items-center gap-1 rounded-lg bg-[#F2F2F7] px-1"
