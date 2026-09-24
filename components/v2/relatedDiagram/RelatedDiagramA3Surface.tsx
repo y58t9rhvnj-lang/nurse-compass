@@ -1,6 +1,10 @@
 "use client";
 
 import type { PointerEvent as ReactPointerEvent } from "react";
+import {
+  cardWithTransientPosition,
+  type CardDragTransient,
+} from "@/lib/v2/relatedDiagram/cardDragTransient";
 import type { StableRouteState } from "@/lib/v2/relatedDiagram/incrementalRoutes";
 import type { RelatedDiagramRouteTopology } from "@/lib/v2/relatedDiagram/routeTopology";
 import type {
@@ -37,6 +41,7 @@ export default function RelatedDiagramA3Surface({
   connectTargetCardId = null,
   selectedGroup = false,
   previewCardId = null,
+  dragTransient = null,
   onCardPointerDown,
   onCardPointerMove,
   onCardPointerUp,
@@ -47,6 +52,11 @@ export default function RelatedDiagramA3Surface({
   routeCost = false,
   stableRouteState,
   selectedConnectionId = null,
+  routeEditPreview = null,
+  routeTracePreview = null,
+  traceArmed = false,
+  onTracePointerDown,
+  cardChrome,
 }: {
   graph: RelatedDiagramSemanticGraph;
   knowledgeLabel?: string | null;
@@ -58,6 +68,7 @@ export default function RelatedDiagramA3Surface({
   connectTargetCardId?: string | null;
   selectedGroup?: boolean;
   previewCardId?: string | null;
+  dragTransient?: CardDragTransient | null;
   onCardPointerDown?: (
     card: RelatedDiagramCard,
     event: ReactPointerEvent<HTMLElement>,
@@ -68,14 +79,25 @@ export default function RelatedDiagramA3Surface({
   onSurfacePointerDown?: (event: ReactPointerEvent<HTMLElement>) => void;
   onConnectionPointerDown?: (event: ReactPointerEvent<SVGPathElement>) => void;
   selectedConnectionId?: string | null;
+  routeEditPreview?: { connectionId: string; points: { x: number; y: number }[] } | null;
+  routeTracePreview?: { connectionId: string; raw: { x: number; y: number }[] } | null;
+  traceArmed?: boolean;
+  onTracePointerDown?: (event: ReactPointerEvent<HTMLElement>) => void;
   /** DEV query-param overlay only. Never on in production student UI. */
   routeDebug?: boolean;
   routeCost?: boolean;
+  /** DEV Patient A size experiment. Production omits this. */
+  cardChrome?: {
+    padding?: string;
+    knowledgePadding?: string;
+    lineHeight?: number;
+  };
 }) {
   const knowledgeBbox = interactive ? knowledgeGroupBounds(graph.cards) : null;
   const handleBounds = knowledgeBbox
     ? knowledgeGroupHandleBounds(knowledgeBbox)
     : null;
+  const incidentRoutePreviews = dragTransient?.incidentRoutePreviews;
 
   return (
     <div
@@ -105,13 +127,28 @@ export default function RelatedDiagramA3Surface({
         width={A3_WIDTH_PX}
         height={A3_HEIGHT_PX}
         routeTopology={routeTopology}
-        previewCardId={previewCardId}
+        previewCardId={dragTransient ? null : previewCardId}
+        incidentRoutePreviews={incidentRoutePreviews}
         stableRouteState={stableRouteState}
         selectedConnectionId={selectedConnectionId}
+        routeEditPreview={routeEditPreview}
+        routeTracePreview={routeTracePreview}
         onConnectionPointerDown={
           interactive ? onConnectionPointerDown : undefined
         }
       />
+      {interactive && traceArmed ? (
+        <div
+          data-rd-route-trace-capture
+          className="absolute inset-0"
+          style={{
+            zIndex: 45,
+            touchAction: "none",
+            cursor: "crosshair",
+          }}
+          onPointerDown={onTracePointerDown}
+        />
+      ) : null}
       {routeDebug || routeCost ? (
         <RelatedDiagramRouteDebugOverlay
           cards={graph.cards}
@@ -165,25 +202,30 @@ export default function RelatedDiagramA3Surface({
           病態
         </div>
       ) : null}
-      {graph.cards.map((card) => (
-        <RelatedDiagramCardNode
-          key={card.id}
-          card={card}
-          priority={resolveNursingProblemPriority(graph, card.id)}
-          selected={card.id === selectedCardId}
-          connectRole={
-            card.id === connectSourceCardId
-              ? "source"
-              : card.id === connectTargetCardId
-                ? "target"
-                : null
-          }
-          interactive={interactive}
-          onPointerDown={onCardPointerDown}
-          onPointerMove={onCardPointerMove}
-          onPointerUp={onCardPointerUp}
-        />
-      ))}
+      {graph.cards.map((card) => {
+        const displayCard = cardWithTransientPosition(card, dragTransient);
+        return (
+          <RelatedDiagramCardNode
+            key={card.id}
+            card={displayCard}
+            chrome={cardChrome}
+            priority={resolveNursingProblemPriority(graph, card.id)}
+            selected={card.id === selectedCardId}
+            isTransientDrag={dragTransient?.cardId === card.id}
+            connectRole={
+              card.id === connectSourceCardId
+                ? "source"
+                : card.id === connectTargetCardId
+                  ? "target"
+                  : null
+            }
+            interactive={interactive}
+            onPointerDown={onCardPointerDown}
+            onPointerMove={onCardPointerMove}
+            onPointerUp={onCardPointerUp}
+          />
+        );
+      })}
       <RelatedDiagramLegend />
     </div>
   );

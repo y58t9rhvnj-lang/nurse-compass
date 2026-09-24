@@ -92,6 +92,12 @@ export type RelatedDiagramCardSource = {
   sourcePatterns?: string[] | null;
   /** Form3 Information S/O. */
   sourceSoType?: "S" | "O" | null;
+  /**
+   * Form3 Assessment evidence IDs at compose time.
+   * Candidates only — not confirmed Related Diagram evidence connections.
+   * Same set is copied to every Understanding composed from that Assessment.
+   */
+  candidateEvidenceInformationIds?: string[] | null;
   createdAt: string;
 };
 
@@ -181,6 +187,8 @@ export type RelatedDiagramRecordMeta = {
 
 export type RelatedDiagramDraft = RelatedDiagramRecordMeta & {
   semanticGraph: RelatedDiagramSemanticGraph;
+  /** Persisted route_scene JSON. null when the column is empty. */
+  routeScene: unknown | null;
 };
 
 /**

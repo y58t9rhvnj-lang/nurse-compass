@@ -111,6 +111,19 @@ export type ReverseConnectionHistoryAction = {
   topologyAfter?: RelatedDiagramRouteTopology;
 };
 
+export type EditRouteHistoryAction = {
+  type: "editRoute";
+  connectionId: string;
+  before: {
+    routeState: StableRouteState;
+    topology?: RelatedDiagramRouteTopology;
+  };
+  after: {
+    routeState: StableRouteState;
+    topology?: RelatedDiagramRouteTopology;
+  };
+};
+
 export type DiagramHistoryAction =
   | MoveHistoryAction
   | CardEntityHistoryAction
@@ -119,6 +132,7 @@ export type DiagramHistoryAction =
   | EditConnectionRelationHistoryAction
   | DeleteConnectionHistoryAction
   | ReverseConnectionHistoryAction
+  | EditRouteHistoryAction
   | SetNursingProblemPrioritiesHistoryAction;
 
 export type HistoryCommand =
@@ -309,6 +323,18 @@ export function pushDiagramHistory(
                     topologyBefore: cloneTopology(action.topologyBefore),
                     topologyAfter: cloneTopology(action.topologyAfter),
                   }
+                : action.type === "editRoute"
+                  ? {
+                      ...action,
+                      before: {
+                        routeState: cloneStableRouteState(action.before.routeState),
+                        topology: cloneTopology(action.before.topology),
+                      },
+                      after: {
+                        routeState: cloneStableRouteState(action.after.routeState),
+                        topology: cloneTopology(action.after.topology),
+                      },
+                    }
                 : action.type === "setNursingProblemPriorities"
                   ? {
                       ...action,
@@ -379,6 +405,15 @@ function undoCommand(action: DiagramHistoryAction): HistoryCommand {
         routeState: cloneStableRouteState(action.routeStateBefore),
         topology: cloneTopology(action.topologyBefore),
       };
+    case "editRoute":
+      return {
+        kind: "applyFragment",
+        fragment: {
+          cards: [],
+          routeState: cloneStableRouteState(action.before.routeState),
+          topology: cloneTopology(action.before.topology),
+        },
+      };
   }
 }
 
@@ -438,6 +473,15 @@ function redoCommand(action: DiagramHistoryAction): HistoryCommand {
         connection: cloneConnection(action.after),
         routeState: cloneStableRouteState(action.routeStateAfter),
         topology: cloneTopology(action.topologyAfter),
+      };
+    case "editRoute":
+      return {
+        kind: "applyFragment",
+        fragment: {
+          cards: [],
+          routeState: cloneStableRouteState(action.after.routeState),
+          topology: cloneTopology(action.after.topology),
+        },
       };
   }
 }

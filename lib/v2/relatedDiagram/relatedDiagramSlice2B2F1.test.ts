@@ -678,7 +678,9 @@ test("single tap後にaction popover / blank tapでselection解除", () => {
     ws.indexOf("const handleOpenSource"),
   );
   assert.ok(upFn.includes("onCardPointerUp(event)"));
+  assert.ok(upFn.includes("shouldRevealCardActionsAfterRelease"));
   assert.ok(upFn.includes("setRevealCardActions(true)"));
+  assert.ok(upFn.includes("setRevealCardActions(false)"));
   assert.ok(ws.includes("onSurfacePointerDown"));
   assert.ok(ws.includes("onDismiss={() => selectCard(null)}"));
 });

@@ -170,7 +170,7 @@ test("B5-7 unrelated card and keep-out are not pierced; endpoints still connect"
 
 test("B8 moving a card regenerates a route that still avoids neighbors", () => {
   const s = scene();
-  const moved = applyCardPositionToGraph(s.graph, "sk_da", 520, 180);
+  const moved = applyCardPositionToGraph(s.graph, "sk_da", 300, 500);
   const next = regen(s, moved.cards);
   const route = next.routes.find((r) => r.connectionId === "skc2");
   assert.ok(route);
@@ -251,8 +251,24 @@ test("D12-14 branch clearance, no zero-length child, fan avoids cards", () => {
       Math.abs(pushed.x - 40) > 8,
   );
 
-  const s = scene();
-  const near = applyCardPositionToGraph(s.graph, "sk_hallucination", 40, 400);
+  const knowledge = resolveDevFixtureReadonlyScene({ includeStyleDemo: false });
+  assert.ok(knowledge.routeTopology);
+  const s = {
+    ...knowledge,
+    params: captureTopologyGeometryParams(
+      knowledge.routeTopology!,
+      knowledge.graph.cards,
+      knowledge.graph.connections,
+    ),
+    topology: knowledge.routeTopology!,
+  };
+  const hall = s.graph.cards.find((c) => c.id === "sk_hallucination")!;
+  const near = applyCardPositionToGraph(
+    s.graph,
+    "sk_hallucination",
+    hall.layout.x,
+    hall.layout.y + 140,
+  );
   const next = regen(s, near.cards);
   const route = next.routes.find((r) => r.connectionId === "skc9")!;
   const c = polylineContinuity(route.points);
@@ -395,10 +411,10 @@ test("F24 group drag applies one final delta to cards and topology", () => {
     dx,
     dy,
   );
-  const bp0 = s.topology.branchPoints.find((b) => b.id === "bp_positive")!;
-  const bp1 = t2.branchPoints.find((b) => b.id === "bp_positive")!;
-  assert.equal(bp1.x, bp0.x + dx);
-  assert.equal(bp1.y, bp0.y + dy);
+  const r0 = s.topology.routes.find((r) => r.connectionId === "skc2")!;
+  const r1 = t2.routes.find((r) => r.connectionId === "skc2")!;
+  assert.equal(r1.points[0]!.x, r0.points[0]!.x + dx);
+  assert.equal(r1.points[0]!.y, r0.points[0]!.y + dy);
   const card0 = s.graph.cards.find((c) => c.id === "sk_positive")!;
   const card1 = g2.cards.find((c) => c.id === "sk_positive")!;
   assert.equal(card1.layout.x, card0.layout.x + dx);
@@ -602,23 +618,23 @@ test("invalid routes are excluded from bridge classification", () => {
 
 test("live Knowledge drop endpoints match current card pins", () => {
   const s = scene();
-  const moved = applyCardPositionToGraph(s.graph, "sk_disease", 50, 40);
+  const moved = applyCardPositionToGraph(s.graph, "sk_patho_core", 50, 40);
   const next = regen(s, moved.cards);
   const plan = planOrthogonalRoutes(moved.cards, moved.connections, {
     canvas: { x: 0, y: 0, width: A3_WIDTH_PX, height: A3_HEIGHT_PX },
     topology: next,
   });
-  const route = plan.routes.find((r) => r.connectionId === "skc1");
+  const route = plan.routes.find((r) => r.connectionId === "skc2");
   assert.ok(route);
-  const src = moved.cards.find((c) => c.id === "sk_disease")!;
-  const tgt = moved.cards.find((c) => c.id === "sk_patho_core")!;
-  assert.equal(route!.points[0]!.x, src.layout.x + src.layout.width);
-  assert.equal(route!.points[0]!.y, src.layout.y + src.layout.height / 2);
-  assert.equal(route!.points[route!.points.length - 1]!.x, tgt.layout.x);
+  const src = moved.cards.find((c) => c.id === "sk_patho_core")!;
+  const tgt = moved.cards.find((c) => c.id === "sk_da")!;
+  assert.equal(route!.points[0]!.x, src.layout.x + src.layout.width / 2);
+  assert.equal(route!.points[0]!.y, src.layout.y + src.layout.height);
   assert.equal(
-    route!.points[route!.points.length - 1]!.y,
-    tgt.layout.y + tgt.layout.height / 2,
+    route!.points[route!.points.length - 1]!.x,
+    tgt.layout.x + tgt.layout.width / 2,
   );
+  assert.equal(route!.points[route!.points.length - 1]!.y, tgt.layout.y);
 });
 
 test("recapture after group translate does not snap back to fixture rail", () => {
@@ -643,8 +659,8 @@ test("recapture after group translate does not snap back to fixture rail", () =>
     connections: g2.connections,
     geometryParams: params2,
   });
-  const trunk = next.trunks.find((t) => t.id === "tr_negative")!;
-  const railX = Math.min(...trunk.points.map((p) => p.x));
+  const route = next.routes.find((r) => r.connectionId === "skc7")!;
+  const railX = Math.min(...route.points.map((p) => p.x));
   assert.ok(railX > 40, `rail should stay translated, got ${railX}`);
 });
 

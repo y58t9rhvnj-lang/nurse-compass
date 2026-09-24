@@ -1,0 +1,700 @@
+{
+  "_devOnly": true,
+  "_readOnlySnapshot": true,
+  "_doNotWriteBack": true,
+  "source": {
+    "loginId": "99999991",
+    "caseId": "SP-001",
+    "schemaVersion": 2,
+    "dbVersion": 34,
+    "updatedAt": "2026-09-20T12:25:56.36986+00:00",
+    "capturedAt": "2026-09-21T11:50:00.000Z"
+  },
+  "schemaVersion": 2,
+  "patientId": "A",
+  "updatedAt": "2026-09-15T11:59:32.997Z",
+  "informationCards": [
+    {
+      "id": "bdcfcec8-434c-483a-9d85-1018e7013bb5",
+      "content": "Iさんの服薬自己管理を見て「自分にもできるかな」「うらやましい」と話した。服薬の必要性は理解しているが、自己管理には自信がない様子。",
+      "soType": "S",
+      "sourceType": "nursing_record",
+      "patternKeys": [
+        "health_perception_management",
+        "role_relationship"
+      ],
+      "order": 1,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "4a2ee2a9-22ba-4eac-91b9-01c130584929",
+      "content": "服薬拒否なし。定期薬は全量服用（ロフラゼプ酸エチル錠1mg 朝食後、リスペリドン錠2mg 2錠 朝食後、クエチアピン錠50mg 就寝前、ゾピクロン錠7.5mg 就寝前）。飲み忘れなし。朝は促しが必要な日がある。頓服は不眠時ブロチゾラム錠0.25mg、便秘時センノシド錠12mg、発熱・疼痛時アセトアミノフェン。まず就寝前薬からの段階的な服薬自己管理を医師・看護・薬剤で検討。頓用睡眠薬の連用は避ける方針。",
+      "soType": "O",
+      "sourceType": "medication",
+      "patternKeys": [
+        "health_perception_management",
+        "nutritional_metabolic",
+        "elimination",
+        "sleep_rest"
+      ],
+      "order": 2,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "a495a199-56f5-49c2-bf25-a5d5ab8c9a8e",
+      "content": "2023/07/10に医療保護入院から任意入院へ移行。現在も任意入院。主治医は維持期として現行処方継続、自己管理と地域生活を段階的に検討。GAF 50。経過上、2009年の入院は服薬中断後の再発と記載されている。",
+      "soType": "O",
+      "sourceType": "physician_record",
+      "patternKeys": [
+        "health_perception_management",
+        "value_belief"
+      ],
+      "order": 3,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "0f7fd20d-3262-4e71-8e4f-0cde3b65e0a3",
+      "content": "間食は一つ、非甘味の飲み物を選択できている。「少し軽くなった」と前向きに話した。",
+      "soType": "S",
+      "sourceType": "nursing_record",
+      "patternKeys": [
+        "nutritional_metabolic"
+      ],
+      "order": 4,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "f1c1a89e-1c2c-439a-b8bf-f0ab142689ef",
+      "content": "体重70.2kg、腹囲約85cmまで減少。以前の脂質異常は改善（LDL 118 / TG 130、2025/06/20）。BMIは過体重域が続く。食事は概ね8〜全量、水分約1000〜1300ml。感冒時は一時減量したが摂取可能だった。",
+      "soType": "O",
+      "sourceType": "laboratory",
+      "patternKeys": [
+        "nutritional_metabolic",
+        "elimination"
+      ],
+      "order": 5,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "801fab3a-d4c5-493b-a7f7-88784652abdf",
+      "content": "便秘など体調の変化を自分で訴え、頓服を求めることができる。",
+      "soType": "S",
+      "sourceType": "chart",
+      "patternKeys": [
+        "elimination"
+      ],
+      "order": 6,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "069ee59e-5d36-461d-9151-485ad1683e03",
+      "content": "排便間隔に変動あり。排便なしの日が続き、センノシド使用後に排便した日がある。腹部症状の訴えは記載されていない。",
+      "soType": "O",
+      "sourceType": "nursing_record",
+      "patternKeys": [
+        "elimination"
+      ],
+      "order": 7,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "49a4f08e-fb11-4817-9888-84c98d00db13",
+      "content": "OTは「気が向かない」と辞退することがある。「疲れる」と早めに切り上げる。SSTには出るようになった、と本人も話す。",
+      "soType": "S",
+      "sourceType": "patient_conversation",
+      "patternKeys": [
+        "activity_exercise"
+      ],
+      "order": 8,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "e29e8e0f-7de9-4fb6-836a-1ed1944fbbb9",
+      "content": "SST参加は定着。OTは参加（革細工、集中約20分）と辞退が混在。日中は室内中心の日が多い。入浴・洗濯は促しで実施。バイタルは安定範囲。",
+      "soType": "O",
+      "sourceType": "nursing_record",
+      "patternKeys": [
+        "nutritional_metabolic",
+        "elimination",
+        "activity_exercise",
+        "sleep_rest"
+      ],
+      "order": 9,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "73257ace-bb7e-4a93-8c56-ca900cac0402",
+      "content": "「夜になると声が気になります。眠れない日があります。」「だめな人間だ、と聞こえる」。頓用後の朝は「からだが重い」と話すことがある。",
+      "soType": "S",
+      "sourceType": "patient_conversation",
+      "patternKeys": [
+        "activity_exercise",
+        "sleep_rest",
+        "cognitive_perceptual",
+        "self_perception_self_concept"
+      ],
+      "order": 10,
+      "status": "archived",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-17T04:26:17.614Z"
+    },
+    {
+      "id": "cc733032-c8de-469b-b12e-7a32e674a81e",
+      "content": "夜間幻聴で入眠困難の夜あり。ラジオを小音で流して対処し、不眠時はブロチゾラム頓用後に入眠。翌朝は起床が遅く眠気が残ることがある。眠れる夜は入眠23時前後・約7時間の日もある。頓用の連用は避ける方針。",
+      "soType": "O",
+      "sourceType": "nursing_record",
+      "patternKeys": [
+        "activity_exercise",
+        "sleep_rest",
+        "coping_stress_tolerance"
+      ],
+      "order": 11,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "2de11622-1a5f-49ad-91b0-cb576b272fd6",
+      "content": "夜間を中心に幻聴を訴える。",
+      "soType": "S",
+      "sourceType": "patient_conversation",
+      "patternKeys": [
+        "sleep_rest",
+        "cognitive_perceptual"
+      ],
+      "order": 12,
+      "status": "archived",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-17T04:26:19.904Z"
+    },
+    {
+      "id": "521af48d-f615-4172-ab96-4aecae8a9a85",
+      "content": "幻聴は残存するが著明な行動化なし。会話は成立。表情は概ね穏やか。医師は急性増悪を示す所見はないとしている。",
+      "soType": "O",
+      "sourceType": "physician_record",
+      "patternKeys": [
+        "cognitive_perceptual"
+      ],
+      "order": 13,
+      "status": "archived",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-17T04:26:22.019Z"
+    },
+    {
+      "id": "d9ce13c0-0d42-49db-990c-3fbbfdc1a64d",
+      "content": "「だめな人間だ」と聞こえる。叔父に嫌われたのではないか。外で一人でやっていけるか自信がない。",
+      "soType": "S",
+      "sourceType": "patient_conversation",
+      "patternKeys": [
+        "cognitive_perceptual",
+        "self_perception_self_concept",
+        "role_relationship"
+      ],
+      "order": 14,
+      "status": "archived",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-17T04:26:25.535Z"
+    },
+    {
+      "id": "8514f912-3a1e-42ef-8c29-ed098e14a27d",
+      "content": "物静かで内向的。心を許した相手（Iさん）とは穏やかに過ごせる。まじめで、決めたことには取り組もうとする、とプロファイルに記載。",
+      "soType": "O",
+      "sourceType": "observation",
+      "patternKeys": [
+        "self_perception_self_concept"
+      ],
+      "order": 15,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "0d9e1e78-f101-4c59-b85c-62c822ad3a4c",
+      "content": "「Iさんといると落ち着く」。Iさんの自己管理を見てうらやましい、自分にもできるかな、と話す。",
+      "soType": "S",
+      "sourceType": "patient_conversation",
+      "patternKeys": [
+        "activity_exercise",
+        "self_perception_self_concept",
+        "role_relationship"
+      ],
+      "order": 16,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "18b7e66b-223d-4feb-83fa-91fd91ca4ee7",
+      "content": "同室Iさんと中庭で菓子を分け合い過ごす。未婚・同胞なし。高齢の叔父がキーパーソンだが面会は減少し、本人は電話で確かめていない。帰る家がない。叔父の協力は限定的。現在無職で安定した就労歴はない。障害年金受給、生活保護併用を検討。",
+      "soType": "O",
+      "sourceType": "chart",
+      "patternKeys": [
+        "self_perception_self_concept",
+        "role_relationship",
+        "coping_stress_tolerance"
+      ],
+      "order": 17,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "bd6ee6c2-a53a-4da1-b912-cfeb988addc0",
+      "content": "登録情報・会話・カルテ上、本人からの性・生殖に関する訴えは確認できない。",
+      "soType": "S",
+      "sourceType": "other",
+      "patternKeys": [
+        "sexuality_reproductive"
+      ],
+      "order": 18,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "98dd539e-2e92-4c5b-8bda-76c6ce0ea9eb",
+      "content": "未婚・同胞なし。性・生殖パターンに関する具体的記載はカルテ上ほぼない。",
+      "soType": "O",
+      "sourceType": "chart",
+      "patternKeys": [
+        "sexuality_reproductive"
+      ],
+      "order": 19,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "6f77504b-1ad9-4f2c-9e73-179bf70fbe70",
+      "content": "「ここ（病院）にいる方が安心」。幻聴時はラジオで対処し、必要時に頓服を希望できる。",
+      "soType": "S",
+      "sourceType": "patient_conversation",
+      "patternKeys": [
+        "health_perception_management",
+        "coping_stress_tolerance",
+        "value_belief"
+      ],
+      "order": 20,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "084734cb-69a6-4666-ae24-afa2241c403c",
+      "content": "SST参加の定着。夜間の自己対処（ラジオ）後に頓用睡眠薬使用あり。体調変化を訴えて頓服を求められる。",
+      "soType": "O",
+      "sourceType": "nursing_record",
+      "patternKeys": [
+        "coping_stress_tolerance"
+      ],
+      "order": 21,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "c398f767-a862-43bf-9e0a-274f9ee37739",
+      "content": "静かに自分のペースで過ごしたい。苦手な場所や新しい環境は避けたい。Iさんのように自分も少しずつできるようになりたい。急がず、まずは安心して過ごしたい。いずれは自分でも生活を管理できるようになりたい。",
+      "soType": "S",
+      "sourceType": "patient_conversation",
+      "patternKeys": [
+        "health_perception_management",
+        "coping_stress_tolerance",
+        "value_belief"
+      ],
+      "order": 22,
+      "status": "archived",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-20T12:24:25.707Z"
+    },
+    {
+      "id": "1b129122-2cfe-4c69-a448-0d10e6e96c55",
+      "content": "治療方針は現行処方継続と段階的な自己管理・地域生活の検討。退院を急がせる記載はない。本人の『まずは安心』という希望と方向は近い。",
+      "soType": "O",
+      "sourceType": "physician_record",
+      "patternKeys": [
+        "value_belief"
+      ],
+      "order": 23,
+      "status": "active",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "47977aa0-1eff-4a39-add3-6e8b1db929f2",
+      "content": "「だめな人間だ、と聞こえる」",
+      "soType": "S",
+      "sourceType": "other",
+      "patternKeys": [
+        "cognitive_perceptual"
+      ],
+      "order": 23,
+      "status": "active",
+      "createdAt": "2026-09-17T04:45:54.085Z",
+      "updatedAt": "2026-09-17T04:45:54.085Z"
+    },
+    {
+      "id": "ad6d1752-c74b-4046-9cee-7d1d5d62ee54",
+      "content": "叔父の面会が減っている話題に触れ、沈んだ表情。電話での確認はしていない。",
+      "soType": "O",
+      "sourceType": "other",
+      "patternKeys": [
+        "cognitive_perceptual"
+      ],
+      "order": 24,
+      "status": "active",
+      "createdAt": "2026-09-17T04:46:53.546Z",
+      "updatedAt": "2026-09-17T04:46:53.546Z"
+    },
+    {
+      "id": "ae9181a1-6b3e-454f-8aec-5b54c5285fb2",
+      "content": "「嫌われたのかな」",
+      "soType": "S",
+      "sourceType": "other",
+      "patternKeys": [
+        "cognitive_perceptual"
+      ],
+      "order": 25,
+      "status": "active",
+      "createdAt": "2026-09-17T04:47:09.527Z",
+      "updatedAt": "2026-09-17T04:47:09.527Z"
+    },
+    {
+      "id": "646a1897-ca45-4607-8d39-9905671ef9b3",
+      "content": "入浴後にため込んでいた下着をまとめて洗う様子",
+      "soType": "O",
+      "sourceType": "other",
+      "patternKeys": [
+        "cognitive_perceptual"
+      ],
+      "order": 26,
+      "status": "active",
+      "createdAt": "2026-09-17T04:47:37.708Z",
+      "updatedAt": "2026-09-17T04:47:37.708Z"
+    },
+    {
+      "id": "e557cd4e-4d77-4c8f-8518-df58960083f1",
+      "content": "「お金が足りなくなった」",
+      "soType": "S",
+      "sourceType": "other",
+      "patternKeys": [
+        "cognitive_perceptual"
+      ],
+      "order": 27,
+      "status": "active",
+      "createdAt": "2026-09-17T04:48:02.957Z",
+      "updatedAt": "2026-09-17T04:48:02.957Z"
+    },
+    {
+      "id": "14ec64d3-b61b-4587-ac6f-523f3e8bfed4",
+      "content": "2週間分の前借りを希望",
+      "soType": "O",
+      "sourceType": "other",
+      "patternKeys": [
+        "cognitive_perceptual"
+      ],
+      "order": 28,
+      "status": "active",
+      "createdAt": "2026-09-17T04:48:20.655Z",
+      "updatedAt": "2026-09-17T04:48:20.655Z"
+    },
+    {
+      "id": "278cbb0f-fc39-4e43-8457-f9cb1651eac3",
+      "content": "高齢の叔父がキーパーソンだが面会は減少している。",
+      "soType": "O",
+      "sourceType": "other",
+      "patternKeys": [
+        "cognitive_perceptual"
+      ],
+      "order": 29,
+      "status": "active",
+      "createdAt": "2026-09-17T04:48:52.718Z",
+      "updatedAt": "2026-09-17T04:48:52.718Z"
+    },
+    {
+      "id": "8c22653d-121c-4525-b265-412cd453bceb",
+      "content": "入院期間2年",
+      "soType": "O",
+      "sourceType": "other",
+      "patternKeys": [
+        "cognitive_perceptual"
+      ],
+      "order": 30,
+      "status": "active",
+      "createdAt": "2026-09-17T04:49:40.015Z",
+      "updatedAt": "2026-09-17T04:49:40.015Z"
+    }
+  ],
+  "assessmentCards": [
+    {
+      "id": "922d2ff5-9248-4668-bb36-2097f837abd6",
+      "interpretation": "【事実】定期薬は全量服用し飲み忘れはない。服薬の必要性は理解している。Iさんの自己管理を見て「自分にもできるかな」と関心を示した。「いずれは自分でも生活を管理できるようになりたい」と述べている。朝は促しが必要な日があり、自己管理には自信がない様子である。任意入院である。GAF 50。2009年の入院は服薬中断後の再発と記載されている。「ここ（病院）にいる方が安心」と述べている。【解釈】健康管理の行動（服薬継続・必要性の理解・自己管理への関心）は保たれている。関心と実行可能性は別であり、現時点で自己管理が自立したとは言えない。任意入院と病院への安心感を、病識の欠如と短絡する根拠は薄い。2009年の中断歴は再発予防上重要だが、現在の服薬態度にそのまま重ねるべきではない。【可能性】病院への安心は、地域生活の具体像や支えが見えない不安の表れである可能性がある。GAF 50は、病棟生活の安定と地域生活機能の限定が併存している可能性を示す。",
+      "classification": "strength",
+      "evidenceInformationIds": [
+        "bdcfcec8-434c-483a-9d85-1018e7013bb5",
+        "4a2ee2a9-22ba-4eac-91b9-01c130584929",
+        "a495a199-56f5-49c2-bf25-a5d5ab8c9a8e",
+        "6f77504b-1ad9-4f2c-9e73-179bf70fbe70",
+        "c398f767-a862-43bf-9e0a-274f9ee37739"
+      ],
+      "needMoreInformation": "本人が任意入院・病名をどう受け止めているか。服薬自己管理について必要と考える支援。副作用の自覚。心理教育への参加状況。",
+      "patternKey": "health_perception_management",
+      "order": 1,
+      "status": "reviewed",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "edcf9ff3-8569-46ad-ab46-bf36cd27e7dd",
+      "interpretation": "【事実】間食は一つ、非甘味飲料を自分で選べている。「少し軽くなった」と話した。体重70.2kg、腹囲約85cmまで減少し、以前の脂質異常は改善している。食事は概ね8〜全量、水分は約1000〜1300ml。BMIは過体重域が続く。定期薬にリスペリドンとクエチアピンを含む。日中は室内中心の日が多い。【解釈】食行動の自己調整が続いており、体重・腹囲・脂質の改善にもつながっている。代謝リスクは軽減しているが、過体重は残っている。【可能性】室内中心の活動と抗精神病薬の使用は、今後体重が戻りやすい条件になり得る。現時点の改善を、代謝リスクの消失と同一視することはできない。",
+      "classification": "strength",
+      "evidenceInformationIds": [
+        "0f7fd20d-3262-4e71-8e4f-0cde3b65e0a3",
+        "f1c1a89e-1c2c-439a-b8bf-f0ab142689ef",
+        "e29e8e0f-7de9-4fb6-836a-1ed1944fbbb9",
+        "4a2ee2a9-22ba-4eac-91b9-01c130584929"
+      ],
+      "needMoreInformation": "現在の身長・正確なBMI、本人が食事制限をどう負担に感じているか、間食管理を続けられる条件。",
+      "patternKey": "nutritional_metabolic",
+      "order": 2,
+      "status": "reviewed",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "047e9cd1-203b-461c-b04d-a78e136c4826",
+      "interpretation": "【事実】便秘など体調変化を自分で訴え、頓服を求められる。排便間隔に変動があり、センノシド使用後に排便した日がある。腹部症状の訴えは記載されていない。定期薬にリスペリドン・クエチアピン、就寝前ゾピクロンがあり、不眠時にはブロチゾラムを頓用している。日中は室内中心の日が多く、水分は約1000〜1300mlである。【解釈】便秘は再発しうるが、援助を求めて悪化を自己申告できる状態である。現在、持続する強い腹部苦痛を示す記載はない。【可能性】抗精神病薬・催眠薬、活動低下、水分量が便秘に関与している可能性はあるが、原因を一つに決められない。",
+      "classification": "risk",
+      "evidenceInformationIds": [
+        "801fab3a-d4c5-493b-a7f7-88784652abdf",
+        "069ee59e-5d36-461d-9151-485ad1683e03",
+        "4a2ee2a9-22ba-4eac-91b9-01c130584929",
+        "e29e8e0f-7de9-4fb6-836a-1ed1944fbbb9",
+        "f1c1a89e-1c2c-439a-b8bf-f0ab142689ef"
+      ],
+      "needMoreInformation": "便の性状・腹痛の有無、センノシド使用の頻度、本人の排便リズムの自覚。",
+      "patternKey": "elimination",
+      "order": 3,
+      "status": "reviewed",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "6e15c11c-9774-4212-914e-6e9e05e06bc4",
+      "interpretation": "【事実】SST参加は定着している。OTは参加と「気が向かない」「疲れる」による辞退・早めの切り上げが混在する。日中は室内中心の日が多い。入浴・洗濯は促しで実施している。Iさんに誘われると中庭で過ごせる。頓用後の朝は「からだが重い」と話し、翌朝は起床が遅く眠気が残ることがある。バイタルは安定範囲である。【解釈】活動は一律に低下しておらず、安心できる枠（SST、Iさん）では参加できる。セルフケアは促し依存が残る。バイタルが安定範囲であることは、現時点で活動を制限する身体所見が乏しいことを示す。【可能性】OT辞退は意欲の欠如というより、易疲労・前夜の睡眠・本人のペースと関連している可能性がある。",
+      "classification": "risk",
+      "evidenceInformationIds": [
+        "49a4f08e-fb11-4817-9888-84c98d00db13",
+        "e29e8e0f-7de9-4fb6-836a-1ed1944fbbb9",
+        "73257ace-bb7e-4a93-8c56-ca900cac0402",
+        "cc733032-c8de-469b-b12e-7a32e674a81e",
+        "0d9e1e78-f101-4c59-b85c-62c822ad3a4c"
+      ],
+      "needMoreInformation": "OTを辞退した日と前夜睡眠の対応、SSTで得ていると感じていること、促しなしでできるセルフケアの範囲。",
+      "patternKey": "activity_exercise",
+      "order": 4,
+      "status": "reviewed",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "13a657cd-53e9-47b0-8185-9c538f6292ec",
+      "interpretation": "【事実】夜間の幻聴で入眠困難の夜がある。「だめな人間だ」と聞こえる。ラジオで対処し、不眠時はブロチゾラム頓用後に入眠している。翌朝は「からだが重い」と話し、起床が遅く眠気が残ることがある。眠れる夜は入眠23時前後・約7時間の日もある。就寝前にはクエチアピン50mgとゾピクロン7.5mgを定期服用している。頓用の連用は避ける方針である。【解釈】睡眠障害の中心は、夜間幻聴という体験である。自己対処と援助希求はある。定期の就寝前薬に加えて頓用している夜がある。【可能性】頓用は入眠を助ける一方、翌朝の活動を下げうる。連用回避は持ち越し倦怠への配慮であり、現時点で睡眠薬依存が成立していると断定する事実はない。",
+      "classification": "problem",
+      "evidenceInformationIds": [
+        "73257ace-bb7e-4a93-8c56-ca900cac0402",
+        "cc733032-c8de-469b-b12e-7a32e674a81e",
+        "2de11622-1a5f-49ad-91b0-cb576b272fd6",
+        "4a2ee2a9-22ba-4eac-91b9-01c130584929",
+        "e29e8e0f-7de9-4fb6-836a-1ed1944fbbb9"
+      ],
+      "needMoreInformation": "幻聴の頻度・強さ・持続、ラジオが有効なときと無効なときの違い、頓用後の効果と翌朝への影響の本人評価。",
+      "patternKey": "sleep_rest",
+      "order": 5,
+      "status": "reviewed",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "d533e7de-9aa1-420a-b130-175e01bb14e8",
+      "interpretation": "【事実】夜間を中心に幻聴を訴える。内容に「だめな人間だ」がある。幻聴は残存するが著明な行動化はなく、会話は成立し、表情は概ね穏やかである。医師は急性増悪を示す所見はないとしている。【解釈】知覚の変調は残るが、現実検討と対人コミュニケーションは保たれている。幻聴内容が自己否定である点で、睡眠と自己評価に波及している。【可能性】本人が声を病気の症状として理解しているか、別の意味を与えているかは確定できない。日中の幻聴の有無は追加確認が必要であり、記録から毎日ではないと断定することはできない。",
+      "classification": "problem",
+      "evidenceInformationIds": [
+        "2de11622-1a5f-49ad-91b0-cb576b272fd6",
+        "521af48d-f615-4172-ab96-4aecae8a9a85",
+        "73257ace-bb7e-4a93-8c56-ca900cac0402",
+        "d9ce13c0-0d42-49db-990c-3fbbfdc1a64d"
+      ],
+      "needMoreInformation": "幻聴を本人がどう意味づけているか、日中の幻聴の有無、頻度・強さ・持続。",
+      "patternKey": "cognitive_perceptual",
+      "order": 6,
+      "status": "archived",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-17T04:50:09.711Z"
+    },
+    {
+      "id": "568ab3b4-c9e8-42f0-b3a8-b5f957c4c3f2",
+      "interpretation": "【事実】「だめな人間だ」と聞こえる。叔父に嫌われたのではないか、外で一人でやっていけるか自信がない、と述べている。叔父の面会減少を電話で確かめていない。Iさんとは穏やかに過ごせ、「自分にもできるかな」と話す。プロファイルには、まじめで決めたことには取り組もうとすると記載されている。【解釈】自己評価の低下は、幻聴内容・家族関係の不確かさ・地域生活の見通しのなさから複合的に生じている可能性がある。安心できる関係の中では、別の自己像が現れている。まじめさは、小さな成功を自己像へ結びうる力である。【可能性】面会減少を確認せず自己否定へ結びつけており、解釈の偏りがある可能性はある。人格全体が自己否定に覆われていると断定はできない。",
+      "classification": "problem",
+      "evidenceInformationIds": [
+        "d9ce13c0-0d42-49db-990c-3fbbfdc1a64d",
+        "8514f912-3a1e-42ef-8c29-ed098e14a27d",
+        "0d9e1e78-f101-4c59-b85c-62c822ad3a4c",
+        "73257ace-bb7e-4a93-8c56-ca900cac0402",
+        "18b7e66b-223d-4feb-83fa-91fd91ca4ee7"
+      ],
+      "needMoreInformation": "本人が自分の強みとして認識していること、成功体験の受け止め、幻聴内容と自己評価の関係。",
+      "patternKey": "self_perception_self_concept",
+      "order": 7,
+      "status": "reviewed",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "3bb8afb3-07bd-44a9-bb11-8e81858ee3a8",
+      "interpretation": "【事実】Iさんと中庭で菓子を分け合い、「Iさんといると落ち着く」と話す。Iさんの自己管理を見て「自分にもできるかな」と述べている。叔父がキーパーソンだが面会は減少し、協力は限定的である。本人は電話で確かめていない。帰る家がない。未婚・同胞なし。現在無職で安定した就労歴はない。障害年金を受給し、生活保護の併用も検討されている。【解釈】対人関係が乏しいのではなく、安心できる相手を選んで関係を維持できる。家族・住居・就労の資源は限定的で、退院後の役割基盤は未整備である。【可能性】Iさんとの関係が変化した場合の代替資源は、現時点では見えていない。叔父との関係悪化は未確認である。",
+      "classification": "strength",
+      "evidenceInformationIds": [
+        "0d9e1e78-f101-4c59-b85c-62c822ad3a4c",
+        "18b7e66b-223d-4feb-83fa-91fd91ca4ee7",
+        "bdcfcec8-434c-483a-9d85-1018e7013bb5",
+        "d9ce13c0-0d42-49db-990c-3fbbfdc1a64d"
+      ],
+      "needMoreInformation": "Iさんのどのような関わりを安心と感じているか、叔父が担える支援の範囲、本人が望む日中の役割。",
+      "patternKey": "role_relationship",
+      "order": 8,
+      "status": "reviewed",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "966d20ba-f725-4dc6-a922-ab6ba04c3c89",
+      "interpretation": "【事実】性・生殖に関する本人の訴えやニーズは、会話・カルテから確認できない。未婚・同胞なしという事実のみが記載されている。【解釈】情報がないことを、ニーズがないことと同一視できない。【可能性】Iさんとの穏やかな関係に親密さのニーズが部分的に現れている可能性を、性・生殖の判断材料として使うべきではない。現時点では情報不足として保留する。",
+      "classification": "insufficient_information",
+      "evidenceInformationIds": [
+        "bd6ee6c2-a53a-4da1-b912-cfeb988addc0",
+        "98dd539e-2e92-4c5b-8bda-76c6ce0ea9eb"
+      ],
+      "needMoreInformation": "本人が話したい範囲での、親密さ・性・将来の家族像に関する認識とニーズ。無理に聴取せず、本人の準備を見て確認する。",
+      "patternKey": "sexuality_reproductive",
+      "order": 9,
+      "status": "reviewed",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "d4772285-c5a4-468b-95b4-5f4fa03f36e2",
+      "interpretation": "【事実】「ここ（病院）にいる方が安心」と述べ、幻聴時はラジオで対処し、必要時に頓服を希望できる。SST参加は定着し、体調変化を訴えて頓服を求められる。夜間はラジオのあと頓用で入眠できる夜がある。帰る家がなく、叔父の協力は限定的である。【解釈】自己対処と援助希求という対処レパートリーは、すでに複数存在する。病院への安心は、単なる回避というより、地域の支えが見えないなかでの安全確保とも解釈できる。【可能性】対処が入院環境の手段に偏っているため、環境が変わると効きにくくなるリスクはある。現時点で対処不能や依存が成立していると断定する事実はない。",
+      "classification": "strength",
+      "evidenceInformationIds": [
+        "6f77504b-1ad9-4f2c-9e73-179bf70fbe70",
+        "084734cb-69a6-4666-ae24-afa2241c403c",
+        "cc733032-c8de-469b-b12e-7a32e674a81e",
+        "c398f767-a862-43bf-9e0a-274f9ee37739",
+        "18b7e66b-223d-4feb-83fa-91fd91ca4ee7"
+      ],
+      "needMoreInformation": "幻聴が強くなる条件、自分で対処できる範囲、地域生活で最も不安な具体的場面。",
+      "patternKey": "coping_stress_tolerance",
+      "order": 10,
+      "status": "reviewed",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "91f169f3-8d7a-4556-906e-378a45d8b89f",
+      "interpretation": "【事実】静かに自分のペースで過ごしたい、苦手な場所や新しい環境は避けたい、Iさんのように少しずつできるようになりたい、まずは安心して過ごしたい、と述べている。治療方針は現行処方継続と段階的な自己管理・地域生活の検討であり、退院を急がせる記載はない。【解釈】価値観の中心は安全・ペース・段階性であり、変化の拒否ではない。治療方針と本人の希望は大きく一致している。【可能性】宗教的・精神的信念の有無は不明であり、価値観の全体はまだ捉えきれていない。",
+      "classification": "strength",
+      "evidenceInformationIds": [
+        "c398f767-a862-43bf-9e0a-274f9ee37739",
+        "1b129122-2cfe-4c69-a448-0d10e6e96c55",
+        "6f77504b-1ad9-4f2c-9e73-179bf70fbe70",
+        "a495a199-56f5-49c2-bf25-a5d5ab8c9a8e"
+      ],
+      "needMoreInformation": "宗教的・精神的信念の有無、本人が描く望ましい一日、退院後の生活で守りたい条件。",
+      "patternKey": "value_belief",
+      "order": 11,
+      "status": "reviewed",
+      "createdAt": "2026-09-15T11:29:42.553Z",
+      "updatedAt": "2026-09-15T11:59:32.997Z"
+    },
+    {
+      "id": "b7439f34-aef6-43dd-83c9-aca109a9137a",
+      "interpretation": "知覚の変調として夜間に幻聴がある。これは長期入院という状況から自尊心や自己効力感が低下し、新しいことに対しする不安や抵抗感強いことで生じている可能性が考えられる",
+      "classification": null,
+      "evidenceInformationIds": [
+        "47977aa0-1eff-4a39-add3-6e8b1db929f2",
+        "8c22653d-121c-4525-b265-412cd453bceb"
+      ],
+      "needMoreInformation": "",
+      "patternKey": "cognitive_perceptual",
+      "order": 11,
+      "status": "draft",
+      "createdAt": "2026-09-17T05:00:32.010Z",
+      "updatedAt": "2026-09-17T05:00:32.010Z"
+    },
+    {
+      "id": "0b031a77-e5c7-41b9-8a42-106a964f4f41",
+      "interpretation": "お小遣いを計画的に使うことができなかったり、洗濯物を溜めてしまっており、目標を決めて計画的に行動するための実行機能の低下や生活全般の安定性や持続性に欠かすことができない自立性の障害が考えられる。",
+      "classification": null,
+      "evidenceInformationIds": [
+        "e557cd4e-4d77-4c8f-8518-df58960083f1",
+        "14ec64d3-b61b-4587-ac6f-523f3e8bfed4",
+        "646a1897-ca45-4607-8d39-9905671ef9b3"
+      ],
+      "needMoreInformation": "",
+      "patternKey": "cognitive_perceptual",
+      "order": 12,
+      "status": "draft",
+      "createdAt": "2026-09-17T05:02:01.320Z",
+      "updatedAt": "2026-09-17T05:02:01.320Z"
+    },
+    {
+      "id": "0e0c43c9-8a8a-4cca-9a48-8d1b2d38d470",
+      "interpretation": "叔父に関する正確な情報を得ていないにも関わらず、叔父が面会に来なくなったのは、自分のことが嫌いになったからだと思い込んでいる。このことは、対人関係や社会的関係を築くのに必要な社会的認知機能の障害により、相手の意図や考えを推し量るkとおができずらい状態であるためと考えられる。",
+      "classification": null,
+      "evidenceInformationIds": [
+        "ae9181a1-6b3e-454f-8aec-5b54c5285fb2",
+        "ad6d1752-c74b-4046-9cee-7d1d5d62ee54",
+        "278cbb0f-fc39-4e43-8457-f9cb1651eac3"
+      ],
+      "needMoreInformation": "",
+      "patternKey": "cognitive_perceptual",
+      "order": 13,
+      "status": "draft",
+      "createdAt": "2026-09-17T05:03:52.524Z",
+      "updatedAt": "2026-09-17T05:03:52.524Z"
+    },
+    {
+      "id": "local-mu9nb6jb-1jgyya2b",
+      "interpretation": "jkbjkっっっbj。bjbjbjhb。jhbj。っっっっっっっっっっっっっっっっっっhっっっっっっっっっっっっっm",
+      "classification": null,
+      "evidenceInformationIds": [
+        "6f77504b-1ad9-4f2c-9e73-179bf70fbe70"
+      ],
+      "needMoreInformation": "",
+      "patternKey": "health_perception_management",
+      "order": 14,
+      "status": "archived",
+      "createdAt": "2026-09-20T10:00:28.631Z",
+      "updatedAt": "2026-09-20T10:01:16.321Z"
+    }
+  ]
+}

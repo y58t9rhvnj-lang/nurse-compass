@@ -179,26 +179,26 @@ test("fan semantic baseline does not false-reject a BP path", () => {
 
 test("ordinary fan child move keeps the BP", () => {
   const { scene, state } = fixture();
-  const bp = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_cognitive")!;
-  const child = scene.graph.cards.find((c) => c.id === "sk_working_memory")!;
+  const bp = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  const child = scene.graph.cards.find((c) => c.id === "demo_junc_b")!;
   const result = drop(
-    "sk_working_memory",
+    "demo_junc_b",
     child.layout.x + 24,
     child.layout.y + 12,
     scene,
     state,
   );
-  const next = result.topology!.branchPoints.find((b) => b.id === "bp_cognitive")!;
+  const next = result.topology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
   assert.equal(next.x, bp.x);
   assert.equal(next.y, bp.y);
 });
 
 test("opposite half-plane + far child relocates BP and avoids the 1585 rail", () => {
   const { scene, state } = fixture();
-  const before = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_cognitive")!;
-  const result = drop("sk_working_memory", 1380, 40, scene, state);
-  const after = result.topology!.branchPoints.find((b) => b.id === "bp_cognitive")!;
-  const route = result.state.byId.skc15!;
+  const before = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  const result = drop("demo_junc_b", 40, 40, scene, state);
+  const after = result.topology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  const route = result.state.byId.demo_c_junc_b!;
   const xs = route.points.map((p) => p.x);
   const last = route.points[route.points.length - 1]!;
   assert.equal(after.connectionIds.join(","), before.connectionIds.join(","));
@@ -208,11 +208,11 @@ test("opposite half-plane + far child relocates BP and avoids the 1585 rail", ()
   assert.ok(Math.max(...xs) < 1570, `max x ${Math.max(...xs)}`);
   assert.ok(polylineManhattan(route.points) < 1600);
   assert.ok(
-    relocated || (result.state.invalidReasons.skc15 ?? []).length === 0,
-    `need BP move or a legal fixed-BP route, invalid=${(result.state.invalidReasons.skc15 ?? []).join(",")}`,
+    relocated || (result.state.invalidReasons.demo_c_junc_b ?? []).length === 0,
+    `need BP move or a legal fixed-BP route, invalid=${(result.state.invalidReasons.demo_c_junc_b ?? []).join(",")}`,
   );
   assert.equal(
-    oppositeFanHalfPlane(before, state.byId.skc15!.targetPin, route.targetPin),
+    oppositeFanHalfPlane(before, state.byId.demo_c_junc_b!.targetPin, route.targetPin),
     true,
   );
 });
@@ -225,20 +225,20 @@ test("BP relocation clamps to the A3 inner margin", () => {
 
 test("BP relocation keeps membership and sibling card", () => {
   const { scene, state } = fixture();
-  const sibling = scene.graph.cards.find((c) => c.id === "sk_attention")!;
-  const result = drop("sk_working_memory", 1380, 40, scene, state);
-  const bp = result.topology!.branchPoints.find((b) => b.id === "bp_cognitive")!;
-  assert.deepEqual(bp.connectionIds, ["skc14", "skc15"]);
-  const afterSibling = result.nextGraph.cards.find((c) => c.id === "sk_attention")!;
+  const sibling = scene.graph.cards.find((c) => c.id === "demo_junc_c")!;
+  const result = drop("demo_junc_b", 40, 40, scene, state);
+  const bp = result.topology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  assert.deepEqual(bp.connectionIds, ["demo_c_junc_b", "demo_c_junc_c", "demo_c_junc_d"]);
+  const afterSibling = result.nextGraph.cards.find((c) => c.id === "demo_junc_c")!;
   assert.equal(afterSibling.layout.x, sibling.layout.x);
   assert.equal(afterSibling.layout.y, sibling.layout.y);
 });
 
 test("sibling far-end stays put after BP relocation", () => {
   const { scene, state } = fixture();
-  const prev = state.byId.skc14!;
-  const result = drop("sk_working_memory", 1380, 40, scene, state);
-  const next = result.state.byId.skc14!;
+  const prev = state.byId.demo_c_junc_c!;
+  const result = drop("demo_junc_b", 40, 40, scene, state);
+  const next = result.state.byId.demo_c_junc_c!;
   const prevEnd = prev.points[prev.points.length - 1]!;
   const nextEnd = next.points[next.points.length - 1]!;
   assert.equal(nextEnd.x, prevEnd.x);
@@ -247,7 +247,7 @@ test("sibling far-end stays put after BP relocation", () => {
 
 test("unrelated route is deepEqual after a far fan child move", () => {
   const { scene, state } = fixture();
-  const result = drop("sk_working_memory", 1380, 40, scene, state);
+  const result = drop("demo_junc_b", 40, 40, scene, state);
   assert.equal(
     pointsDeepEqual(state.byId.skc1!.points, result.state.byId.skc1!.points),
     true,
@@ -352,10 +352,10 @@ test("bridge arc that leaves A3 is rejected", () => {
   assert.ok(report.reasons.includes(A3_BOUNDARY_REASON));
 });
 
-test("negative-fan x=12 rail stays legal", () => {
+test("negative-fan downward routes stay legal without the left-edge rail", () => {
   const { state } = fixture();
   const route = state.byId.skc12!;
-  assert.ok(route.points.some((p) => p.x === 12));
+  assert.equal(route.points.some((p) => p.x <= 16), false);
   assert.equal(a3BoundaryViolationReasons(route.points).length, 0);
   assert.equal(state.invalidReasons.skc12, undefined);
   assert.equal(a3BoundaryViolationReasons(state.byId.skc13!.points).length, 0);
@@ -394,21 +394,21 @@ test("BP relocation Undo / Redo is exact", () => {
   const { scene, state } = fixture();
   const before = captureSceneFragment({
     cards: scene.graph.cards,
-    cardIds: ["sk_working_memory"],
+    cardIds: ["demo_junc_b"],
     routeState: state,
     topology: scene.routeTopology,
   });
-  const result = drop("sk_working_memory", 1380, 40, scene, state);
+  const result = drop("demo_junc_b", 40, 40, scene, state);
   const after = captureSceneFragment({
     cards: result.nextGraph.cards,
-    cardIds: ["sk_working_memory"],
+    cardIds: ["demo_junc_b"],
     routeState: result.state,
     topology: result.topology,
   });
   let history = emptyDiagramHistory();
   history = pushDiagramHistory(history, {
     type: "moveCard",
-    cardIds: ["sk_working_memory"],
+    cardIds: ["demo_junc_b"],
     before,
     after,
   });
@@ -416,20 +416,20 @@ test("BP relocation Undo / Redo is exact", () => {
   assert.ok(undone.fragment);
   const restored = applySceneFragmentToGraph(result.nextGraph, undone.fragment!);
   assert.equal(
-    restored.cards.find((c) => c.id === "sk_working_memory")!.layout.x,
-    scene.graph.cards.find((c) => c.id === "sk_working_memory")!.layout.x,
+    restored.cards.find((c) => c.id === "demo_junc_b")!.layout.x,
+    scene.graph.cards.find((c) => c.id === "demo_junc_b")!.layout.x,
   );
   assert.equal(
-    pointsDeepEqual(undone.fragment!.routeState.byId.skc15!.points, state.byId.skc15!.points),
+    pointsDeepEqual(undone.fragment!.routeState.byId.demo_c_junc_b!.points, state.byId.demo_c_junc_b!.points),
     true,
   );
   assert.equal(
-    undone.fragment!.topology!.branchPoints.find((b) => b.id === "bp_cognitive")!.x,
-    scene.routeTopology!.branchPoints.find((b) => b.id === "bp_cognitive")!.x,
+    undone.fragment!.topology!.branchPoints.find((b) => b.id === "bp_demo_junc")!.x,
+    scene.routeTopology!.branchPoints.find((b) => b.id === "bp_demo_junc")!.x,
   );
   const redone = redoDiagramHistory(undone.history);
   assert.equal(
-    pointsDeepEqual(redone.fragment!.routeState.byId.skc15!.points, result.state.byId.skc15!.points),
+    pointsDeepEqual(redone.fragment!.routeState.byId.demo_c_junc_b!.points, result.state.byId.demo_c_junc_b!.points),
     true,
   );
 });
@@ -491,17 +491,17 @@ test("A. 1:1 opposite-side move stays local", () => {
 
 test("B. fan child opposite half-plane can relocate BP", () => {
   const { scene, state } = fixture();
-  const before = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_cognitive")!;
-  const result = drop("sk_working_memory", 200, 40, scene, state);
-  const after = result.topology!.branchPoints.find((b) => b.id === "bp_cognitive")!;
+  const before = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  const result = drop("demo_junc_b", 40, 40, scene, state);
+  const after = result.topology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
   assert.deepEqual(after.connectionIds, before.connectionIds);
   assert.equal(after.id, before.id);
 });
 
 test("C. fan child to A3 top-right does not take the 1585 rail", () => {
   const { scene, state } = fixture();
-  const result = drop("sk_working_memory", 1380, 40, scene, state);
-  const xs = result.state.byId.skc15!.points.map((p) => p.x);
+  const result = drop("demo_junc_b", 1380, 40, scene, state);
+  const xs = result.state.byId.demo_c_junc_b!.points.map((p) => p.x);
   assert.ok(Math.max(...xs) < 1570);
 });
 
@@ -514,7 +514,7 @@ test("D. changed route does not rewrite the stable demo crossing", () => {
       b.jumperConnectionId === "demo_c_cross_v" ||
       b.underConnectionId === "demo_c_cross_h",
   );
-  const result = drop("demo_treat_src", 900, 640, scene, state);
+  const result = drop("demo_treat_src", 40, 200, scene, state);
   assert.equal(
     pointsDeepEqual(beforeH, result.state.byId.demo_c_cross_h!.points),
     true,
@@ -533,16 +533,16 @@ test("D. changed route does not rewrite the stable demo crossing", () => {
 
 test("I. BP relocation keeps membership and Junction id", () => {
   const { scene, state } = fixture();
-  const before = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_cognitive")!;
-  const result = drop("sk_working_memory", 1380, 40, scene, state);
-  const after = result.topology!.branchPoints.find((b) => b.id === "bp_cognitive")!;
-  assert.equal(after.id, "bp_cognitive");
+  const before = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  const result = drop("demo_junc_b", 40, 40, scene, state);
+  const after = result.topology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  assert.equal(after.id, "bp_demo_junc");
   assert.deepEqual(after.connectionIds, before.connectionIds);
 });
 
 test("J. unrelated demo crossing stays deepEqual", () => {
   const { scene, state } = fixture();
-  const result = drop("sk_working_memory", 1380, 40, scene, state);
+  const result = drop("demo_junc_b", 40, 40, scene, state);
   assert.equal(
     pointsDeepEqual(state.byId.demo_c_cross_h!.points, result.state.byId.demo_c_cross_h!.points),
     true,

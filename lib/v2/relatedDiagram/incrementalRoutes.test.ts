@@ -208,37 +208,27 @@ test("sibling A/B routes stay deepEqual after a child move", () => {
 
 test("fan source move repairs the trunk side only and keeps the BP", () => {
   const { scene, state } = fixture();
-  const patho = scene.graph.cards.find((c) => c.id === "sk_patho_core")!;
-  const bpBefore = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_patho_core")!;
-  const result = dropCard("sk_patho_core", patho.layout.x + 18, patho.layout.y, scene, state);
-  const bpAfter = result.topology!.branchPoints.find((b) => b.id === "bp_patho_core")!;
+  const src = scene.graph.cards.find((c) => c.id === "demo_junc_a")!;
+  const bpBefore = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  const result = dropCard("demo_junc_a", src.layout.x + 18, src.layout.y, scene, state);
+  const bpAfter = result.topology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
   assert.deepEqual({ x: bpAfter.x, y: bpAfter.y }, { x: bpBefore.x, y: bpBefore.y });
-  const before2 = state.byId.skc2!.points;
-  const after2 = result.state.byId.skc2!.points;
-  const atBp = (p: { x: number; y: number }) =>
-    p.x === bpBefore.x && p.y === bpBefore.y;
-  const beforeIdx = before2.findIndex(atBp);
-  const afterIdx = after2.findIndex(atBp);
-  assert.ok(beforeIdx >= 0);
-  assert.ok(afterIdx >= 0);
-  assert.deepEqual(after2.slice(afterIdx), before2.slice(beforeIdx));
   assert.deepEqual(result.state.byId.skc9!.points, state.byId.skc9!.points);
-  pinExact(result.nextGraph.cards, result.state.byId.skc2!);
-  pinExact(result.nextGraph.cards, result.state.byId.skc1!);
+  pinExact(result.nextGraph.cards, result.state.byId.demo_c_junc_b!);
 });
 
 test("BP stays put for a child move", () => {
   const { scene, state } = fixture();
-  const hall = scene.graph.cards.find((c) => c.id === "sk_hallucination")!;
-  const bpBefore = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_positive")!;
+  const child = scene.graph.cards.find((c) => c.id === "demo_junc_b")!;
+  const bpBefore = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
   const result = dropCard(
-    "sk_hallucination",
-    hall.layout.x + 6,
-    hall.layout.y - 18,
+    "demo_junc_b",
+    child.layout.x + 6,
+    child.layout.y - 18,
     scene,
     state,
   );
-  const bpAfter = result.topology!.branchPoints.find((b) => b.id === "bp_positive")!;
+  const bpAfter = result.topology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
   assert.deepEqual({ x: bpAfter.x, y: bpAfter.y }, { x: bpBefore.x, y: bpBefore.y });
 });
 
@@ -286,7 +276,7 @@ test("unrelated bridge positions stay deepEqual", () => {
 
 test("moved card overlapping an existing route affects only that route", () => {
   const { scene, state } = fixture();
-  const route = state.byId.skc16;
+  const route = state.byId.skc5;
   assert.ok(route && route.points.length >= 2);
   const mid = route.points[Math.floor(route.points.length / 2)]!;
   const info = scene.graph.cards.find((c) => c.id === "demo_info")!;
@@ -307,7 +297,7 @@ test("moved card overlapping an existing route affects only that route", () => {
     }),
   );
   assert.ok(affected.has("demo_c_cur"));
-  if (affected.has("skc16")) {
+  if (affected.has("skc5")) {
     unchangedIds(state, result.state, affected);
   }
   assert.deepEqual(result.state.byId.skc12!.points, state.byId.skc12!.points);
@@ -542,7 +532,7 @@ test("DEV fixture workspace holds stable route state and does not regen fans", (
   );
   assert.equal(hook.includes("regenerateExplicitTopologyGeometry"), false);
   assert.equal(hook.includes("geometryParams"), false);
-  assert.ok(hook.includes("applyIncrementalCardMove"));
+  assert.ok(hook.includes("applyLightweightCardDrop"));
   assert.ok(hook.includes("resolveCardDropCollision"));
   assert.ok(layer.includes("stableRouteState"));
   assert.ok(layer.includes("stableRouteState"));

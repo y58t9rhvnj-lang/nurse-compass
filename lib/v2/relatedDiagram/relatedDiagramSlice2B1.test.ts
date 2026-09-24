@@ -69,6 +69,11 @@ test("Drawer uses pattern tabs, mode switch, and isolates canvas touch", () => {
   assert.ok(drawer.includes("キャンセル"));
   assert.ok(drawer.includes("顕在"));
   assert.ok(drawer.includes("潜在"));
+  assert.ok(drawer.includes("このアセスメントで根拠にした情報"));
+  assert.ok(drawer.includes("data-rd-form3-evidence-candidates"));
+  assert.ok(drawer.includes("data-rd-form3-add-evidence-candidate"));
+  assert.ok(drawer.includes("onAddInformation={onAddInformation}"));
+  assert.equal(drawer.includes("upsertConnection"), false);
   assert.equal(drawer.includes("2パターン"), false);
   assert.equal(drawer.includes("patternKeys.length > 1"), false);
 });

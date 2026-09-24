@@ -205,6 +205,9 @@ export function buildUnderstandingCardFromAssessmentSelection(input: {
     selectionEnd: selection.selectionEnd,
     editedText: input.editedText,
     sourceClassification: input.source.judgment,
+    candidateEvidenceInformationIds: [
+      ...input.source.evidenceInformationIds,
+    ],
     createdAt: ts,
   };
   return { card, sources: [source] };
@@ -326,6 +329,7 @@ export function insertCardEntity(
       sourceClassification: source.sourceClassification,
       sourcePatterns: source.sourcePatterns,
       sourceSoType: source.sourceSoType,
+      candidateEvidenceInformationIds: source.candidateEvidenceInformationIds,
       now: source.createdAt,
     });
     if (!added.ok) return next;
@@ -372,6 +376,9 @@ export function cloneCardEntity(entity: CardEntitySnapshot): CardEntitySnapshot 
     sources: entity.sources.map((source) => ({
       ...source,
       sourcePatterns: source.sourcePatterns ? [...source.sourcePatterns] : source.sourcePatterns,
+      candidateEvidenceInformationIds: source.candidateEvidenceInformationIds
+        ? [...source.candidateEvidenceInformationIds]
+        : source.candidateEvidenceInformationIds,
     })),
     nursingProblem: entity.nursingProblem
       ? { ...entity.nursingProblem }
@@ -395,6 +402,7 @@ export type Form3SourceTrace = {
   cardText: string;
   editedText: string | null;
   sourceClassification: string | null;
+  candidateEvidenceInformationIds: string[];
   cardState: RelatedDiagramCardState | null;
 };
 
@@ -426,6 +434,7 @@ export function form3SourceTrace(
       cardText: card.text,
       editedText: null,
       sourceClassification: null,
+      candidateEvidenceInformationIds: [],
       cardState: card.state,
     };
   }
@@ -446,6 +455,9 @@ export function form3SourceTrace(
     cardText: card.text,
     editedText: source.editedText ?? card.text,
     sourceClassification: source.sourceClassification ?? null,
+    candidateEvidenceInformationIds: [
+      ...(source.candidateEvidenceInformationIds ?? []),
+    ],
     cardState: card.state,
   };
 }

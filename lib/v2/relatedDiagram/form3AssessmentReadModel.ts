@@ -139,8 +139,31 @@ export type RelatedDiagramForm3AssessmentSource = {
   judgmentLabel: string | null;
   state: RelatedDiagramForm3CardState;
   stateMapping: RelatedDiagramForm3StateMapping;
+  /**
+   * Form3 Assessment evidence IDs as stored.
+   * Candidates for Related Diagram — not confirmed connections.
+   * Order is first-seen Form3 order. Duplicates / empty strings dropped.
+   * Unknown or archived IDs are kept; they are not rewritten.
+   */
+  evidenceInformationIds: string[];
+  /** Derived: evidenceInformationIds.length > 0 */
   hasEvidence: boolean;
 };
+
+/** Preserve Form3 evidence id order. Dedup only. Do not invent replacements. */
+export function normalizeForm3EvidenceInformationIds(
+  ids: readonly string[],
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of ids) {
+    const id = typeof raw === "string" ? raw.trim() : "";
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
 
 export type RelatedDiagramForm3InformationSource = {
   form3RecordId: string;
@@ -275,6 +298,9 @@ function mapAssessmentCard(
   const patternIndex = FORM3_PATTERN_ORDER.indexOf(card.patternKey);
   if (patternIndex < 0) return null;
   const mapped = mapForm3JudgmentToCardState(card.classification);
+  const evidenceInformationIds = normalizeForm3EvidenceInformationIds(
+    card.evidenceInformationIds,
+  );
   return {
     form3RecordId: input.form3RecordId,
     sourceVersion: input.sourceVersion,
@@ -290,7 +316,8 @@ function mapAssessmentCard(
       : null,
     state: mapped.state,
     stateMapping: mapped.mapping,
-    hasEvidence: card.evidenceInformationIds.length > 0,
+    evidenceInformationIds,
+    hasEvidence: evidenceInformationIds.length > 0,
   };
 }
 

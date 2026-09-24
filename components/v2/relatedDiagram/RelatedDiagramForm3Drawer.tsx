@@ -15,12 +15,14 @@ import {
   selectionFromWindow,
   type NormalizedAssessmentSelection,
 } from "@/lib/v2/relatedDiagram/form3AssessmentSelection";
+import { deriveForm3EvidenceCandidates } from "@/lib/v2/relatedDiagram/form3EvidenceCandidates";
 import {
   canCommitAssessmentCompose,
   createAssessmentComposeDraft,
   type AssessmentComposeDraft,
 } from "@/lib/v2/relatedDiagram/form3ToUnderstandingCard";
 import type { RelatedDiagramCardState } from "@/lib/v2/relatedDiagram/types";
+import type { RelatedDiagramSemanticGraph } from "@/lib/v2/relatedDiagram/types";
 
 export type Form3DrawerMode = "information" | "assessment";
 
@@ -109,14 +111,85 @@ function AssessmentSelectableText({
   );
 }
 
+function EvidenceCandidateList({
+  draft,
+  informations,
+  graph,
+  onAddInformation,
+}: {
+  draft: AssessmentComposeDraft;
+  informations: RelatedDiagramForm3InformationSource[];
+  graph: RelatedDiagramSemanticGraph;
+  onAddInformation: (source: RelatedDiagramForm3InformationSource) => void;
+}) {
+  const derived = deriveForm3EvidenceCandidates({
+    form3RecordId: draft.source.form3RecordId,
+    candidateEvidenceInformationIds: draft.source.evidenceInformationIds,
+    informations,
+    graph,
+  });
+  if (derived.candidates.length === 0) return null;
+  return (
+    <section data-rd-form3-evidence-candidates>
+      <p className="mb-2 text-[13px] text-[#6E6E73]">
+        このアセスメントで根拠にした情報
+      </p>
+      <ul className="space-y-2">
+        {derived.candidates.map((row) => {
+          const already = row.status === "already_present";
+          const missing = row.status === "missing";
+          return (
+            <li
+              key={row.informationId}
+              data-rd-form3-evidence-candidate={row.informationId}
+              data-rd-form3-evidence-candidate-status={row.status}
+              className="rounded-lg border border-[#E5E5EA] px-3 py-2"
+            >
+              <p className="mb-1 text-[12px] text-[#6E6E73]">
+                {missing
+                  ? "参照できない根拠"
+                  : (row.informationSource?.soType ?? "—")}
+              </p>
+              <p className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-[#1D1D1F]">
+                {row.informationSource?.content ??
+                  "この根拠情報は現在の様式3情報から参照できません"}
+              </p>
+              {missing ? null : (
+                <button
+                  type="button"
+                  data-rd-form3-add-evidence-candidate
+                  disabled={already}
+                  onClick={() => {
+                    if (!row.informationSource || already) return;
+                    onAddInformation(row.informationSource);
+                  }}
+                  className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-[#0A5FCC] px-3 text-[13px] font-medium text-white disabled:bg-[#C7C7CC]"
+                >
+                  {already ? "追加済み" : "関連図に追加"}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function AssessmentComposeView({
   draft,
+  informations,
+  graph,
+  onAddInformation,
   onChangeEditedText,
   onChangeState,
   onCancel,
   onCommit,
 }: {
   draft: AssessmentComposeDraft;
+  informations: RelatedDiagramForm3InformationSource[];
+  graph: RelatedDiagramSemanticGraph;
+  onAddInformation: (source: RelatedDiagramForm3InformationSource) => void;
   onChangeEditedText: (text: string) => void;
   onChangeState: (state: RelatedDiagramCardState) => void;
   onCancel: () => void;
@@ -198,6 +271,12 @@ function AssessmentComposeView({
           </button>
         </div>
       </section>
+      <EvidenceCandidateList
+        draft={draft}
+        informations={informations}
+        graph={graph}
+        onAddInformation={onAddInformation}
+      />
       <div className="flex gap-2">
         <button
           type="button"
@@ -231,6 +310,7 @@ export default function RelatedDiagramForm3Drawer({
   highlightStart,
   highlightEnd,
   addedOriginKeys,
+  graph,
   onClose,
   onSelectPattern,
   onSelectMode,
@@ -246,6 +326,7 @@ export default function RelatedDiagramForm3Drawer({
   highlightStart?: number | null;
   highlightEnd?: number | null;
   addedOriginKeys: ReadonlySet<string>;
+  graph: RelatedDiagramSemanticGraph;
   onClose: () => void;
   onSelectPattern: (patternId: Form3PatternKey) => void;
   onSelectMode: (mode: Form3DrawerMode) => void;
@@ -387,6 +468,9 @@ export default function RelatedDiagramForm3Drawer({
         {compose ? (
           <AssessmentComposeView
             draft={compose}
+            informations={model.informations}
+            graph={graph}
+            onAddInformation={onAddInformation}
             onChangeEditedText={(editedText) =>
               setCompose((current) =>
                 current ? { ...current, editedText } : current,

@@ -14,7 +14,7 @@ import { A3_HEIGHT_PX, A3_WIDTH_PX } from "../a3Canvas";
 
 export const SCHIZOPHRENIA_FIXTURE_TOPIC_KEY =
   "schizophrenia_pathophysiology_dev_fixture" as const;
-export const SCHIZOPHRENIA_FIXTURE_VERSION = "dev.fixture.2026.1" as const;
+export const SCHIZOPHRENIA_FIXTURE_VERSION = "dev.fixture.2026.3" as const;
 
 const TS = "2026-09-07T00:00:00.000Z";
 
@@ -64,42 +64,46 @@ function kConn(
   };
 }
 
-/** Pathology foundation cards (hand-authored A3 layout; not auto-layout). */
+/**
+ * Initial Knowledge V1 snapshot promoted from the iPad-authored
+ * 99999991 / SP-001 saved scene (2026-09-24). Positions and edges
+ * are the saved layout. No patient / Form3 / treatment / style-demo cards.
+ */
 export const SCHIZOPHRENIA_KNOWLEDGE_CARDS: RelatedDiagramCard[] = [
-  kCard("sk_disease", "統合失調症", 96, 40, KNOWLEDGE_CARD_HEIGHT_LONG),
-  kCard("sk_patho_core", "基本病態：情報処理の障害", 304, 40, KNOWLEDGE_CARD_HEIGHT_LONG),
-  kCard("sk_da", "ドパミン神経系の関与", 64, 172, KNOWLEDGE_CARD_HEIGHT_LONG),
-  kCard("sk_glu", "グルタミン酸神経系の関与", 242, 172, KNOWLEDGE_CARD_HEIGHT_LONG),
-  kCard("sk_nt_imbalance", "神経伝達の不均衡", 420, 172, KNOWLEDGE_CARD_HEIGHT_LONG),
-  kCard("sk_positive", "陽性症状", 64, 320),
-  kCard("sk_negative", "陰性症状", 248, 320),
-  kCard("sk_cognitive", "認知機能への影響", 432, 320),
-  kCard("sk_hallucination", "幻覚", 40, 460),
-  kCard("sk_delusion", "妄想", 202, 460),
-  kCard("sk_thought", "思考の障害", 364, 460),
-  kCard("sk_avolition", "意欲の低下", 200, 584),
-  kCard("sk_affect", "感情表出の低下", 374, 584),
-  kCard("sk_attention", "注意・集中の困難", 526, 460),
-  kCard("sk_working_memory", "作業記憶の低下", 688, 460),
+  kCard("sk_disease", "統合失調症", 439.741606, 274.199786, KNOWLEDGE_CARD_HEIGHT_LONG),
+  kCard("sk_patho_core", "脳内情報処理・神経伝達機能の異常", 633.758128, 271.45347, KNOWLEDGE_CARD_HEIGHT_LONG),
+  kCard("sk_da", "ドーパミン系機能異常", 649.237814, 373.381652, KNOWLEDGE_CARD_HEIGHT_LONG),
+  kCard("sk_mesolimbic", "中脳辺縁系のDA活動亢進", 458.003801, 449.693955, KNOWLEDGE_CARD_HEIGHT_LONG),
+  kCard("sk_mesocortical", "中脳皮質系のDA活動低下", 830.548965, 323.869621, KNOWLEDGE_CARD_HEIGHT_LONG),
+  kCard("sk_positive", "陽性症状", 377.816493, 545.521771),
+  kCard("sk_negative", "陰性症状", 663.581863, 465.809882),
+  kCard("sk_cognitive", "認知機能障害", 975.762975, 407.869621),
+  kCard("sk_hallucination", "幻覚", 232.840538, 679.462918),
+  kCard("sk_delusion", "妄想", 405.606655, 682.436303),
+  kCard("sk_thought", "思考の障害", 584.437071, 681.054623),
+  kCard("sk_avolition", "意欲の低下", 595.292592, 583.661087),
+  kCard("sk_affect", "感情表出の低下", 791.664412, 574.890385),
+  kCard("sk_withdrawal", "社会的引きこもり", 891.064072, 661.501064),
+  kCard("sk_attention", "注意・集中の困難", 982.670157, 558.342976),
+  kCard("sk_working_memory", "作業記憶の低下", 1151.023478, 561.094835),
 ];
 
 export const SCHIZOPHRENIA_KNOWLEDGE_CONNECTIONS: RelatedDiagramConnection[] = [
   kConn("skc1", "sk_disease", "sk_patho_core"),
   kConn("skc2", "sk_patho_core", "sk_da"),
-  kConn("skc3", "sk_patho_core", "sk_glu"),
-  kConn("skc4", "sk_da", "sk_nt_imbalance"),
-  kConn("skc5", "sk_glu", "sk_nt_imbalance"),
-  kConn("skc6", "sk_nt_imbalance", "sk_positive"),
-  kConn("skc7", "sk_nt_imbalance", "sk_negative"),
-  kConn("skc8", "sk_nt_imbalance", "sk_cognitive"),
+  kConn("skc4", "sk_da", "sk_mesolimbic"),
+  kConn("skc5", "sk_da", "sk_mesocortical"),
+  kConn("skc6", "sk_mesolimbic", "sk_positive"),
+  kConn("skc7", "sk_mesocortical", "sk_negative"),
+  kConn("skc8", "sk_mesocortical", "sk_cognitive"),
   kConn("skc9", "sk_positive", "sk_hallucination"),
   kConn("skc10", "sk_positive", "sk_delusion"),
   kConn("skc11", "sk_positive", "sk_thought"),
   kConn("skc12", "sk_negative", "sk_avolition"),
   kConn("skc13", "sk_negative", "sk_affect"),
+  kConn("skc21", "sk_negative", "sk_withdrawal"),
   kConn("skc14", "sk_cognitive", "sk_attention"),
   kConn("skc15", "sk_cognitive", "sk_working_memory"),
-  kConn("skc16", "sk_da", "sk_positive", "potential"),
 ];
 
 /**

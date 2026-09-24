@@ -1,18 +1,21 @@
 "use client";
 
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { memo, type PointerEvent as ReactPointerEvent } from "react";
+import { bumpCardDragPerf } from "@/lib/v2/relatedDiagram/cardDragPerf";
 import type { RelatedDiagramCard } from "@/lib/v2/relatedDiagram/types";
 import { A3_BODY_PT } from "@/lib/v2/relatedDiagram/a3Canvas";
 import { isCardLayoutMovable } from "@/lib/v2/relatedDiagram/cardInteractionState";
 import { formatNursingProblemPriorityBadge } from "@/lib/v2/relatedDiagram/nursingProblemPriority";
 import { resolveCardBorderVisual } from "@/lib/v2/relatedDiagram/visualStyle";
 
-export default function RelatedDiagramCardNode({
+function RelatedDiagramCardNode({
   card,
   selected = false,
   connectRole = null,
   interactive = false,
   priority = null,
+  isTransientDrag = false,
+  chrome,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -22,6 +25,13 @@ export default function RelatedDiagramCardNode({
   connectRole?: "source" | "target" | null;
   interactive?: boolean;
   priority?: number | null;
+  isTransientDrag?: boolean;
+  /** DEV experiment only. Production callers omit this and keep Frozen chrome. */
+  chrome?: {
+    padding?: string;
+    knowledgePadding?: string;
+    lineHeight?: number;
+  };
   onPointerDown?: (
     card: RelatedDiagramCard,
     event: ReactPointerEvent<HTMLElement>,
@@ -29,6 +39,9 @@ export default function RelatedDiagramCardNode({
   onPointerMove?: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerUp?: (event: ReactPointerEvent<HTMLElement>) => void;
 }) {
+  if (process.env.NODE_ENV !== "production" && !isTransientDrag) {
+    bumpCardDragPerf("nonDraggedCardRenders");
+  }
   const visual = resolveCardBorderVisual(card.cardType, card.state);
   const { x, y, width, height } = card.layout;
   const isKnowledge = card.cardType === "knowledge";
@@ -86,9 +99,11 @@ export default function RelatedDiagramCardNode({
           borderStyle: visual.borderStyle,
           borderWidth: `${visual.borderWidthPx}px`,
           borderColor: visual.borderColor,
-          padding: isKnowledge ? "5px 7px" : "6px 8px",
+          padding: isKnowledge
+            ? (chrome?.knowledgePadding ?? "5px 7px")
+            : (chrome?.padding ?? "6px 8px"),
           fontSize: `${A3_BODY_PT}pt`,
-          lineHeight: 1.35,
+          lineHeight: chrome?.lineHeight ?? 1.35,
           color: "#1D1D1F",
           fontFamily:
             "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif",
@@ -121,3 +136,5 @@ export default function RelatedDiagramCardNode({
     </div>
   );
 }
+
+export default memo(RelatedDiagramCardNode);

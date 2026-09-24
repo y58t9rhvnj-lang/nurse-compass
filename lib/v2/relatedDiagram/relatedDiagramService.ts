@@ -33,7 +33,7 @@ import type {
 } from "./types";
 
 export type DraftServiceState = {
-  meta: Omit<RelatedDiagramDraft, "semanticGraph">;
+  meta: Omit<RelatedDiagramDraft, "semanticGraph" | "routeScene">;
   graph: RelatedDiagramSemanticGraph;
 };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronLeft } from "lucide-react";
 import { EDITOR_TOOLBAR_HEIGHT_PX } from "@/lib/v2/relatedDiagram/editorUiState";
 
 function ToolbarSep() {
@@ -28,6 +29,16 @@ export default function RelatedDiagramEditorToolbar({
   onOpenForm3,
   onAddCard,
   addCardOpen = false,
+  onArrange,
+  canArrange = true,
+  showArrange = true,
+  showForm3 = true,
+  showAddCard = true,
+  persistStatus,
+  persistLabel,
+  onSave,
+  canSave = false,
+  onBack,
   devTitle,
 }: {
   percent: number;
@@ -44,6 +55,16 @@ export default function RelatedDiagramEditorToolbar({
   onOpenForm3: () => void;
   onAddCard: () => void;
   addCardOpen?: boolean;
+  onArrange: () => void;
+  canArrange?: boolean;
+  showArrange?: boolean;
+  showForm3?: boolean;
+  showAddCard?: boolean;
+  persistStatus?: "unsaved" | "saving" | "saved" | "conflict" | "error" | "unsupported";
+  persistLabel?: string;
+  onSave?: () => void;
+  canSave?: boolean;
+  onBack?: () => void;
   devTitle: string;
 }) {
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -68,6 +89,19 @@ export default function RelatedDiagramEditorToolbar({
           data-rd-toolbar-left
           className="flex shrink-0 items-center gap-2"
         >
+        {onBack ? (
+        <button
+          type="button"
+          data-rd-back
+          onClick={onBack}
+          aria-label="戻る"
+          className="inline-flex h-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-0.5 rounded-xl px-2 text-[15px] font-semibold text-[#0A6CD6] hover:bg-[#F2F2F7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A6CD6]"
+        >
+          <ChevronLeft className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          <span className="pr-1">戻る</span>
+        </button>
+        ) : null}
+        {showForm3 ? (
         <button
           type="button"
           data-rd-form3-open
@@ -78,6 +112,8 @@ export default function RelatedDiagramEditorToolbar({
         >
           様式3
         </button>
+        ) : null}
+        {showAddCard ? (
         <button
           type="button"
           data-rd-add-card
@@ -89,6 +125,7 @@ export default function RelatedDiagramEditorToolbar({
         >
           ＋カード
         </button>
+        ) : null}
         <ToolbarSep />
         <div data-rd-history-group className="flex shrink-0 items-center gap-1">
           <button
@@ -111,6 +148,41 @@ export default function RelatedDiagramEditorToolbar({
           >
             ↷
           </button>
+          {showArrange ? (
+          <button
+            type="button"
+            data-rd-arrange
+            aria-label="関連図を整える"
+            disabled={!canArrange}
+            onClick={onArrange}
+            className="inline-flex h-[44px] min-h-[44px] shrink-0 items-center rounded-lg border border-[#E5E5EA] bg-white px-3 text-[13px] text-[#1D1D1F] disabled:opacity-40 max-[1279px]:px-2"
+          >
+            関連図を整える
+          </button>
+          ) : null}
+          {onSave ? (
+          <>
+          <button
+            type="button"
+            data-rd-save
+            data-rd-persist-status={persistStatus}
+            aria-label="関連図を保存"
+            disabled={!canSave}
+            onClick={onSave}
+            className="inline-flex h-[44px] min-h-[44px] min-w-[44px] shrink-0 items-center rounded-lg border border-[#E5E5EA] bg-white px-3 text-[13px] text-[#1D1D1F] disabled:opacity-40 max-[1279px]:px-2"
+          >
+            保存
+          </button>
+          {persistLabel ? (
+            <span
+              data-rd-persist-label
+              className="max-w-[7.5rem] shrink-0 truncate text-[11px] text-[#6E6E73]"
+            >
+              {persistLabel}
+            </span>
+          ) : null}
+          </>
+          ) : null}
         </div>
         </div>
         <div data-rd-toolbar-title className="min-w-0 flex-1 overflow-hidden">
@@ -186,6 +258,7 @@ export default function RelatedDiagramEditorToolbar({
               data-rd-toolbar-overflow-menu
               className="absolute right-0 top-[48px] z-50 min-w-[160px] rounded-lg border border-[#E5E5EA] bg-white p-1 shadow-lg"
             >
+              {showAddCard ? (
               <button
                 type="button"
                 data-rd-add-card
@@ -196,6 +269,7 @@ export default function RelatedDiagramEditorToolbar({
               >
                 ＋カード
               </button>
+              ) : null}
               <button
                 type="button"
                 className="flex min-h-[44px] w-full items-center rounded-md px-3 text-left text-[14px] text-[#1D1D1F]"

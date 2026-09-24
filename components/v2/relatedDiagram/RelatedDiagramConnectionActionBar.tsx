@@ -28,16 +28,23 @@ export default function RelatedDiagramConnectionActionBar({
   onChangeRelation,
   onReverse,
   onDelete,
+  onResetAuto,
+  onBeginRouteTrace,
 }: {
   relation: RelatedDiagramConnectionRelationType;
   permissions: ConnectionPermissions;
   onChangeRelation?: (relation: StudentConnectionRelation) => void;
   onReverse?: () => void;
   onDelete?: () => void;
+  onResetAuto?: () => void;
+  onBeginRouteTrace?: () => void;
 }) {
   const showRelation =
     permissions.relationEditable && isStudentConnectionRelation(relation);
-  const protectedNotice = !connectionHasManageActions(permissions);
+  const protectedNotice =
+    !connectionHasManageActions(permissions) &&
+    !onResetAuto &&
+    !onBeginRouteTrace;
 
   return (
     <div
@@ -99,6 +106,18 @@ export default function RelatedDiagramConnectionActionBar({
           </div>
         </>
       ) : null}
+      {onBeginRouteTrace ? (
+        <button
+          type="button"
+          data-rd-connection-action="trace-route"
+          aria-label="ルートを描く"
+          onClick={() => onBeginRouteTrace()}
+          className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center text-[14px] text-[#1D1D1F]"
+          style={{ minHeight: EDITOR_TOUCH_TARGET_PX }}
+        >
+          ルートを描く
+        </button>
+      ) : null}
       {permissions.reversible ? (
         <button
           type="button"
@@ -109,6 +128,18 @@ export default function RelatedDiagramConnectionActionBar({
           style={{ minHeight: EDITOR_TOUCH_TARGET_PX }}
         >
           向きを反転
+        </button>
+      ) : null}
+      {onResetAuto ? (
+        <button
+          type="button"
+          data-rd-connection-action="reset-auto"
+          aria-label="自動に戻す"
+          onClick={() => onResetAuto()}
+          className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center text-[14px] text-[#1D1D1F]"
+          style={{ minHeight: EDITOR_TOUCH_TARGET_PX }}
+        >
+          自動に戻す
         </button>
       ) : null}
       {permissions.deletable ? (

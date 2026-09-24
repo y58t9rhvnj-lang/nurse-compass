@@ -2075,7 +2075,7 @@ test("16-pair: unsafe Bridge stays rejected", () => {
 
 test("16-pair: explicit Junction list is unchanged", () => {
   const { scene, seeded, created } = createFixturePair(
-    "sk_nt_imbalance",
+    "sk_da",
     "sk_patho_core",
     "cn_junc_keep",
   );
@@ -2154,7 +2154,7 @@ test("problem A: accepted route has overlap 0", () => {
 
 test("problem B: create succeeds", () => {
   const { created } = createFixturePair(
-    "sk_nt_imbalance",
+    "sk_da",
     "sk_patho_core",
     "cn_prob_b",
   );
@@ -2163,7 +2163,7 @@ test("problem B: create succeeds", () => {
 
 test("problem B: short clean alternative", () => {
   const { scene, seeded, created } = createFixturePair(
-    "sk_nt_imbalance",
+    "sk_da",
     "sk_patho_core",
     "cn_prob_b_short",
   );
@@ -2172,7 +2172,7 @@ test("problem B: short clean alternative", () => {
   const stored = created.routeState.byId.cn_prob_b_short!;
   const decision = decideStudentConnectionRoute({
     cards: scene.graph.cards,
-    connection: draftConnection("cn_prob_b_short", "sk_nt_imbalance", "sk_patho_core"),
+    connection: draftConnection("cn_prob_b_short", "sk_da", "sk_patho_core"),
     routeState: seeded,
     topology: scene.routeTopology,
   });
@@ -2189,7 +2189,7 @@ test("problem B: short clean alternative", () => {
 
 test("problem C: create succeeds", () => {
   const { created } = createFixturePair(
-    "sk_nt_imbalance",
+    "sk_da",
     "demo_u_cur",
     "cn_prob_c",
   );
@@ -2198,7 +2198,7 @@ test("problem C: create succeeds", () => {
 
 test("problem C: Bridge allowed for proper crossing", () => {
   const { scene, seeded, created } = createFixturePair(
-    "sk_nt_imbalance",
+    "sk_da",
     "demo_u_cur",
     "cn_prob_c_br",
   );
@@ -2229,7 +2229,7 @@ test("problem C: Bridge allowed for proper crossing", () => {
 
 test("problem D: create succeeds on clean fixture", () => {
   const { created, seeded } = createFixturePair(
-    "sk_nt_imbalance",
+    "sk_da",
     "demo_treat_src",
     "cn_prob_d",
   );
@@ -2393,7 +2393,7 @@ test("16-pair: relation does not change geometry", () => {
       graph: scene.graph,
       routeState: seeded,
       topology: scene.routeTopology,
-      sourceCardId: "sk_nt_imbalance",
+      sourceCardId: "sk_da",
       targetCardId: "demo_treat_src",
       relationType: relation,
       connectionId: `cn_rel_${relation}`,
@@ -2410,7 +2410,7 @@ test("16-pair: relation does not change geometry", () => {
 
 test("16-pair: Undo/Redo restores exact Connection", () => {
   const { seeded, created } = createFixturePair(
-    "sk_nt_imbalance",
+    "sk_da",
     "demo_treat_src",
     "cn_hist_exact",
   );
@@ -2431,7 +2431,7 @@ test("16-pair: Undo/Redo restores exact Connection", () => {
   assert.equal(redone.command.kind, "addConnection");
   if (redone.command.kind !== "addConnection") return;
   assert.equal(redone.command.connection.id, "cn_hist_exact");
-  assert.equal(redone.command.connection.sourceCardId, "sk_nt_imbalance");
+  assert.equal(redone.command.connection.sourceCardId, "sk_da");
   assert.equal(redone.command.connection.targetCardId, "demo_treat_src");
   assert.equal(redone.command.connection.relationType, "current");
   const restored = redone.command.routeState?.byId.cn_hist_exact;
@@ -2572,7 +2572,7 @@ function createFanSequence(order: Array<keyof typeof FAN_TARGETS>): {
       graph,
       routeState,
       topology: scene.routeTopology,
-      sourceCardId: "sk_nt_imbalance",
+      sourceCardId: "sk_da",
       targetCardId: FAN_TARGETS[key],
       relationType: "current",
       connectionId,
@@ -2869,7 +2869,7 @@ test("fan-out history Undo/Redo restores exact pins", () => {
   const restored = redone.command.routeState?.byId[last.connectionId];
   const original = last.created.routeState.byId[last.connectionId];
   assert.equal(redone.command.connection.id, last.connectionId);
-  assert.equal(redone.command.connection.sourceCardId, "sk_nt_imbalance");
+  assert.equal(redone.command.connection.sourceCardId, "sk_da");
   assert.equal(redone.command.connection.targetCardId, FAN_TARGETS.D);
   assert.deepEqual(restored?.sourcePin, original?.sourcePin);
   assert.deepEqual(restored?.targetPin, original?.targetPin);
@@ -2883,7 +2883,7 @@ test("fan-out history Undo/Redo restores exact pins", () => {
 });
 
 test("attachment relation independence with occupancy", () => {
-  const first = createFixturePair("sk_nt_imbalance", "demo_u_cur", "cn_rel_occ_c");
+  const first = createFixturePair("sk_da", "demo_u_cur", "cn_rel_occ_c");
   assert.equal(first.created.ok, true);
   if (!first.created.ok) return;
   const points: number[][][] = [];
@@ -2893,7 +2893,7 @@ test("attachment relation independence with occupancy", () => {
       graph: first.created.graph,
       routeState: first.created.routeState,
       topology: first.scene.routeTopology,
-      sourceCardId: "sk_nt_imbalance",
+      sourceCardId: "sk_da",
       targetCardId: "sk_patho_core",
       relationType: relation,
       connectionId: `cn_rel_occ_${relation}`,
@@ -3034,7 +3034,7 @@ test("normal routes do not fire perimeter escalation", () => {
     "B",
     decideStudentConnectionRoute({
       cards: scene.graph.cards,
-      connection: draftConnection("cn_q_b", "sk_nt_imbalance", "sk_patho_core"),
+      connection: draftConnection("cn_q_b", "sk_da", "sk_patho_core"),
       routeState: seeded,
       topology: scene.routeTopology,
     }),
@@ -3043,7 +3043,7 @@ test("normal routes do not fire perimeter escalation", () => {
     "C",
     decideStudentConnectionRoute({
       cards: scene.graph.cards,
-      connection: draftConnection("cn_q_c", "sk_nt_imbalance", "demo_u_cur"),
+      connection: draftConnection("cn_q_c", "sk_da", "demo_u_cur"),
       routeState: seeded,
       topology: scene.routeTopology,
     }),
@@ -3052,7 +3052,7 @@ test("normal routes do not fire perimeter escalation", () => {
     "D",
     decideStudentConnectionRoute({
       cards: scene.graph.cards,
-      connection: draftConnection("cn_q_d", "sk_nt_imbalance", "demo_treat_src"),
+      connection: draftConnection("cn_q_d", "sk_da", "demo_treat_src"),
       routeState: seeded,
       topology: scene.routeTopology,
     }),
@@ -3233,7 +3233,7 @@ test("attachment performance A/B/C/D/narrow-gap", () => {
   ] as const) {
     const decision = decideStudentConnectionRoute({
       cards: graph.cards,
-      connection: draftConnection(`cn_perf_${key}`, "sk_nt_imbalance", targetId),
+      connection: draftConnection(`cn_perf_${key}`, "sk_da", targetId),
       routeState,
       topology: sceneA.routeTopology,
     });
@@ -3242,7 +3242,7 @@ test("attachment performance A/B/C/D/narrow-gap", () => {
       graph,
       routeState,
       topology: sceneA.routeTopology,
-      sourceCardId: "sk_nt_imbalance",
+      sourceCardId: "sk_da",
       targetCardId: targetId,
       relationType: "current",
       connectionId: `cn_perf_${key}`,

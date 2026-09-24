@@ -33,6 +33,7 @@ export function classifyActionPopoverPointer(input: {
   kind: ActionPopoverKind;
   pointerCount: number;
   targetIsPopover: boolean;
+  targetIsConnectionHit?: boolean;
 }): ActionPopoverPointerDecision {
   if (input.pointerCount >= 2) return "dismiss-gesture";
   if (input.kind === "relation" && !input.targetIsPopover) {
@@ -40,6 +41,9 @@ export function classifyActionPopoverPointer(input: {
   }
   if (input.kind === "card_type" && !input.targetIsPopover) {
     return "dismiss-outside";
+  }
+  if (input.kind === "connection" && input.targetIsConnectionHit) {
+    return "ignore";
   }
   if (input.kind === "connection" && !input.targetIsPopover) {
     return "dismiss-outside";

@@ -9,7 +9,7 @@ import {
   resolveCardDropPosition,
   type CardRect,
 } from "./a3CardBoundary";
-import { rectIntersectsA3Legend } from "./a3Legend";
+import { getA3LegendBounds, rectIntersectsA3Legend } from "./a3Legend";
 import type { RelatedDiagramCard } from "./types";
 
 export const CARD_MIN_GAP = 12;
@@ -227,6 +227,53 @@ function resolveAgainstCards(
     };
   }
   return null;
+}
+
+/**
+ * Bounded nearest legal rect. Used by conservative layout when drop
+ * helpers do not search (no card blocker, but A3 / legend still illegal).
+ */
+export function findNearestLegalPlacement(
+  origin: CardRect,
+  otherCards: Array<RelatedDiagramCard | CardCollisionBody> = [],
+  options?: {
+    canvasWidth?: number;
+    canvasHeight?: number;
+    minGap?: number;
+  },
+): CardRect | null {
+  const canvasWidth = options?.canvasWidth ?? A3_WIDTH_PX;
+  const canvasHeight = options?.canvasHeight ?? A3_HEIGHT_PX;
+  const minGap = options?.minGap ?? CARD_MIN_GAP;
+  const others = otherCards.map((card) =>
+    "layout" in card ? cardLayoutRect(card) : card,
+  );
+  const clamped = clampCardToA3(origin, canvasWidth, canvasHeight);
+  if (isLegalRect(clamped, others, minGap, canvasWidth, canvasHeight)) {
+    return clamped;
+  }
+  const blockers = collidingCards(clamped, others, minGap);
+  const legend = getA3LegendBounds(canvasWidth, canvasHeight);
+  const axis = pickNearestLegal(
+    [
+      ...escapeCandidates(clamped, blockers, minGap),
+      ...escapeCandidates(clamped, [{ id: "__legend__", ...legend }], 0),
+    ],
+    origin,
+    others,
+    minGap,
+    canvasWidth,
+    canvasHeight,
+  );
+  if (axis) return axis;
+  return pickNearestLegal(
+    nearbyCandidates(clamped),
+    origin,
+    others,
+    minGap,
+    canvasWidth,
+    canvasHeight,
+  );
 }
 
 export function resolveCardDropCollision(input: {

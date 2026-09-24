@@ -166,32 +166,32 @@ test("fan child pathfind changes only the child leg", () => {
     scene.graph.connections,
     scene.routeTopology,
   );
-  const hall = scene.graph.cards.find((c) => c.id === "sk_hallucination")!;
+  const child = scene.graph.cards.find((c) => c.id === "demo_junc_b")!;
   const next = applyCardPositionToGraph(
     scene.graph,
-    "sk_hallucination",
-    hall.layout.x,
-    hall.layout.y - 40,
+    "demo_junc_b",
+    child.layout.x,
+    child.layout.y - 40,
   );
   const moved = applyIncrementalCardMove({
     previous: state,
     cards: next.cards,
     connections: next.connections,
     topology: scene.routeTopology,
-    movedCardId: "sk_hallucination",
+    movedCardId: "demo_junc_b",
   });
   const affected = collectAffectedConnectionIds({
-    movedCardId: "sk_hallucination",
+    movedCardId: "demo_junc_b",
     cards: next.cards,
     connections: next.connections,
     topology: scene.routeTopology,
     previous: state,
   });
-  assert.equal(affected.includes("skc10"), false);
-  assert.deepEqual(moved.state.byId.skc10!.points, state.byId.skc10!.points);
-  assert.deepEqual(moved.state.byId.skc11!.points, state.byId.skc11!.points);
-  const bp = moved.topology!.branchPoints.find((b) => b.id === "bp_positive")!;
-  const before = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_positive")!;
+  assert.equal(affected.includes("demo_c_junc_c"), false);
+  assert.deepEqual(moved.state.byId.demo_c_junc_c!.points, state.byId.demo_c_junc_c!.points);
+  assert.deepEqual(moved.state.byId.demo_c_junc_d!.points, state.byId.demo_c_junc_d!.points);
+  const bp = moved.topology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  const before = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
   assert.deepEqual({ x: bp.x, y: bp.y }, { x: before.x, y: before.y });
 });
 
@@ -202,22 +202,22 @@ test("fan source keeps the BP when a trunk can reach it", () => {
     scene.graph.connections,
     scene.routeTopology,
   );
-  const patho = scene.graph.cards.find((c) => c.id === "sk_patho_core")!;
+  const src = scene.graph.cards.find((c) => c.id === "demo_junc_a")!;
   const next = applyCardPositionToGraph(
     scene.graph,
-    "sk_patho_core",
-    patho.layout.x + 24,
-    patho.layout.y,
+    "demo_junc_a",
+    src.layout.x + 24,
+    src.layout.y,
   );
   const moved = applyIncrementalCardMove({
     previous: state,
     cards: next.cards,
     connections: next.connections,
     topology: scene.routeTopology,
-    movedCardId: "sk_patho_core",
+    movedCardId: "demo_junc_a",
   });
-  const before = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_patho_core")!;
-  const after = moved.topology!.branchPoints.find((b) => b.id === "bp_patho_core")!;
+  const before = scene.routeTopology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  const after = moved.topology!.branchPoints.find((b) => b.id === "bp_demo_junc")!;
   assert.deepEqual({ x: after.x, y: after.y }, { x: before.x, y: before.y });
   assert.deepEqual(moved.state.byId.skc9!.points, state.byId.skc9!.points);
 });

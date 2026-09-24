@@ -188,66 +188,27 @@ test("DEV connections stay monochrome; hop overlay is solid", () => {
   assert.ok(layerSrc.includes("buildOrthogonalHopArcs"));
 });
 
-test("Knowledge topology authors orthogonal shared trunks and branch points", () => {
+test("Knowledge topology authors the iPad snapshot routes", () => {
   const topology = buildSchizophreniaKnowledgeTopology();
-  assert.equal(topology.branchPoints.length, 5);
-  assert.equal(topology.trunks.length, 5);
-  assert.equal(topology.routeGroups.length, 5);
-  assert.equal(topology.routes.length, 16);
+  assert.equal(topology.branchPoints.length, 0);
+  assert.equal(topology.trunks.length, 0);
+  assert.equal(topology.routeGroups.length, 0);
+  assert.equal(topology.routes.length, 15);
   for (const route of topology.routes) {
     assert.equal(isOrthogonalPolyline(route.points), true, route.connectionId);
     assert.ok(route.points.length >= 2, route.connectionId);
+    assert.equal(
+      route.points.some((p) => p.x <= 16),
+      false,
+      `${route.connectionId} must not use the left-edge rail`,
+    );
   }
-  assert.deepEqual(
-    topology.routeGroups.map((g) => g.id),
-    ["rg_patho_core", "rg_nt_imbalance", "rg_positive", "rg_cognitive", "rg_negative"],
-  );
-  assert.deepEqual(topology.trunks.find((t) => t.id === "tr_patho_core")?.connectionIds, [
-    "skc2",
-    "skc3",
-  ]);
-  assert.deepEqual(topology.trunks.find((t) => t.id === "tr_nt_imbalance")?.connectionIds, [
-    "skc6",
-    "skc7",
-    "skc8",
-  ]);
-  assert.deepEqual(topology.trunks.find((t) => t.id === "tr_positive")?.connectionIds, [
-    "skc9",
-    "skc10",
-    "skc11",
-  ]);
-  assert.deepEqual(topology.trunks.find((t) => t.id === "tr_cognitive")?.connectionIds, [
-    "skc14",
-    "skc15",
-  ]);
-  assert.deepEqual(topology.trunks.find((t) => t.id === "tr_negative")?.connectionIds, [
-    "skc12",
-    "skc13",
-  ]);
-  const skc12 = topology.routes.find((r) => r.connectionId === "skc12");
-  const negBp = topology.branchPoints.find((b) => b.id === "bp_negative");
-  assert.ok(negBp);
-  assert.ok(
-    skc12?.points.some(
-      (p) =>
-        Math.abs(p.x - negBp!.x) < 1 && Math.abs(p.y - negBp!.y) < 1,
-    ),
-  );
   const g = buildSchizophreniaKnowledgeGraph();
   const plan = planOrthogonalRoutes(g.cards, g.connections, { topology });
   const analyzed = analyzeRouteMeetings(plan.routes, g.cards, topology);
-  assert.equal(analyzed.intentionalJunctionCount, 5);
+  assert.equal(analyzed.intentionalJunctionCount, 0);
   assert.equal(analyzed.independentCrossingCount, analyzed.bridgeCount);
   assert.equal(analyzed.bridgeCount, plan.bridges.length);
-  assert.equal(analyzed.independentCrossingCount, 1);
-  assert.equal(analyzed.bridgeCount, 1);
-  const posIds = new Set(["skc9", "skc10", "skc11"]);
-  const negIds = new Set(["skc12", "skc13"]);
-  const br = plan.bridges[0]!;
-  assert.ok(
-    (posIds.has(br.jumperConnectionId) && negIds.has(br.underConnectionId)) ||
-      (negIds.has(br.jumperConnectionId) && posIds.has(br.underConnectionId)),
-  );
   for (const m of analyzed.meetings) {
     if (m.classifiedAs === "independent") assert.equal(m.hasBridge, true);
     if (m.classifiedAs === "junction") assert.equal(m.hasBridge, false);

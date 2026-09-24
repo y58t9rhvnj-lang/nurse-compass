@@ -109,6 +109,16 @@ export function clampRectToViewport(
   };
 }
 
+/** Dock connection Action Bar to the viewport corner so it never covers the selected line. */
+export function connectionActionBarDockRect(viewport: ScreenRect): ScreenRect {
+  return {
+    x: viewport.x + ACTION_POPOVER_MARGIN_PX,
+    y: viewport.y + ACTION_POPOVER_MARGIN_PX,
+    width: 1,
+    height: 1,
+  };
+}
+
 export function placeActionPopover(input: {
   anchor: ScreenRect;
   popover: ScreenSize;

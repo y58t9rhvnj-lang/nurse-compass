@@ -29,6 +29,10 @@ import {
   type CardInteractionState,
   type DragCommit,
 } from "@/lib/v2/relatedDiagram/cardInteractionState";
+import {
+  cardPointerReleaseKindFromState,
+  type CardPointerReleaseKind,
+} from "@/lib/v2/relatedDiagram/cardTapGesture";
 import { isRelatedDiagramSelectionPreserveTarget } from "@/lib/v2/relatedDiagram/diagramSelection";
 import {
   captureSceneFragment,
@@ -37,10 +41,19 @@ import {
   type DiagramHistoryAction,
 } from "@/lib/v2/relatedDiagram/diagramHistory";
 import {
-  applyIncrementalCardMove,
-  applyIncrementalGroupMove,
-  type StableRouteState,
-} from "@/lib/v2/relatedDiagram/incrementalRoutes";
+  bumpCardDragPerf,
+  publishCardDragPerf,
+  recordCardDragPerf,
+  resetCardDragPerf,
+} from "@/lib/v2/relatedDiagram/cardDragPerf";
+import {
+  beginCardDragSession,
+  moveCardDragSession,
+  type CardDragSession,
+  type CardDragTransient,
+} from "@/lib/v2/relatedDiagram/cardDragTransient";
+import { applyIncrementalGroupMove, type StableRouteState } from "@/lib/v2/relatedDiagram/incrementalRoutes";
+import { applyLightweightCardDrop } from "@/lib/v2/relatedDiagram/lightweightCardDrop";
 import {
   applyKnowledgeGroupDelta,
   knowledgeCardsOf,
@@ -84,6 +97,9 @@ export function useCardInteraction({
   const [selectedGroup, setSelectedGroup] = useState(false);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [draggingGroup, setDraggingGroup] = useState(false);
+  const [dragTransient, setDragTransient] = useState<CardDragTransient | null>(
+    null,
+  );
 
   const machineRef = useRef<CardInteractionState>(createIdleState());
   const graphRef = useRef(graph);
@@ -101,6 +117,7 @@ export function useCardInteraction({
   const groupStartGraphRef = useRef<RelatedDiagramSemanticGraph | null>(null);
   const groupStartTopologyRef = useRef<RelatedDiagramRouteTopology | null>(null);
   const groupStartRouteStateRef = useRef<StableRouteState | null>(null);
+  const cardDragSessionRef = useRef<CardDragSession | null>(null);
 
   const publishMachine = useCallback((next: CardInteractionState) => {
     machineRef.current = next;
@@ -209,24 +226,29 @@ export function useCardInteraction({
               nextPos.x,
               nextPos.y,
             );
-      if (nextGraph !== graphRef.current) {
-        onGraphChange(nextGraph);
-      }
-      if (!finalizeDrop || !routeStateRef.current || !onRouteStateChange) {
-        return;
-      }
       const beforeState = routeStateRef.current;
       const beforeTopo = topologyRef.current;
-      const moved = applyIncrementalCardMove({
-        previous: beforeState,
-        cards: nextGraph.cards,
-        connections: nextGraph.connections,
-        topology: beforeTopo,
-        movedCardId: commit.cardId,
-      });
-      onRouteStateChange(moved.state);
-      if (moved.topology && onTopologyChange) {
-        onTopologyChange(moved.topology, {
+      const dropped =
+        finalizeDrop && beforeState && onRouteStateChange && nextGraph !== graphRef.current
+          ? applyLightweightCardDrop({
+              previous: beforeState,
+              cards: nextGraph.cards,
+              connections: nextGraph.connections,
+              topology: beforeTopo,
+              movedCardId: commit.cardId,
+              previews:
+                cardDragSessionRef.current?.transient.incidentRoutePreviews,
+            })
+          : null;
+      if (dropped) bumpCardDragPerf("applyLightweightCardDropCalls");
+      if (nextGraph !== graphRef.current) {
+        bumpCardDragPerf("committedGraphUpdates");
+        onGraphChange(nextGraph);
+      }
+      if (!dropped || !beforeState || !onRouteStateChange) return;
+      onRouteStateChange(dropped.state);
+      if (dropped.topology && onTopologyChange) {
+        onTopologyChange(dropped.topology, {
           cards: nextGraph.cards,
           connections: nextGraph.connections,
         });
@@ -253,8 +275,8 @@ export function useCardInteraction({
         const after = captureSceneFragment({
           cards: nextGraph.cards,
           cardIds: [commit.cardId],
-          routeState: moved.state,
-          topology: moved.topology ?? beforeTopo,
+          routeState: dropped.state,
+          topology: dropped.topology ?? beforeTopo,
         });
         if (!fragmentsEqual(before, after)) {
           onHistoryPush({
@@ -278,11 +300,22 @@ export function useCardInteraction({
     captureElRef.current = null;
   }, []);
 
+  const clearCardDragTransient = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    pendingClientRef.current = null;
+    cardDragSessionRef.current = null;
+    setDragTransient(null);
+  }, []);
+
   const clearRouteBase = useCallback(() => {
     groupStartGraphRef.current = null;
     groupStartTopologyRef.current = null;
     groupStartRouteStateRef.current = null;
-  }, []);
+    clearCardDragTransient();
+  }, [clearCardDragTransient]);
 
   const flushMove = useCallback(() => {
     rafRef.current = null;
@@ -301,15 +334,26 @@ export function useCardInteraction({
     });
     publishMachine(next);
     if (next.phase === "CARD_DRAGGING" && next.selectedCardId) {
-      applyCommit(
-        {
-          kind: "card",
+      if (!cardDragSessionRef.current) {
+        resetCardDragPerf();
+        cardDragSessionRef.current = beginCardDragSession({
+          graph: graphRef.current,
           cardId: next.selectedCardId,
-          x: next.currentX,
-          y: next.currentY,
-        },
-        false,
-      );
+          routeState: routeStateRef.current,
+          topology: topologyRef.current,
+        });
+      }
+      const session = cardDragSessionRef.current;
+      if (session) {
+        const moved = moveCardDragSession(session, next.currentX, next.currentY);
+        cardDragSessionRef.current = moved;
+        setDragTransient(moved.transient);
+        bumpCardDragPerf("rafFlushCount");
+        recordCardDragPerf({
+          previewConnectionCount: moved.transient.incidentRoutePreviews.length,
+        });
+        publishCardDragPerf();
+      }
     }
     if (next.phase === "GROUP_DRAGGING") {
       if (!groupStartGraphRef.current) {
@@ -330,7 +374,9 @@ export function useCardInteraction({
       if (machineRef.current.phase === "VIEWPORT_GESTURE") return;
       if (event.pointerType === "touch" && touchIdsRef.current.size >= 2) {
         const handoff = applySecondTouch(machineRef.current);
-        applyCommit(handoff.commit, true);
+        if (handoff.commit?.kind === "group") {
+          applyCommit(handoff.commit, true);
+        }
         releaseCapture();
         clearRouteBase();
         publishMachine(handoff.state);
@@ -401,15 +447,32 @@ export function useCardInteraction({
   );
 
   const onCardPointerUp = useCallback(
-    (event: ReactPointerEvent<HTMLElement>) => {
-      if (!enabled) return;
+    (event: ReactPointerEvent<HTMLElement>): CardPointerReleaseKind => {
+      if (!enabled) return "ignored";
       const current = machineRef.current;
-      if (current.pointerId !== event.pointerId) return;
+      const kind = cardPointerReleaseKindFromState(
+        current,
+        event.pointerId,
+        event.pointerType === "touch"
+          ? Math.max(1, touchIdsRef.current.size)
+          : 1,
+      );
+      if (current.pointerId !== event.pointerId) return kind;
       const result = applyPointerUp(current, { pointerId: event.pointerId });
-      applyCommit(result.drop, true);
+      const session = cardDragSessionRef.current;
+      const drop =
+        result.drop?.kind === "card" && session
+          ? {
+              ...result.drop,
+              x: session.transient.x,
+              y: session.transient.y,
+            }
+          : result.drop;
+      applyCommit(drop, true);
       releaseCapture();
       clearRouteBase();
       publishMachine(result.state);
+      return kind;
     },
     [applyCommit, clearRouteBase, enabled, publishMachine, releaseCapture],
   );
@@ -452,7 +515,9 @@ export function useCardInteraction({
         draggingPhases.has(current.phase)
       ) {
         const handoff = applySecondTouch(current);
-        applyCommit(handoff.commit, true);
+        if (handoff.commit?.kind === "group") {
+          applyCommit(handoff.commit, true);
+        }
         releaseCapture();
         clearRouteBase();
         publishMachine(handoff.state);
@@ -508,6 +573,7 @@ export function useCardInteraction({
     selectedGroup,
     draggingCardId,
     draggingGroup,
+    dragTransient,
     selectCard,
     onCardPointerDown,
     onCardPointerMove,

@@ -478,15 +478,15 @@ test("delete prunes only bridges that include the deleted id", () => {
 test("delete prunes topology membership without regenerating other routes", () => {
   const { graph, routeState, topology } = seededFixture();
   assert.ok(topology);
-  const beforeSkc13 = topology!.routes.find((row) => row.connectionId === "skc13");
+  const beforeSibling = topology!.routes.find((row) => row.connectionId === "demo_c_junc_c");
   const beforeBp = topology!.branchPoints.find((row) =>
-    row.connectionIds.includes("skc12"),
+    row.connectionIds.includes("demo_c_junc_b"),
   );
   const result = deleteManagedConnection({
     graph,
     routeState,
     topology,
-    connectionId: "skc12",
+    connectionId: "demo_c_junc_b",
   });
   assert.equal(result.ok, true);
   if (!result.ok || !result.topology) {
@@ -494,16 +494,16 @@ test("delete prunes topology membership without regenerating other routes", () =
     return;
   }
   assert.equal(
-    result.topology.routes.some((row) => row.connectionId === "skc12"),
+    result.topology.routes.some((row) => row.connectionId === "demo_c_junc_b"),
     false,
   );
-  const afterSkc13 = result.topology.routes.find((row) => row.connectionId === "skc13");
-  assert.deepEqual(afterSkc13?.points, beforeSkc13?.points);
+  const afterSibling = result.topology.routes.find((row) => row.connectionId === "demo_c_junc_c");
+  assert.deepEqual(afterSibling?.points, beforeSibling?.points);
   const afterBp = result.topology.branchPoints.find((row) => row.id === beforeBp?.id);
   assert.equal(afterBp?.x, beforeBp?.x);
   assert.equal(afterBp?.y, beforeBp?.y);
-  assert.equal(afterBp?.connectionIds.includes("skc12"), false);
-  assert.equal(afterBp?.connectionIds.includes("skc13"), true);
+  assert.equal(afterBp?.connectionIds.includes("demo_c_junc_b"), false);
+  assert.equal(afterBp?.connectionIds.includes("demo_c_junc_c"), true);
 });
 
 test("1 delete = 1 history action", () => {

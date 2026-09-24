@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import OutsideWardArea from "@/components/OutsideWardArea";
 import SideNav, {
   STUDENT_NAV_ITEMS,
@@ -208,6 +209,7 @@ export default function AppShell({
 }: AppShellProps = {}) {
   // Core 標準初期値を Core の規則で決定してから useState へ渡す（Priority A）。
   // useState 内には mode / fixedPatientId を直接書かない（初期状態決定を隔離）。
+  const router = useRouter();
   const initialAppView = resolveInitialAppView();
   const initialPatientId = resolveInitialPatientId(fixedPatientId);
   const [activeView, setActiveView] = useState<AppView>(initialAppView);
@@ -298,8 +300,8 @@ export default function AppShell({
   const goRelatedDiagram = useCallback(() => {
     setNotice(null);
     setPendingQuestion(null);
-    setActiveView("related-diagram");
-  }, []);
+    router.push("/v2/student/related-diagram");
+  }, [router]);
   // 電子カルテを開く。tab 指定時はそのタブから、focus 指定時は該当記録へ移動・強調。
   const goChart = (tab?: ChartTabId, focus?: ChartFocus) => {
     setNotice(null);
@@ -317,6 +319,11 @@ export default function AppShell({
   };
   const clearPendingQuestion = () => setPendingQuestion(null);
   const handleSideNav = (view: AppView) => {
+    const href = STUDENT_NAV_ITEMS.find((item) => item.view === view)?.href;
+    if (href) {
+      router.push(href);
+      return;
+    }
     if (view === "ward") goWard();
     else if (view === "patient") goPatientTop();
     else if (view === "patient-top") goPatientOverview();

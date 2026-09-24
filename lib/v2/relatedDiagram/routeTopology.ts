@@ -107,6 +107,47 @@ export function junctionsFromTopology(
   return out;
 }
 
+export function junctionOwnedConnectionIds(
+  topology?: RelatedDiagramRouteTopology,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!topology) return ids;
+  for (const group of topology.routeGroups) {
+    for (const id of group.connectionIds) ids.add(id);
+  }
+  for (const trunk of topology.trunks) {
+    for (const id of trunk.connectionIds) ids.add(id);
+  }
+  for (const bp of topology.branchPoints) {
+    for (const id of bp.connectionIds) ids.add(id);
+  }
+  return ids;
+}
+
+export function hasExplicitConnectionRoute(
+  topology: RelatedDiagramRouteTopology | undefined,
+  connectionId: string,
+): boolean {
+  return Boolean(topology?.routes.some((row) => row.connectionId === connectionId));
+}
+
+export function isJunctionOwnedConnection(
+  topology: RelatedDiagramRouteTopology | undefined,
+  connectionId: string,
+): boolean {
+  return junctionOwnedConnectionIds(topology).has(connectionId);
+}
+
+/** Student 1:1 authored route. Knowledge / Junction presets stay system-owned. */
+export function isStudentManualRoute(
+  topology: RelatedDiagramRouteTopology | undefined,
+  connection: { id: string; origin: string },
+): boolean {
+  if (connection.origin !== "student_diagram") return false;
+  if (isJunctionOwnedConnection(topology, connection.id)) return false;
+  return hasExplicitConnectionRoute(topology, connection.id);
+}
+
 export function hitOnExplicitJunction(
   hit: Point,
   aId: string,

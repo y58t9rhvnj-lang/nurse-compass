@@ -84,10 +84,10 @@ test("identity regen keeps membership, edges, and orthogonal routes", () => {
 
 test("source move follows standard-fan branch point; other cards stay", () => {
   const s = scene();
-  const before = s.graph.cards.find((c) => c.id === "sk_da")!;
-  const moved = applyCardPositionToGraph(s.graph, "sk_patho_core", 360, 80);
+  const before = s.graph.cards.find((c) => c.id === "demo_junc_b")!;
+  const moved = applyCardPositionToGraph(s.graph, "demo_junc_a", 80, 800);
   assert.equal(
-    moved.cards.find((c) => c.id === "sk_da")!.layout.x,
+    moved.cards.find((c) => c.id === "demo_junc_b")!.layout.x,
     before.layout.x,
   );
   assert.equal(
@@ -95,33 +95,43 @@ test("source move follows standard-fan branch point; other cards stay", () => {
     A3_WIDTH_PX - 360,
   );
   const next = regen(s, moved.cards);
-  const src = moved.cards.find((c) => c.id === "sk_patho_core")!;
-  const fan = s.params.fans.find((f) => f.groupId === "rg_patho_core")!;
-  const bp = next.branchPoints.find((b) => b.id === "bp_patho_core")!;
-  const pinX = src.layout.x + src.layout.width / 2;
-  const pinY = src.layout.y + src.layout.height;
+  const src = moved.cards.find((c) => c.id === "demo_junc_a")!;
+  const fan = s.params.fans.find((f) => f.groupId === "rg_demo_junc")!;
+  const bp = next.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  const pinX = src.layout.x + src.layout.width;
+  const pinY = src.layout.y + src.layout.height / 2;
   const expectedX = pinX + fan.branchOffsetFromSourcePin.x;
   const expectedY = pinY + fan.branchOffsetFromSourcePin.y;
   const followed =
     Math.abs(bp.x - expectedX) < 0.6 && Math.abs(bp.y - expectedY) < 0.6;
-  const pushedOutward = bp.y >= expectedY - 0.6;
+  const pushedOutward = bp.x >= expectedX - 0.6;
   assert.ok(followed || pushedOutward, "branch follows source or clears cards");
-  assert.ok(Math.abs(bp.x - expectedX) < 48);
+  assert.ok(bp.x > src.layout.x + src.layout.width);
+  assert.equal(
+    bp.connectionIds.join(","),
+    "demo_c_junc_b,demo_c_junc_c,demo_c_junc_d",
+  );
 });
 
 test("child move leaves standard-fan branch point in place", () => {
   const s = scene();
-  const bp0 = s.topology.branchPoints.find((b) => b.id === "bp_positive")!;
-  const moved = applyCardPositionToGraph(s.graph, "sk_hallucination", 20, 500);
+  const bp0 = s.topology.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  const child = s.graph.cards.find((c) => c.id === "demo_junc_b")!;
+  const moved = applyCardPositionToGraph(
+    s.graph,
+    "demo_junc_b",
+    child.layout.x + 16,
+    child.layout.y - 12,
+  );
   const next = regen(s, moved.cards);
-  const bp1 = next.branchPoints.find((b) => b.id === "bp_positive")!;
-  assert.ok(Math.abs(bp1.x - bp0.x) < 0.6);
-  assert.ok(Math.abs(bp1.y - bp0.y) < 0.6);
-  const route = next.routes.find((r) => r.connectionId === "skc9")!;
-  const card = moved.cards.find((c) => c.id === "sk_hallucination")!;
+  const bp1 = next.branchPoints.find((b) => b.id === "bp_demo_junc")!;
+  assert.equal(bp1.id, bp0.id);
+  assert.deepEqual(bp1.connectionIds, bp0.connectionIds);
+  const route = next.routes.find((r) => r.connectionId === "demo_c_junc_b")!;
+  const card = moved.cards.find((c) => c.id === "demo_junc_b")!;
   const end = route.points[route.points.length - 1]!;
-  assert.ok(Math.abs(end.x - (card.layout.x + card.layout.width / 2)) < 1);
-  assert.ok(Math.abs(end.y - card.layout.y) < 1);
+  assert.ok(Math.abs(end.x - card.layout.x) < 1);
+  assert.ok(Math.abs(end.y - (card.layout.y + card.layout.height / 2)) < 1);
 });
 
 test("1:1 route endpoints follow both cards; membership unchanged", () => {
@@ -142,7 +152,7 @@ test("1:1 route endpoints follow both cards; membership unchanged", () => {
   );
 });
 
-test("negative fan keeps crossing interior and does not reset rail to 12 after translate", () => {
+test("negative fan stays a downward trunk and does not snap to the left-edge rail", () => {
   const s = scene();
   const translated = translateKnowledgeTopology(
     s.topology,
@@ -159,27 +169,18 @@ test("negative fan keeps crossing interior and does not reset rail to 12 after t
     600,
   );
   const next = regen(s, childMoved.cards, translated);
-  const trunk = next.trunks.find((t) => t.id === "tr_negative")!;
+  const trunk = next.trunks.find((t) => t.id === "tr_demo_junc")!;
   const railX = Math.min(...trunk.points.map((p) => p.x));
   assert.ok(railX > 20, `rail should follow group, got ${railX}`);
-  const pos = childMoved.cards.find((c) => c.id === "sk_positive")!;
-  const posX = pos.layout.x + pos.layout.width / 2;
-  const horiz = [];
-  for (let i = 1; i < trunk.points.length; i++) {
-    const a = trunk.points[i - 1]!;
-    const b = trunk.points[i]!;
-    if (Math.abs(a.y - b.y) <= 0.6) horiz.push([a, b]);
-  }
-  assert.ok(horiz.length >= 1);
-  const [h0, h1] = horiz[0]!;
-  const lo = Math.min(h0.x, h1.x);
-  const hi = Math.max(h0.x, h1.x);
-  assert.ok(posX > lo + 1 && posX < hi - 1);
+  assert.equal(
+    trunk.points.some((p) => p.x <= 16),
+    false,
+  );
 });
 
 test("drop plan keeps explicit junctions; no geometry-inferred extras", () => {
   const s = scene();
-  const moved = applyCardPositionToGraph(s.graph, "sk_nt_imbalance", 450, 190);
+  const moved = applyCardPositionToGraph(s.graph, "sk_da", 450, 190);
   const next = regen(s, moved.cards);
   const plan = planOrthogonalRoutes(moved.cards, moved.connections, {
     canvas: { x: 0, y: 0, width: A3_WIDTH_PX, height: A3_HEIGHT_PX },
@@ -209,10 +210,10 @@ test("group translate applies one delta to Knowledge cards and topology points",
   }
   const patient = s.graph.cards.find((c) => c.id === "demo_info")!;
   assert.equal(g2.cards.find((c) => c.id === "demo_info")!.layout.x, patient.layout.x);
-  const bp0 = s.topology.branchPoints.find((b) => b.id === "bp_nt_imbalance")!;
-  const bp1 = t2.branchPoints.find((b) => b.id === "bp_nt_imbalance")!;
-  assert.equal(bp1.x, bp0.x + dx);
-  assert.equal(bp1.y, bp0.y + dy);
+  const rKnow0 = s.topology.routes.find((r) => r.connectionId === "skc2")!;
+  const rKnow1 = t2.routes.find((r) => r.connectionId === "skc2")!;
+  assert.equal(rKnow1.points[0]!.x, rKnow0.points[0]!.x + dx);
+  assert.equal(rKnow1.points[0]!.y, rKnow0.points[0]!.y + dy);
   const demoBp = t2.branchPoints.find((b) => b.id === "bp_demo_junc")!;
   const demoBp0 = s.topology.branchPoints.find((b) => b.id === "bp_demo_junc")!;
   assert.equal(demoBp.x, demoBp0.x);

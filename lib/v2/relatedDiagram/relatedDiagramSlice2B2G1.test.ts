@@ -67,6 +67,9 @@ function src(rel: string): string {
 const ws = src(
   "../../../components/v2/relatedDiagram/RelatedDiagramDevFixtureWorkspace.tsx",
 );
+const hook = src(
+  "../../../components/v2/relatedDiagram/useConnectionRouteInteraction.ts",
+);
 const layer = src(
   "../../../components/v2/relatedDiagram/RelatedDiagramConnectionLayer.tsx",
 );
@@ -229,9 +232,15 @@ test("D Card selection exclusive", () => {
   assert.equal(cardSel.kind, "card");
   assert.equal(connSel.kind, "connection");
   assert.equal(selectedConnectionIdFromSelection(cardSel), null);
-  assert.ok(ws.includes("if (!selectedCardId) return"));
-  assert.ok(ws.includes("setSelectedConnectionId(null)"));
-  assert.ok(ws.includes("selectCard(null)"));
+  assert.ok(
+    ws.includes("if (!selectedCardId) return") ||
+      hook.includes("if (input.selectedCardId)"),
+  );
+  assert.ok(
+    ws.includes("setSelectedConnectionId(null)") ||
+      hook.includes("setSelectedConnectionId(null)"),
+  );
+  assert.ok(ws.includes("selectCard(null)") || hook.includes("selectCard(null)"));
 });
 
 test("E blank → none", () => {
@@ -425,7 +434,10 @@ test("U pinch / 2-finger dismiss", () => {
     }),
     "dismiss-gesture",
   );
-  assert.ok(ws.includes("applyConnectionTapSecondPointer"));
+  assert.ok(
+    hook.includes("applyConnectionRouteSecondPointer") ||
+      ws.includes("applyConnectionTapSecondPointer"),
+  );
 });
 
 test("V pointerup after cancel is not a tap", () => {
@@ -482,7 +494,10 @@ test("AB tap point anchor", () => {
   const rect = connectionTapAnchorRect(120, 80);
   assert.equal(rect.x + rect.width / 2, 120);
   assert.equal(rect.y + rect.height / 2, 80);
-  assert.ok(ws.includes("connectionTapAnchorRect"));
+  assert.ok(
+    hook.includes("connectionTapAnchorRect") ||
+      ws.includes("connectionTapAnchorRect"),
+  );
 });
 
 test("AC current → 顕在 selected", () => {

@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * DEV-only Slice 2A / 2B-1 A3 workspace for iPad / LAN touch verification.
- * Uses the same viewport + surface + connection renderers as student runtime,
- * but loads resolveDevFixtureReadonlyScene (never used by student production path).
- * Positions stay in local React state. No draft persistence.
+ * Proven Student Editor workspace.
+ * Production mounts it via RelatedDiagramStudentEditor (re-export).
+ * DEV authenticated / unauthenticated routes also reuse this file.
+ * Seed is resolveDevFixtureReadonlyScene({ includeStyleDemo: false }).
+ * Editor state stays in React. Persistence is workspace-layer only:
+ * explicit 保存 via Draft Persistence → repository adapter (no auto-save).
  */
 
 import {
@@ -15,8 +17,15 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { useRouter } from "next/navigation";
+import { requestWorkspaceBack } from "@/components/v2/workspace/requestWorkspaceBack";
 import { FORM3_PATTERN_ORDER, type Form3PatternKey } from "@/lib/form3/form3Types";
 import { clientToLogical } from "@/lib/v2/relatedDiagram/a3PointerMath";
+import {
+  arrangeNoticeMessage,
+  arrangeRelatedDiagramScene,
+  arrangeRelatedDiagramUiLocked,
+} from "@/lib/v2/relatedDiagram/applyRelatedDiagramLayout";
 import {
   applyHistoryCommand,
   applySceneFragmentToGraph,
@@ -89,31 +98,33 @@ import {
   type CardActionIntent,
 } from "@/lib/v2/relatedDiagram/cardActionIntents";
 import {
-  applyConnectionTapCancel,
-  applyConnectionTapPointerDown,
-  applyConnectionTapPointerUp,
-  applyConnectionTapSecondPointer,
   changeStudentConnectionRelation,
   connectionPermissions,
-  connectionTapAnchorRect,
-  createIdleConnectionTap,
   deleteManagedConnection,
-  isRelatedDiagramConnectionHitTarget,
-  pickSelectableConnectionAtPoint,
   REVERSE_CONNECTION_NOTICE,
   reverseStudentConnection,
 } from "@/lib/v2/relatedDiagram/cardConnectionManage";
 import {
   cloneStableRouteState,
   seedStableRouteState,
-  stableRoutesList,
   type StableRouteState,
 } from "@/lib/v2/relatedDiagram/incrementalRoutes";
 import {
-  selectedCardIdFromSelection,
-  selectedConnectionIdFromSelection,
-  selectionFromCardId,
-} from "@/lib/v2/relatedDiagram/diagramSelection";
+  readRelatedDiagramDraftRowAction,
+  insertRelatedDiagramDraftRowAction,
+  updateRelatedDiagramDraftRowAction,
+} from "@/app/v2/actions/relatedDiagramDraft";
+import {
+  loadRelatedDiagramDraft,
+  persistStatusLabel,
+  saveRelatedDiagramDraft,
+  type PersistStatus,
+} from "@/lib/v2/relatedDiagram/relatedDiagramDraftPersistence";
+import {
+  createRelatedDiagramRepositoryDraftStore,
+  SERVER_OWNED_PERSIST_IDENTITY,
+} from "@/lib/v2/relatedDiagram/relatedDiagramRepositoryDraftStore";
+import { selectedCardIdFromSelection } from "@/lib/v2/relatedDiagram/diagramSelection";
 import type { RelatedDiagramSemanticGraph } from "@/lib/v2/relatedDiagram/types";
 import type {
   RelatedDiagramForm3AssessmentSource,
@@ -124,13 +135,25 @@ import {
   trackPointerDown,
   trackPointerUp,
 } from "@/lib/v2/relatedDiagram/actionPopoverGesture";
-import { cardScreenRect } from "@/lib/v2/relatedDiagram/actionPopoverPlacement";
+import {
+  armCardTapSuppression,
+  consumeSyntheticClickAfterDrag,
+  idleTapSuppression,
+  shouldArmClickSuppression,
+  shouldRevealCardActionsAfterRelease,
+  suppressionAfterPointerDown,
+} from "@/lib/v2/relatedDiagram/cardTapGesture";
+import {
+  cardScreenRect,
+  connectionActionBarDockRect,
+} from "@/lib/v2/relatedDiagram/actionPopoverPlacement";
 import {
   canSetNursingProblemPriority,
   commitNursingProblemPriorityPickerSelection,
   nursingProblemPriorityPickerOptions,
 } from "@/lib/v2/relatedDiagram/nursingProblemPriorityUi";
 import RelatedDiagramA3Surface from "./RelatedDiagramA3Surface";
+import { useConnectionRouteInteraction } from "./useConnectionRouteInteraction";
 import RelatedDiagramActionPopover from "./RelatedDiagramActionPopover";
 import RelatedDiagramPriorityPicker from "./RelatedDiagramPriorityPicker";
 import RelatedDiagramConnectionActionBar from "./RelatedDiagramConnectionActionBar";
@@ -151,7 +174,14 @@ import RelatedDiagramPrintPortal, {
 import { useA3Viewport } from "./useA3Viewport";
 import { useCardInteraction } from "./useCardInteraction";
 
+const studentDraftStore = createRelatedDiagramRepositoryDraftStore({
+  get: readRelatedDiagramDraftRowAction,
+  insert: insertRelatedDiagramDraftRowAction,
+  update: updateRelatedDiagramDraftRowAction,
+});
+
 export default function RelatedDiagramDevFixtureWorkspace() {
+  const router = useRouter();
   const {
     viewportRef: setViewportEl,
     transform,
@@ -185,7 +215,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
   } | null>(null);
 
   const scene = useMemo(
-    () => resolveDevFixtureReadonlyScene({ includeStyleDemo: true }),
+    () => resolveDevFixtureReadonlyScene({ includeStyleDemo: false }),
     [],
   );
   const [routeDebug, setRouteDebug] = useState(false);
@@ -211,21 +241,58 @@ export default function RelatedDiagramDevFixtureWorkspace() {
   const onGraphChange = useCallback((next: RelatedDiagramSemanticGraph) => {
     setGraph(next);
   }, []);
-  const onTopologyChange = useCallback((next: RelatedDiagramRouteTopology) => {
-    setTopology(next);
-  }, []);
+  const onTopologyChange = useCallback(
+    (next: RelatedDiagramRouteTopology | undefined) => {
+      setTopology(next);
+    },
+    [],
+  );
   const onRouteStateChange = useCallback((next: StableRouteState) => {
     setRouteState(next);
   }, []);
   const [history, setHistory] = useState<DiagramHistory>(emptyDiagramHistory);
+  const [persistStatus, setPersistStatus] = useState<PersistStatus>("unsaved");
+  const [persistHydrated, setPersistHydrated] = useState(false);
+  const [persistSource, setPersistSource] = useState<"seed" | "record" | "fixture">(
+    "seed",
+  );
+  const [persistKind, setPersistKind] = useState<
+    "empty" | "geometry_missing" | "restored" | "load_error" | "unsupported_schema"
+  >("empty");
+  const [persistMessage, setPersistMessage] = useState<string | null>(null);
+  const [recordVersion, setRecordVersion] = useState<number | null>(null);
+  const [recordId, setRecordId] = useState<string | null>(null);
+  const [allowPersistWrite, setAllowPersistWrite] = useState(true);
+  const persistRef = useRef({
+    graph: scene.graph,
+    routeState: routeState,
+    topology,
+    version: null as number | null,
+    allowPersistWrite: true,
+    persistStatus: "unsaved" as PersistStatus,
+  });
+  persistRef.current = {
+    graph,
+    routeState,
+    topology,
+    version: recordVersion,
+    allowPersistWrite,
+    persistStatus,
+  };
+  const markPersistDirty = useCallback(() => {
+    setPersistStatus((prev) =>
+      prev === "saving" || prev === "unsupported" ? prev : "unsaved",
+    );
+  }, []);
   const onHistoryPush = useCallback((action: DiagramHistoryAction) => {
     setHistory((prev) => pushDiagramHistory(prev, action));
-  }, []);
+    markPersistDirty();
+  }, [markPersistDirty]);
   const applyFragment = useCallback(
     (fragment: NonNullable<ReturnType<typeof undoDiagramHistory>["fragment"]>) => {
       setGraph((prev) => applySceneFragmentToGraph(prev, fragment));
       setRouteState(fragment.routeState);
-      if (fragment.topology) setTopology(fragment.topology);
+      setTopology(fragment.topology);
     },
     [],
   );
@@ -244,7 +311,8 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       }
     }
     setHistory(next.history);
-  }, [applyFragment, history]);
+    markPersistDirty();
+  }, [applyFragment, history, markPersistDirty]);
   const handleRedo = useCallback(() => {
     const next = redoDiagramHistory(history);
     if (next.command.kind === "none") return;
@@ -260,12 +328,142 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       }
     }
     setHistory(next.history);
-  }, [applyFragment, history]);
+    markPersistDirty();
+  }, [applyFragment, history, markPersistDirty]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const seed = {
+      graph: scene.graph,
+      routeState: seedStableRouteState(
+        scene.graph.cards,
+        scene.graph.connections,
+        scene.routeTopology,
+      ),
+      topology: scene.routeTopology,
+    };
+    void loadRelatedDiagramDraft({
+      store: studentDraftStore,
+      identity: SERVER_OWNED_PERSIST_IDENTITY,
+      seed,
+    }).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        if (result.kind === "load_error") {
+          const blocked =
+            result.code === "unauthorized" || result.code === "not_configured";
+          setPersistStatus("error");
+          setPersistSource("fixture");
+          setPersistKind("load_error");
+          setPersistMessage(result.message);
+          if (blocked) setAllowPersistWrite(false);
+          setPersistHydrated(true);
+          return;
+        }
+        setGraph(result.graph);
+        setRecordVersion(result.version);
+        setRecordId(result.recordId);
+        setAllowPersistWrite(false);
+        setPersistStatus("unsupported");
+        setPersistSource("record");
+        setPersistKind("unsupported_schema");
+        setPersistMessage(result.message);
+        setHistory(emptyDiagramHistory());
+        setPersistHydrated(true);
+        return;
+      }
+      if (result.kind === "empty") {
+        setPersistStatus("unsaved");
+        setPersistSource("seed");
+        setPersistKind("empty");
+        setRecordVersion(null);
+        setRecordId(null);
+        setAllowPersistWrite(true);
+        setPersistMessage(null);
+        setPersistHydrated(true);
+        return;
+      }
+      setGraph(result.graph);
+      setRouteState(result.routeState);
+      setTopology(result.topology);
+      setHistory(result.history);
+      setRecordVersion(result.version);
+      setRecordId(result.recordId);
+      setAllowPersistWrite(true);
+      setPersistStatus(result.persistStatus);
+      setPersistSource(result.source);
+      setPersistKind(result.kind);
+      setPersistMessage(null);
+      setPersistHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [scene]);
+
+  const handleSave = useCallback(async () => {
+    const snap = persistRef.current;
+    if (snap.persistStatus === "saving" || !snap.allowPersistWrite) return;
+    setPersistStatus("saving");
+    const result = await saveRelatedDiagramDraft({
+      store: studentDraftStore,
+      identity: SERVER_OWNED_PERSIST_IDENTITY,
+      expectedVersion: snap.version,
+      snapshot: {
+        graph: snap.graph,
+        routeState: snap.routeState,
+        topology: snap.topology,
+      },
+      allowRouteSceneWrite: snap.allowPersistWrite,
+    });
+    if (!result.ok) {
+      setPersistStatus(result.persistStatus);
+      setPersistMessage(result.message);
+      return;
+    }
+    setRecordVersion(result.version);
+    setRecordId(result.recordId);
+    setPersistStatus("saved");
+    setPersistSource("record");
+    setPersistKind("restored");
+    setPersistMessage(null);
+  }, []);
+
+  const canSave =
+    persistHydrated &&
+    allowPersistWrite &&
+    (persistStatus === "unsaved" ||
+      persistStatus === "conflict" ||
+      persistStatus === "error");
+  const handleBack = useCallback(() => {
+    const proceed = () => {
+      router.push("/v2/student");
+    };
+    if (persistStatus === "saving") {
+      requestWorkspaceBack({ kind: "saving", onProceed: proceed });
+      return;
+    }
+    if (persistStatus === "error") {
+      requestWorkspaceBack({ kind: "error", onProceed: proceed });
+      return;
+    }
+    if (persistStatus === "conflict") {
+      requestWorkspaceBack({ kind: "conflict", onProceed: proceed });
+      return;
+    }
+    if (persistStatus === "unsaved") {
+      requestWorkspaceBack({ kind: "draft", onProceed: proceed });
+      return;
+    }
+    requestWorkspaceBack({ kind: "saved", onProceed: proceed });
+  }, [persistStatus, router]);
 
   const {
     selectedCardId,
     selectedGroup,
     draggingCardId,
+    draggingGroup,
+    dragTransient,
     selectCard,
     onCardPointerDown,
     onCardPointerMove,
@@ -284,27 +482,29 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     onHistoryPush,
   });
 
-  const [selectedConnectionId, setSelectedConnectionId] = useState<
-    string | null
-  >(null);
-  const [connectionAnchor, setConnectionAnchor] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
-  const connectionTapRef = useRef(createIdleConnectionTap());
-  const connectionPointersRef = useRef(new Set<number>());
-
-  const diagramSelection = useMemo(() => {
-    if (selectedConnectionId) {
-      return {
-        kind: "connection" as const,
-        connectionId: selectedConnectionId,
-      };
-    }
-    return selectionFromCardId(selectedCardId);
-  }, [selectedCardId, selectedConnectionId]);
+  const {
+    diagramSelection,
+    selectedConnectionId,
+    selectedConnection,
+    connectionAnchor,
+    handleConnectionPointerDown,
+    handleSurfacePointerDownGuard,
+    clearConnectionSelection,
+    routeEditPreview,
+  } = useConnectionRouteInteraction({
+    graph,
+    routeState,
+    topology,
+    selectedCardId,
+    selectCard,
+    draggingCardId,
+    transform,
+    viewportEl: () => viewportElRef.current,
+    blocked: false,
+    onRouteStateChange,
+    onTopologyChange,
+    onHistoryPush,
+  });
   const selectedCard = useMemo(
     () =>
       graph.cards.find(
@@ -312,16 +512,6 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       ) ?? null,
     [diagramSelection, graph.cards],
   );
-  const selectedConnection = useMemo(() => {
-    const connectionId = selectedConnectionIdFromSelection(diagramSelection);
-    if (!connectionId) return null;
-    const connection =
-      graph.connections.find((row) => row.id === connectionId) ?? null;
-    if (!connection || !connectionPermissions(connection).selectable) {
-      return null;
-    }
-    return connection;
-  }, [diagramSelection, graph.connections]);
   const selectedCapabilities = useMemo(
     () => (selectedCard ? getCardActionCapabilities(selectedCard) : null),
     [selectedCard],
@@ -342,12 +532,14 @@ export default function RelatedDiagramDevFixtureWorkspace() {
   const [relationCompose, setRelationCompose] =
     useState<RelationComposeDraft | null>(null);
   const [connectNotice, setConnectNotice] = useState<string | null>(null);
+  const [arrangeNotice, setArrangeNotice] = useState<string | null>(null);
   const connectTapRef = useRef<{
     cardId: string;
     x: number;
     y: number;
   } | null>(null);
   const suppressConnectTapRef = useRef(false);
+  const tapSuppressionRef = useRef(idleTapSuppression());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [priorityPickerOpen, setPriorityPickerOpen] = useState(false);
   const editorMode = resolveRelatedDiagramEditorMode({
@@ -403,10 +595,8 @@ export default function RelatedDiagramDevFixtureWorkspace() {
 
   useEffect(() => {
     if (!selectedCardId) return;
-    setSelectedConnectionId(null);
-    setConnectionAnchor(null);
-    connectionTapRef.current = createIdleConnectionTap();
-  }, [selectedCardId]);
+    clearConnectionSelection();
+  }, [clearConnectionSelection, selectedCardId]);
 
   useEffect(() => {
     if (actionIntent?.kind !== "connect") return;
@@ -451,6 +641,37 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [handleRedo, handleUndo]);
+
+  const arrangeLocked = arrangeRelatedDiagramUiLocked({
+    connecting: actionIntent?.kind === "connect",
+    editOpen: editDraft != null && actionIntent?.kind === "edit",
+    composeOpen: insightDraft != null || nursingProblemDraft != null,
+    chooserOpen: cardTypeChooserOpen,
+    deleteConfirmOpen,
+    priorityPickerOpen,
+    dragging: draggingCardId != null,
+  });
+  const handleArrange = useCallback(() => {
+    if (arrangeLocked) return;
+    const result = arrangeRelatedDiagramScene({
+      graph,
+      routeState,
+      topology,
+    });
+    const notice = arrangeNoticeMessage(result);
+    setArrangeNotice(notice);
+    if (result.kind === "noop") return;
+    setGraph(result.graph);
+    setRouteState(result.routeState);
+    if (result.topology) setTopology(result.topology);
+    onHistoryPush(result.historyAction);
+  }, [arrangeLocked, graph, onHistoryPush, routeState, topology]);
+
+  useEffect(() => {
+    if (!arrangeNotice) return;
+    const id = window.setTimeout(() => setArrangeNotice(null), 4000);
+    return () => window.clearTimeout(id);
+  }, [arrangeNotice]);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => fitToView());
@@ -813,11 +1034,9 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     setConnectNotice(null);
     setPriorityPickerOpen(false);
     suppressConnectTapRef.current = false;
-    setSelectedConnectionId(null);
-    setConnectionAnchor(null);
-    connectionTapRef.current = createIdleConnectionTap();
+    clearConnectionSelection();
     setActionIntent(intent);
-  }, [selectedCard]);
+  }, [clearConnectionSelection, selectedCard]);
 
   const handleOpenPriorityPicker = useCallback(() => {
     if (!selectedCard) return;
@@ -945,12 +1164,6 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     ],
   );
 
-  const clearConnectionSelection = useCallback(() => {
-    connectionTapRef.current = createIdleConnectionTap();
-    setSelectedConnectionId(null);
-    setConnectionAnchor(null);
-  }, []);
-
   const handleStudentConnectionRelationChange = useCallback(
     (relationType: "current" | "potential" | "treatment") => {
       if (!selectedConnection) return;
@@ -1030,88 +1243,57 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     });
   }, [graph, onHistoryPush, routeState, selectedConnection, topology]);
 
-  const handleConnectionPointerDown = useCallback(
+  const handleConnectionPointerDownGuarded = useCallback(
     (event: ReactPointerEvent<SVGPathElement>) => {
       if (actionIntent?.kind === "connect") return;
       if (priorityPickerOpen) return;
-      if (event.pointerType === "touch" && event.isPrimary === false) return;
-      const viewport = viewportElRef.current?.getBoundingClientRect();
-      if (!viewport) return;
-      const picked = pickSelectableConnectionAtPoint({
-        point: clientToLogical(
-          { x: event.clientX, y: event.clientY },
-          { x: viewport.left, y: viewport.top },
-          transform,
-        ),
-        cards: graph.cards,
-        connections: graph.connections,
-        routes: stableRoutesList(routeState),
-      });
-      if (!picked) return;
-      connectionTapRef.current = applyConnectionTapPointerDown(
-        connectionTapRef.current,
-        {
-          pointerId: event.pointerId,
-          connectionId: picked.connectionId,
-          clientX: event.clientX,
-          clientY: event.clientY,
-          isPrimary: event.isPrimary,
-          pointerCount: Math.max(1, connectionPointersRef.current.size),
-        },
-      );
+      handleConnectionPointerDown(event);
     },
-    [actionIntent, graph.cards, graph.connections, priorityPickerOpen, routeState, transform],
+    [actionIntent, handleConnectionPointerDown, priorityPickerOpen],
   );
 
   const handleSurfacePointerDownWrapped = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       if (priorityPickerOpen) return;
-      if (isRelatedDiagramConnectionHitTarget(event.target)) return;
+      if (handleSurfacePointerDownGuard(event.target)) return;
       clearConnectionSelection();
       onSurfacePointerDown(event);
     },
-    [clearConnectionSelection, onSurfacePointerDown, priorityPickerOpen],
+    [
+      clearConnectionSelection,
+      handleSurfacePointerDownGuard,
+      onSurfacePointerDown,
+      priorityPickerOpen,
+    ],
   );
 
   useEffect(() => {
-    const pointers = connectionPointersRef.current;
-    const onDown = (event: PointerEvent) => {
-      const count = trackPointerDown(pointers, event.pointerId);
-      if (count >= 2) {
-        connectionTapRef.current = applyConnectionTapSecondPointer(
-          connectionTapRef.current,
-        );
-      }
-    };
-    const onUp = (event: PointerEvent) => {
-      trackPointerUp(pointers, event.pointerId);
-      const result = applyConnectionTapPointerUp(
-        connectionTapRef.current,
-        event.pointerId,
-      );
-      connectionTapRef.current = result.state;
-      if (!result.commit) return;
-      selectCard(null);
-      setSelectedConnectionId(result.commit.connectionId);
-      setConnectionAnchor(
-        connectionTapAnchorRect(result.commit.clientX, result.commit.clientY),
+    if (draggingCardId != null || draggingGroup) {
+      setRevealCardActions(false);
+    }
+  }, [draggingCardId, draggingGroup]);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      tapSuppressionRef.current = suppressionAfterPointerDown(
+        tapSuppressionRef.current,
+        { pointerId: event.pointerId, pointerType: event.pointerType },
       );
     };
-    const onCancel = (event: PointerEvent) => {
-      trackPointerUp(pointers, event.pointerId);
-      connectionTapRef.current = applyConnectionTapCancel(
-        connectionTapRef.current,
-      );
+    const onClick = (event: MouseEvent) => {
+      const result = consumeSyntheticClickAfterDrag(tapSuppressionRef.current);
+      tapSuppressionRef.current = result.next;
+      if (!result.consume) return;
+      event.preventDefault();
+      event.stopPropagation();
     };
-    window.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("pointerup", onUp, true);
-    window.addEventListener("pointercancel", onCancel, true);
+    window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("click", onClick, true);
     return () => {
-      window.removeEventListener("pointerdown", onDown, true);
-      window.removeEventListener("pointerup", onUp, true);
-      window.removeEventListener("pointercancel", onCancel, true);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("click", onClick, true);
     };
-  }, [selectCard]);
+  }, []);
 
   const handleConnectingCardPointerDown = useCallback(
     (
@@ -1149,8 +1331,18 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         handleConnectTargetTap(start.cardId);
         return;
       }
-      onCardPointerUp(event);
-      setRevealCardActions(true);
+      const kind = onCardPointerUp(event);
+      if (shouldRevealCardActionsAfterRelease(kind)) {
+        setRevealCardActions(true);
+        return;
+      }
+      setRevealCardActions(false);
+      if (shouldArmClickSuppression(kind)) {
+        tapSuppressionRef.current = armCardTapSuppression(
+          event.pointerId,
+          event.pointerType,
+        );
+      }
     },
     [actionIntent, handleConnectTargetTap, onCardPointerUp],
   );
@@ -1205,6 +1397,11 @@ export default function RelatedDiagramDevFixtureWorkspace() {
       data-rd-2b2g1="true"
       data-rd-editor-mode={editorMode}
       data-rd-editor-selection={diagramSelection.kind}
+      data-rd-persist-status={persistStatus}
+      data-rd-persist-source={persistSource}
+      data-rd-persist-kind={persistKind}
+      data-rd-persist-hydrated={persistHydrated ? "true" : "false"}
+      data-rd-record-id={recordId ?? ""}
       className="fixed inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden overscroll-none bg-[#EDEDF0]"
     >
       <RelatedDiagramEditorToolbar
@@ -1222,6 +1419,16 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         onOpenForm3={openForm3Drawer}
         onAddCard={openCardTypeChooser}
         addCardOpen={cardTypeChooserOpen}
+        onArrange={handleArrange}
+        canArrange={!arrangeLocked}
+        showArrange={false}
+        persistStatus={persistStatus}
+        persistLabel={persistMessage ?? persistStatusLabel(persistStatus)}
+        onSave={() => {
+          void handleSave();
+        }}
+        canSave={canSave}
+        onBack={handleBack}
         devTitle={`Slice 2B-2G-1 · DEV fixture · ${scene.knowledgeTitle} · ${scene.knowledgeVersion} · not student runtime`}
       />
 
@@ -1250,17 +1457,18 @@ export default function RelatedDiagramDevFixtureWorkspace() {
             interactive
             selectedCardId={selectedCardId}
             selectedConnectionId={selectedConnectionId}
+            routeEditPreview={routeEditPreview}
             onConnectionPointerDown={
               actionIntent?.kind === "connect"
                 ? undefined
-                : handleConnectionPointerDown
+                : handleConnectionPointerDownGuarded
             }
             connectSourceCardId={
               actionIntent?.kind === "connect" ? actionIntent.sourceCardId : null
             }
             connectTargetCardId={relationCompose?.targetCardId ?? null}
             selectedGroup={selectedGroup}
-            previewCardId={draggingCardId}
+            dragTransient={dragTransient}
             onCardPointerDown={handleConnectingCardPointerDown}
             onCardPointerMove={onCardPointerMove}
             onCardPointerUp={handleConnectingCardPointerUp}
@@ -1364,7 +1572,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
             {selectedConnection && connectionAnchor ? (
               <RelatedDiagramActionPopover
                 kind="connection"
-                anchor={connectionAnchor}
+                anchor={connectionActionBarDockRect(viewportRect)}
                 viewport={viewportRect}
                 estimatedSize={{ width: 280, height: 188 }}
                 onDismiss={clearConnectionSelection}
@@ -1427,6 +1635,15 @@ export default function RelatedDiagramDevFixtureWorkspace() {
                 {connectNotice}
               </p>
             ) : null}
+            {arrangeNotice ? (
+              <p
+                data-rd-arrange-notice
+                role="status"
+                className="pointer-events-none absolute left-3 top-14 z-50 max-w-[min(360px,calc(100vw-24px))] rounded-md bg-[#1D1D1F] px-3 py-2 text-[13px] text-white"
+              >
+                {arrangeNotice}
+              </p>
+            ) : null}
             {cardTypeChooserOpen ? (
               <RelatedDiagramCardTypeChooser
                 anchor={resolveAddCardAnchorRect()}
@@ -1466,6 +1683,7 @@ export default function RelatedDiagramDevFixtureWorkspace() {
         highlightStart={highlightRange?.start}
         highlightEnd={highlightRange?.end}
         addedOriginKeys={addedOriginKeys}
+        graph={graph}
         onClose={closeForm3Drawer}
         onSelectPattern={setSelectedPatternId}
         onSelectMode={setDrawerMode}

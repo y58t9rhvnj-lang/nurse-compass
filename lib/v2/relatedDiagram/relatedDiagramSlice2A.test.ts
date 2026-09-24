@@ -93,10 +93,10 @@ test("drop後 orthogonal route follows the moved card; Knowledge authored unchan
     extraObstacles: [getA3LegendBounds()],
     topology: scene.routeTopology,
   });
-  const beforeSkc1 = before.routes.find((r) => r.connectionId === "skc1");
-  const afterSkc1 = after.routes.find((r) => r.connectionId === "skc1");
-  assert.ok(beforeSkc1 && afterSkc1);
-  assert.deepEqual(afterSkc1!.points, beforeSkc1!.points);
+  const beforeSkc20 = before.routes.find((r) => r.connectionId === "skc1");
+  const afterSkc20 = after.routes.find((r) => r.connectionId === "skc1");
+  assert.ok(beforeSkc20 && afterSkc20);
+  assert.deepEqual(afterSkc20!.points, beforeSkc20!.points);
 
   const demoRoute = after.routes.find((r) => r.connectionId === "demo_c_cur");
   assert.ok(demoRoute);

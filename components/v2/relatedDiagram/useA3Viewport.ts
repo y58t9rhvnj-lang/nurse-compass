@@ -25,15 +25,15 @@ import {
   computeScaleClamp,
   type ScaleClamp,
 } from "@/lib/v2/relatedDiagram/a3Canvas";
+import { scaleAboutPivot, type A3ViewportTransform } from "@/lib/v2/relatedDiagram/a3ViewportGesture";
 import {
-  applyTwoFingerViewportTransform,
-  pointerCentroid,
-  pointerDistance,
-  scaleAboutPivot,
-  type A3ViewportTransform,
-  type TwoFingerGestureStart,
-  type ViewportPoint,
-} from "@/lib/v2/relatedDiagram/a3ViewportGesture";
+  applyViewportOwnedPointerDown,
+  applyViewportOwnedPointerMove,
+  applyViewportOwnedPointerUp,
+  classifyDiagramPointerTarget,
+  createIdleViewportOwnership,
+  viewportShouldCapturePointer,
+} from "@/lib/v2/relatedDiagram/diagramGestureOwnership";
 import {
   isRelatedDiagramInteractionTarget,
   shouldBeginViewportMousePan,
@@ -41,20 +41,8 @@ import {
 
 export type { A3ViewportTransform };
 
-type PointerSample = { id: number; x: number; y: number; type: string };
-
 function isTouchPointer(type: string): boolean {
   return type === "touch";
-}
-
-function pickTwoTouchPointers(
-  pointers: Map<number, PointerSample>,
-): [PointerSample, PointerSample] | null {
-  const pts = [...pointers.values()]
-    .filter((p) => isTouchPointer(p.type))
-    .sort((a, b) => a.id - b.id);
-  if (pts.length < 2) return null;
-  return [pts[0]!, pts[1]!];
 }
 
 export function useA3Viewport() {
@@ -68,8 +56,7 @@ export function useA3Viewport() {
   const transformRef = useRef(transform);
   transformRef.current = transform;
 
-  const pointersRef = useRef<Map<number, PointerSample>>(new Map());
-  const twoFingerRef = useRef<TwoFingerGestureStart | null>(null);
+  const ownershipRef = useRef(createIdleViewportOwnership({ scale: 1, x: 0, y: 0 }));
   const scaleClampRef = useRef<ScaleClamp>({ min: 0.25, max: A3_MAX_SCALE });
   const fitScaleRef = useRef(1);
   const mousePanRef = useRef<{
@@ -125,56 +112,31 @@ export function useA3Viewport() {
     const el = viewportEl;
     if (!el) return;
 
-    const beginTwoFinger = (a: ViewportPoint, b: ViewportPoint) => {
-      const t = transformRef.current;
-      twoFingerRef.current = {
-        dist: pointerDistance(a, b),
-        scale: t.scale,
-        mid: pointerCentroid(a, b),
-        tx: t.x,
-        ty: t.y,
-      };
-    };
-
-    const applyTwoFinger = (a: ViewportPoint, b: ViewportPoint) => {
-      if (!twoFingerRef.current) beginTwoFinger(a, b);
-      const start = twoFingerRef.current;
-      if (!start) return;
-      const rect = el.getBoundingClientRect();
-      setTransform(
-        applyTwoFingerViewportTransform({
-          start,
-          currentA: a,
-          currentB: b,
-          viewportLeft: rect.left,
-          viewportTop: rect.top,
-          scaleClamp: scaleClampRef.current,
-        }),
-      );
-    };
-
-    const applyFromPointers = () => {
-      const pair = pickTwoTouchPointers(pointersRef.current);
-      if (!pair) return false;
-      applyTwoFinger(pair[0], pair[1]);
-      return true;
-    };
-
     const onPointerDown = (e: PointerEvent) => {
-      pointersRef.current.set(e.pointerId, {
-        id: e.pointerId,
-        x: e.clientX,
-        y: e.clientY,
-        type: e.pointerType,
+      ownershipRef.current = {
+        ...ownershipRef.current,
+        transform: transformRef.current,
+      };
+      const next = applyViewportOwnedPointerDown(ownershipRef.current, {
+        pointerId: e.pointerId,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        pointerType: e.pointerType,
+        target: classifyDiagramPointerTarget(e.target),
       });
+      ownershipRef.current = next.state;
+      if (
+        next.capture ||
+        viewportShouldCapturePointer({
+          pointerType: e.pointerType,
+          touchCountAfter: next.state.pointers.filter((p) => p.type === "touch")
+            .length,
+        })
+      ) {
+        el.setPointerCapture?.(e.pointerId);
+      }
       if (isTouchPointer(e.pointerType)) {
-        if (!isRelatedDiagramInteractionTarget(e.target)) {
-          el.setPointerCapture?.(e.pointerId);
-        }
         mousePanRef.current = null;
-        const pair = pickTwoTouchPointers(pointersRef.current);
-        if (pair) beginTwoFinger(pair[0], pair[1]);
-        else twoFingerRef.current = null;
         return;
       }
       if (
@@ -184,10 +146,9 @@ export function useA3Viewport() {
         })
       ) {
         mousePanRef.current = null;
-        twoFingerRef.current = null;
         return;
       }
-      if (pointersRef.current.size === 1) {
+      if (next.state.pointers.length === 1) {
         const t = transformRef.current;
         mousePanRef.current = {
           pointerId: e.pointerId,
@@ -196,19 +157,25 @@ export function useA3Viewport() {
           originX: t.x,
           originY: t.y,
         };
-        twoFingerRef.current = null;
       }
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (!pointersRef.current.has(e.pointerId)) return;
-      pointersRef.current.set(e.pointerId, {
-        id: e.pointerId,
-        x: e.clientX,
-        y: e.clientY,
-        type: e.pointerType,
+      ownershipRef.current = {
+        ...ownershipRef.current,
+        transform: transformRef.current,
+      };
+      const next = applyViewportOwnedPointerMove(ownershipRef.current, {
+        pointerId: e.pointerId,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        viewportLeft: el.getBoundingClientRect().left,
+        viewportTop: el.getBoundingClientRect().top,
+        scaleClamp: scaleClampRef.current,
       });
-      if (applyFromPointers()) {
+      ownershipRef.current = next.state;
+      if (next.applied) {
+        setTransform(next.state.transform);
         if (e.cancelable) e.preventDefault();
         return;
       }
@@ -224,13 +191,16 @@ export function useA3Viewport() {
     };
 
     const onPointerUp = (e: PointerEvent) => {
-      pointersRef.current.delete(e.pointerId);
+      ownershipRef.current = applyViewportOwnedPointerUp(
+        {
+          ...ownershipRef.current,
+          transform: transformRef.current,
+        },
+        e.pointerId,
+      );
       if (mousePanRef.current?.pointerId === e.pointerId) {
         mousePanRef.current = null;
       }
-      const pair = pickTwoTouchPointers(pointersRef.current);
-      if (pair) beginTwoFinger(pair[0], pair[1]);
-      else twoFingerRef.current = null;
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -252,27 +222,12 @@ export function useA3Viewport() {
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length >= 2) {
-        if (e.cancelable) e.preventDefault();
-        const a = e.touches[0]!;
-        const b = e.touches[1]!;
-        beginTwoFinger(
-          { x: a.clientX, y: a.clientY },
-          { x: b.clientX, y: b.clientY },
-        );
-      }
+      if (e.touches.length >= 2 && e.cancelable) e.preventDefault();
     };
 
     const onTouchMove = (e: TouchEvent) => {
       if (e.touches.length < 2) return;
       if (e.cancelable) e.preventDefault();
-      if (applyFromPointers()) return;
-      const a = e.touches[0]!;
-      const b = e.touches[1]!;
-      applyTwoFinger(
-        { x: a.clientX, y: a.clientY },
-        { x: b.clientX, y: b.clientY },
-      );
     };
 
     const preventNativeZoom = (e: Event) => {
@@ -292,10 +247,10 @@ export function useA3Viewport() {
     });
     ro.observe(el);
 
-    el.addEventListener("pointerdown", onPointerDown);
-    el.addEventListener("pointermove", onPointerMove);
-    el.addEventListener("pointerup", onPointerUp);
-    el.addEventListener("pointercancel", onPointerUp);
+    el.addEventListener("pointerdown", onPointerDown, true);
+    el.addEventListener("pointermove", onPointerMove, true);
+    el.addEventListener("pointerup", onPointerUp, true);
+    el.addEventListener("pointercancel", onPointerUp, true);
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("touchstart", onTouchStart, { passive: false });
     el.addEventListener("touchmove", onTouchMove, { passive: false });
@@ -306,10 +261,10 @@ export function useA3Viewport() {
 
     return () => {
       ro.disconnect();
-      el.removeEventListener("pointerdown", onPointerDown);
-      el.removeEventListener("pointermove", onPointerMove);
-      el.removeEventListener("pointerup", onPointerUp);
-      el.removeEventListener("pointercancel", onPointerUp);
+      el.removeEventListener("pointerdown", onPointerDown, true);
+      el.removeEventListener("pointermove", onPointerMove, true);
+      el.removeEventListener("pointerup", onPointerUp, true);
+      el.removeEventListener("pointercancel", onPointerUp, true);
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);

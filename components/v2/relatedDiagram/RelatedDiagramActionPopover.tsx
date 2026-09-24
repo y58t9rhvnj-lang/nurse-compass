@@ -15,6 +15,7 @@ import {
   trackPointerDown,
   trackPointerUp,
 } from "@/lib/v2/relatedDiagram/actionPopoverGesture";
+import { isRelatedDiagramConnectionHitTarget } from "@/lib/v2/relatedDiagram/cardConnectionManage";
 import {
   placeActionPopover,
   type ScreenRect,
@@ -66,6 +67,7 @@ export default function RelatedDiagramActionPopover({
         kind,
         pointerCount: count,
         targetIsPopover: isActionPopoverSurface(event.target),
+        targetIsConnectionHit: isRelatedDiagramConnectionHitTarget(event.target),
       });
       if (decision === "ignore") return;
       onDismissRef.current();

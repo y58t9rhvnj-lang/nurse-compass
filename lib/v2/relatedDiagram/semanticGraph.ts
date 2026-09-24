@@ -186,6 +186,7 @@ export function addCardSource(
     sourceClassification?: string | null;
     sourcePatterns?: string[] | null;
     sourceSoType?: "S" | "O" | null;
+    candidateEvidenceInformationIds?: string[] | null;
     now?: string;
   },
 ): SemanticGraphResult<RelatedDiagramCardSource> {
@@ -214,6 +215,9 @@ export function addCardSource(
     sourceClassification: input.sourceClassification ?? null,
     sourcePatterns: input.sourcePatterns ? [...input.sourcePatterns] : null,
     sourceSoType: input.sourceSoType ?? null,
+    candidateEvidenceInformationIds: input.candidateEvidenceInformationIds
+      ? [...input.candidateEvidenceInformationIds]
+      : null,
     createdAt: nowIso(input.now),
   };
   g.cardSources.push(source);

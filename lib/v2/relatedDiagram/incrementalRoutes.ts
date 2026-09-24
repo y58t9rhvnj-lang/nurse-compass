@@ -71,7 +71,11 @@ import {
   repairRouteAroundAnchor,
   repairRouteEndpoint,
 } from "./repairRouteEndpoint";
-import type { RelatedDiagramRouteTopology } from "./routeTopology";
+import { planLightweightInitialRoutes } from "./lightweightInitialRoute";
+import {
+  isStudentManualRoute,
+  type RelatedDiagramRouteTopology,
+} from "./routeTopology";
 import type {
   RelatedDiagramCard,
   RelatedDiagramConnection,
@@ -268,16 +272,16 @@ function makeStored(
   };
 }
 
-export function seedStableRouteState(
+function stableStateFromPlan(
   cards: RelatedDiagramCard[],
   connections: RelatedDiagramConnection[],
-  topology?: RelatedDiagramRouteTopology,
+  topology: RelatedDiagramRouteTopology | undefined,
+  plan: {
+    routes: RoutedConnection[];
+    invalidRoutes: { connectionId: string; sourceEdge: EdgeSide; targetEdge: EdgeSide; points: Point[]; reasons: string[] }[];
+    bridges: CrossingBridge[];
+  },
 ): StableRouteState {
-  const plan = planOrthogonalRoutes(cards, connections, {
-    canvas: { x: 0, y: 0, width: A3_WIDTH_PX, height: A3_HEIGHT_PX },
-    extraObstacles: [getA3LegendBounds()],
-    topology,
-  });
   const authored = new Map((topology?.routes ?? []).map((r) => [r.connectionId, r]));
   const planned = new Map(plan.routes.map((r) => [r.connectionId, r]));
   const invalid = new Map(plan.invalidRoutes.map((r) => [r.connectionId, r]));
@@ -314,6 +318,29 @@ export function seedStableRouteState(
     bridges: plan.bridges.map((b) => ({ ...b })),
     qualityTrace: {},
   };
+}
+
+export function seedStableRouteState(
+  cards: RelatedDiagramCard[],
+  connections: RelatedDiagramConnection[],
+  topology?: RelatedDiagramRouteTopology,
+): StableRouteState {
+  const plan = planOrthogonalRoutes(cards, connections, {
+    canvas: { x: 0, y: 0, width: A3_WIDTH_PX, height: A3_HEIGHT_PX },
+    extraObstacles: [getA3LegendBounds()],
+    topology,
+  });
+  return stableStateFromPlan(cards, connections, topology, plan);
+}
+
+/** Initial AUTO seed. Does not call the high-quality planner. */
+export function seedInitialAutoRouteState(
+  cards: RelatedDiagramCard[],
+  connections: RelatedDiagramConnection[],
+  topology?: RelatedDiagramRouteTopology,
+): StableRouteState {
+  const plan = planLightweightInitialRoutes(cards, connections, topology);
+  return stableStateFromPlan(cards, connections, topology, plan);
 }
 
 function allObstacles(cards: RelatedDiagramCard[]): ReturnType<typeof cardObstacle>[] {
@@ -1434,6 +1461,38 @@ export function applyIncrementalCardMove(input: {
         concatAtAnchor(trunk, suffix),
         "source",
       );
+      continue;
+    }
+
+    if (isStudentManualRoute(input.topology, conn)) {
+      const sourcePin = livePin(source, prev.sourceEdge);
+      const targetPin = livePin(target, prev.targetEdge);
+      let points = prev.points;
+      if (isSource) {
+        points = repairRouteEndpoint({
+          existingPoints: points,
+          movingEnd: "source",
+          livePin: sourcePin,
+        });
+      }
+      if (isTarget) {
+        points = repairRouteEndpoint({
+          existingPoints: points,
+          movingEnd: "target",
+          livePin: targetPin,
+        });
+      }
+      const stored = makeStored(
+        conn,
+        source,
+        target,
+        prev.sourceEdge,
+        prev.targetEdge,
+        points,
+      );
+      nextById[connectionId] = stored;
+      lastValidPoints[connectionId] = clonePoints(stored.points);
+      delete invalidReasons[connectionId];
       continue;
     }
 
