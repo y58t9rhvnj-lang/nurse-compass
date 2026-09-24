@@ -2,7 +2,7 @@
 
 /**
  * Proven Student Editor workspace.
- * Production mounts it via RelatedDiagramStudentEditor (re-export).
+ * Production mounts it via RelatedDiagramStudentEditor with a student Form3 model.
  * DEV authenticated / unauthenticated routes also reuse this file.
  * Seed is resolveDevFixtureReadonlyScene({ includeStyleDemo: false }).
  * Editor state stays in React. Persistence is workspace-layer only:
@@ -129,6 +129,7 @@ import type { RelatedDiagramSemanticGraph } from "@/lib/v2/relatedDiagram/types"
 import type {
   RelatedDiagramForm3AssessmentSource,
   RelatedDiagramForm3InformationSource,
+  RelatedDiagramForm3ReadModel,
 } from "@/lib/v2/relatedDiagram/form3AssessmentReadModel";
 import type { NormalizedAssessmentSelection } from "@/lib/v2/relatedDiagram/form3AssessmentSelection";
 import {
@@ -180,7 +181,11 @@ const studentDraftStore = createRelatedDiagramRepositoryDraftStore({
   update: updateRelatedDiagramDraftRowAction,
 });
 
-export default function RelatedDiagramDevFixtureWorkspace() {
+export default function RelatedDiagramDevFixtureWorkspace({
+  form3Model: form3ModelProp,
+}: {
+  form3Model?: RelatedDiagramForm3ReadModel;
+} = {}) {
   const router = useRouter();
   const {
     viewportRef: setViewportEl,
@@ -197,7 +202,10 @@ export default function RelatedDiagramDevFixtureWorkspace() {
     },
     [setViewportEl],
   );
-  const form3Model = useMemo(() => buildSchizophreniaForm3ReadModel(), []);
+  const form3Model = useMemo(
+    () => form3ModelProp ?? buildSchizophreniaForm3ReadModel(),
+    [form3ModelProp],
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedPatternId, setSelectedPatternId] = useState<Form3PatternKey>(
     FORM3_PATTERN_ORDER[0]!,

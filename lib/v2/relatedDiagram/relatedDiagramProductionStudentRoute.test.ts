@@ -41,14 +41,24 @@ test("A Production page reuses Student Editor after requireRole(student)", () =>
       'from "@/components/v2/relatedDiagram/RelatedDiagramStudentEditor"',
     ),
   );
-  assert.ok(page.includes("<RelatedDiagramStudentEditor />"));
+  assert.ok(page.includes("<RelatedDiagramStudentEditor form3Model={form3Model} />"));
+  assert.ok(page.includes("getForm3"));
+  assert.ok(page.includes("studentForm3ReadModelFromRecord"));
+  assert.ok(page.includes("caseIdForPatient"));
+  assert.ok(page.includes("createServerSupabaseClient"));
   assert.ok(page.includes('export const dynamic = "force-dynamic"'));
   assert.equal(page.includes("RelatedDiagramReadonlyWorkspace"), false);
   assert.equal(page.includes("RelatedDiagramDevFixtureWorkspace"), false);
+  assert.equal(page.includes("buildSchizophreniaForm3ReadModel"), false);
   assert.equal(page.includes("notFound()"), false);
   assert.equal(page.includes("NODE_ENV"), false);
   assert.equal(editor.includes('from "./RelatedDiagramDevFixtureWorkspace"'), true);
-  assert.ok(/export \{ default \} from "\.\/RelatedDiagramDevFixtureWorkspace"/.test(editor));
+  assert.ok(editor.includes("form3Model"));
+  assert.equal(editor.includes("buildSchizophreniaForm3ReadModel"), false);
+  assert.equal(
+    /export \{ default \} from "\.\/RelatedDiagramDevFixtureWorkspace"/.test(editor),
+    false,
+  );
 });
 
 test("B unauthenticated cannot open Production Editor", () => {
