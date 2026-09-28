@@ -16,19 +16,19 @@
 //
 //   スクロール: 画面高が不足しても中央エリア内で縦スクロールできる（ページ全体を不自然に伸ばさない）。
 
-import { ClipboardList, FileText, MessagesSquare, Star } from "lucide-react";
+import { FileText, MessagesSquare, Star } from "lucide-react";
 import type { Patient } from "@/lib/wardData";
 
 export default function StudentPatientTop({
   patient,
   onOpenChart,
   onOpenConversation,
-  onOpenWorkspace,
+  onOpenWorkspace: _onOpenWorkspace,
 }: {
   patient: Patient;
   onOpenChart: () => void;
   onOpenConversation: () => void;
-  // 様式2（情報を様式2 へ整理する場）を開く。患者トップの主導線。
+  // 左メニュー「様式2」など他入口用。患者トップ中央には出さない。
   onOpenWorkspace: () => void;
 }) {
   return (
@@ -57,20 +57,8 @@ export default function StudentPatientTop({
           </dl>
         </header>
 
-        {/* 主要導線: 様式2 / 電子カルテ / 会話 */}
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <TopLink
-            icon={
-              <ClipboardList
-                className="h-5 w-5 text-[#0A6CD6]"
-                strokeWidth={1.9}
-              />
-            }
-            title="様式2"
-            desc="集めた情報を様式2へ整理する"
-            onClick={onOpenWorkspace}
-            primary
-          />
+        {/* 主要導線: 電子カルテ / 会話。様式2は左メニューから入る。 */}
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <TopLink
             icon={
               <FileText className="h-5 w-5 text-[#0A6CD6]" strokeWidth={1.9} />
