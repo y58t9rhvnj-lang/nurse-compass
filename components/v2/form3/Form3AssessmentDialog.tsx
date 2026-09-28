@@ -3,9 +3,11 @@
 // Phase 2 Step 2: 解釈・分析の追加・編集。フローティング作業ウィンドウ（背景カルテ操作可）。
 
 import { useId, useState, type ReactNode } from "react";
+import ConfirmDialog from "@/components/collection/ConfirmDialog";
 import Form3FloatingEditorShell, {
   useForm3FloatEditor,
 } from "@/components/v2/form3/Form3FloatingEditorShell";
+import { form3AssessmentDialogHasChanges } from "@/components/v2/form3/form3AssessmentDialogDirty";
 import {
   FORM3_PHASE_B_ASSESSMENT_DIALOG_HELPER,
   FORM3_PHASE_B_ASSESSMENT_PLACEHOLDER,
@@ -316,10 +318,18 @@ export default function Form3AssessmentDialog({
     () => initial?.interpretation ?? "",
   );
   const [attempted, setAttempted] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
 
   if (!open) return null;
 
   const trimmed = interpretation.trim();
+  const dirty = form3AssessmentDialogHasChanges(
+    {
+      evidenceInformationIds: selectedIds,
+      interpretation,
+    },
+    initial,
+  );
 
   function toggleEvidence(id: string) {
     setSelectedIds((prev) =>
@@ -336,17 +346,27 @@ export default function Form3AssessmentDialog({
     });
   }
 
+  function requestClose() {
+    if (discardOpen) return;
+    if (!dirty) {
+      onClose();
+      return;
+    }
+    setDiscardOpen(true);
+  }
+
   return (
+    <>
     <Form3FloatingEditorShell
       title={mode === "add" ? "解釈・分析を追加" : "解釈・分析を編集"}
       titleId={titleId}
-      onClose={onClose}
+      onClose={requestClose}
       storageKey="form3-assessment-editor"
       footer={
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="inline-flex min-h-[44px] items-center rounded-full px-5 text-[15px] font-medium text-[#6E6E73] hover:bg-[#F2F2F7]"
           >
             キャンセル
@@ -371,5 +391,19 @@ export default function Form3AssessmentDialog({
         onInterpretationChange={setInterpretation}
       />
     </Form3FloatingEditorShell>
+    <ConfirmDialog
+      open={discardOpen}
+      title="入力内容を破棄しますか？"
+      description="保存していない入力は失われます。"
+      confirmLabel="入力内容を破棄して閉じる"
+      cancelLabel="編集を続ける"
+      destructive
+      onCancel={() => setDiscardOpen(false)}
+      onConfirm={() => {
+        setDiscardOpen(false);
+        onClose();
+      }}
+    />
+    </>
   );
 }
