@@ -15,6 +15,17 @@ import LearningLayer from "@/components/v2/learning/LearningLayer";
 import { isLearningWorkspaceView } from "@/components/v2/learning/workspace/WorkspaceHost";
 import StudentSubmissionsWorkspace from "@/components/v2/assessment/StudentSubmissionsWorkspace";
 import StudentFeedbackWorkspace from "@/components/v2/assessment/StudentFeedbackWorkspace";
+import StudentAnnouncementsWorkspace from "@/components/v2/announcements/StudentAnnouncementsWorkspace";
+import StudentAnnouncementOverlay from "@/components/v2/announcements/StudentAnnouncementOverlay";
+import {
+  listPublishedAnnouncementsAction,
+  markAnnouncementReadAction,
+} from "@/app/v2/actions/announcements";
+import {
+  canShowStudentAnnouncementOverlay,
+  unreadStudentAnnouncements,
+} from "@/lib/v2/announcements/announcementDisplay";
+import type { StudentAnnouncementItem } from "@/lib/v2/announcements/announcementTypes";
 import RelatedDiagramReadonlyWorkspace from "@/components/v2/relatedDiagram/RelatedDiagramReadonlyWorkspace";
 import { getSubmissionPendingBadgeCountAction } from "@/app/v2/actions/assessmentSubmission";
 import { listStudentReturnedReviewsAction } from "@/app/v2/actions/assessmentStudentFeedback";
@@ -297,6 +308,11 @@ export default function AppShell({
     setPendingQuestion(null);
     setActiveView("feedback");
   }, []);
+  const goAnnouncements = useCallback(() => {
+    setNotice(null);
+    setPendingQuestion(null);
+    setActiveView("announcements");
+  }, []);
   const goRelatedDiagram = useCallback(() => {
     setNotice(null);
     setPendingQuestion(null);
@@ -336,6 +352,7 @@ export default function AppShell({
     else if (view === "form3" && mode === "v2") goForm3();
     else if (view === "submissions" && mode === "v2") goSubmissions();
     else if (view === "feedback" && mode === "v2") goFeedback();
+    else if (view === "announcements" && mode === "v2") goAnnouncements();
     else if (view === "related-diagram" && mode === "v2") goRelatedDiagram();
   };
 
@@ -476,6 +493,17 @@ export default function AppShell({
 
   const [submissionBadgeCount, setSubmissionBadgeCount] = useState(0);
   const [feedbackBadgeCount, setFeedbackBadgeCount] = useState(0);
+  const [announcementItems, setAnnouncementItems] = useState<
+    StudentAnnouncementItem[] | null
+  >(null);
+  const [announcementLoadError, setAnnouncementLoadError] = useState<
+    string | null
+  >(null);
+  const [announcementOverlayError, setAnnouncementOverlayError] = useState<
+    string | null
+  >(null);
+  const [announcementBusy, setAnnouncementBusy] = useState(false);
+  const [announcementDeferred, setAnnouncementDeferred] = useState(false);
   const refreshSubmissionBadge = useCallback(async () => {
     if (mode !== "v2" || lectureMode || !fixedPatientId) {
       setSubmissionBadgeCount(0);
@@ -501,6 +529,21 @@ export default function AppShell({
     );
   }, [mode, lectureMode]);
 
+  const refreshAnnouncements = useCallback(async () => {
+    if (mode !== "v2" || lectureMode) {
+      setAnnouncementItems([]);
+      setAnnouncementLoadError(null);
+      return;
+    }
+    const res = await listPublishedAnnouncementsAction();
+    if (!res.ok) {
+      setAnnouncementLoadError(res.message);
+      return;
+    }
+    setAnnouncementLoadError(null);
+    setAnnouncementItems(res.items);
+  }, [mode, lectureMode]);
+
   useEffect(() => {
     void refreshSubmissionBadge();
   }, [refreshSubmissionBadge]);
@@ -508,6 +551,22 @@ export default function AppShell({
   useEffect(() => {
     void refreshFeedbackBadge();
   }, [refreshFeedbackBadge]);
+
+  useEffect(() => {
+    void refreshAnnouncements();
+  }, [refreshAnnouncements]);
+
+  useEffect(() => {
+    if (activeView === "ward") setAnnouncementDeferred(false);
+  }, [activeView]);
+
+  const unreadAnnouncements = announcementItems
+    ? unreadStudentAnnouncements(announcementItems)
+    : [];
+  const announcementBadgeCount =
+    announcementItems === null && announcementLoadError
+      ? null
+      : unreadAnnouncements.length;
 
   const studentNavItems = useMemo<NavItem[]>(
     () =>
@@ -525,9 +584,18 @@ export default function AppShell({
             badge: feedbackBadgeCount > 0 ? feedbackBadgeCount : undefined,
           };
         }
+        if (item.view === "announcements") {
+          return {
+            ...item,
+            badge:
+              announcementBadgeCount && announcementBadgeCount > 0
+                ? announcementBadgeCount
+                : undefined,
+          };
+        }
         return item;
       }),
-    [submissionBadgeCount, feedbackBadgeCount],
+    [submissionBadgeCount, feedbackBadgeCount, announcementBadgeCount],
   );
 
   // ── Version2 学生シェル = V1 Core シェル + Learning 重畳 ─────────────────
@@ -650,6 +718,11 @@ export default function AppShell({
                   onCountChange={setFeedbackBadgeCount}
                 />
               </>
+            ) : activeView === "announcements" ? (
+              <>
+                {studentSideNav}
+                <StudentAnnouncementsWorkspace />
+              </>
             ) : activeView === "related-diagram" ? (
               <>
                 {studentSideNav}
@@ -734,6 +807,81 @@ export default function AppShell({
               />
             )}
           </div>
+          {canShowStudentAnnouncementOverlay({
+            activeView,
+            lectureMode,
+          }) &&
+          !announcementDeferred &&
+          announcementLoadError &&
+          announcementItems === null ? (
+            <div
+              data-student-announcement-overlay="error"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            >
+              <div className="w-full max-w-md rounded-3xl bg-white p-5">
+                <p role="alert" className="text-[14px] text-[#C43131]">
+                  {announcementLoadError}
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAnnouncementDeferred(true)}
+                    className="inline-flex min-h-[44px] items-center rounded-full px-5 text-[14px] text-[#6E6E73]"
+                  >
+                    後で
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void refreshAnnouncements()}
+                    className="inline-flex min-h-[44px] items-center rounded-full bg-[#0A84FF] px-5 text-[14px] font-semibold text-white"
+                  >
+                    再試行
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : canShowStudentAnnouncementOverlay({
+              activeView,
+              lectureMode,
+            }) &&
+            !announcementDeferred &&
+            unreadAnnouncements[0] ? (
+            <StudentAnnouncementOverlay
+              item={unreadAnnouncements[0]}
+              remainingCount={unreadAnnouncements.length}
+              error={announcementOverlayError}
+              busy={announcementBusy}
+              onConfirm={() => {
+                const current = unreadAnnouncements[0];
+                if (!current) return;
+                void (async () => {
+                  setAnnouncementBusy(true);
+                  setAnnouncementOverlayError(null);
+                  const res = await markAnnouncementReadAction({
+                    id: current.id,
+                  });
+                  setAnnouncementBusy(false);
+                  if (!res.ok) {
+                    setAnnouncementOverlayError(res.message);
+                    return;
+                  }
+                  setAnnouncementItems((prev) =>
+                    prev
+                      ? prev.map((item) =>
+                          item.id === current.id
+                            ? { ...item, readAt: res.readAt }
+                            : item,
+                        )
+                      : prev,
+                  );
+                })();
+              }}
+              onDefer={() => {
+                setAnnouncementDeferred(true);
+                setAnnouncementOverlayError(null);
+              }}
+            />
+          ) : null}
         </div>
         </EvidenceProvider>
         </NotesProvider>

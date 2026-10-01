@@ -9,6 +9,7 @@ import {
   FileText,
   Home,
   LayoutList,
+  Megaphone,
   LogOut,
   MessageCircle,
   MessageSquareText,
@@ -42,7 +43,8 @@ export type AppView =
   // 思考ワークスペースの様式2 ヘッダーにある「根拠を整理する」からのみ到達する。
   | "evidence-review"
   // Related Diagram V1 Slice 1（read-only A3）。学生サイドナビから到達。
-  | "related-diagram";
+  | "related-diagram"
+  | "announcements";
 
 export type NavItem = {
   label: string;
@@ -94,6 +96,7 @@ const navItems: NavItem[] = [
 // 「患者との会話」はメニューには出さない（会話画面自体は残し、患者トップから入る導線に一本化）。
 export const STUDENT_NAV_ITEMS: NavItem[] = [
   { label: "病棟ホーム", icon: Home, view: "ward" },
+  { label: "お知らせ", icon: Megaphone, view: "announcements" },
   { label: "患者トップ", icon: Users, view: "patient-top" },
   { label: "電子カルテ", icon: FileText, view: "chart" },
   { label: "様式2", icon: ClipboardList, view: "clinical-workspace" },

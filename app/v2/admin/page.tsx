@@ -31,6 +31,19 @@ export default async function AdminHomePage() {
         <LogoutButton />
       </header>
 
+      <section className="mb-8">
+        <h2 className="text-sm font-semibold text-slate-500">お知らせ</h2>
+        <Link
+          href="/v2/teacher/announcements"
+          className="mt-3 flex min-h-[88px] flex-col justify-center rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-sky-300 hover:bg-slate-50"
+        >
+          <span className="text-lg font-bold text-slate-900">お知らせの管理</span>
+          <span className="mt-1 text-sm text-slate-500">
+            全学生向けお知らせの下書き・公開・取り下げ
+          </span>
+        </Link>
+      </section>
+
       <section aria-labelledby="admin-menu-heading" className="space-y-4">
         <h2
           id="admin-menu-heading"
