@@ -40,6 +40,12 @@ export default function RelatedDiagramEditorToolbar({
   canSave = false,
   onBack,
   devTitle,
+  renaming = false,
+  renameDraft = "",
+  onRenameDraftChange,
+  onRenameCommit,
+  onRenameCancel,
+  onStartRename,
 }: {
   percent: number;
   onReset100: () => void;
@@ -67,6 +73,12 @@ export default function RelatedDiagramEditorToolbar({
   onBack?: () => void;
   /** DEV workspaces only. Production Student Editor omits this and does not render the badge. */
   devTitle?: string;
+  renaming?: boolean;
+  renameDraft?: string;
+  onRenameDraftChange?: (value: string) => void;
+  onRenameCommit?: () => void;
+  onRenameCancel?: () => void;
+  onStartRename?: () => void;
 }) {
   const [overflowOpen, setOverflowOpen] = useState(false);
 
@@ -187,10 +199,53 @@ export default function RelatedDiagramEditorToolbar({
         </div>
         </div>
         <div data-rd-toolbar-title className="min-w-0 flex-1 overflow-hidden">
-          <h1 className="truncate text-[15px] font-semibold leading-tight text-[#1D1D1F]">
-            {title}
-            <span className="ml-2 font-normal text-[#6E6E73]">{caseLabel}</span>
-          </h1>
+          {renaming ? (
+            <div
+              data-rd-toolbar-rename
+              className="flex min-w-0 items-center gap-1"
+            >
+              <input
+                aria-label="キャンバス名"
+                value={renameDraft}
+                onChange={(event) => onRenameDraftChange?.(event.target.value)}
+                className="h-9 min-w-0 flex-1 rounded-lg border border-[#E5E5EA] px-2 text-[14px] text-[#1D1D1F]"
+              />
+              <button
+                type="button"
+                data-rd-rename-commit
+                onClick={onRenameCommit}
+                className="inline-flex h-[44px] shrink-0 items-center px-2 text-[13px] font-medium text-[#0A6CD6]"
+              >
+                完了
+              </button>
+              <button
+                type="button"
+                data-rd-rename-cancel
+                onClick={onRenameCancel}
+                className="inline-flex h-[44px] shrink-0 items-center px-2 text-[13px] text-[#6E6E73]"
+              >
+                キャンセル
+              </button>
+            </div>
+          ) : (
+            <h1 className="truncate text-[15px] font-semibold leading-tight text-[#1D1D1F]">
+              {title}
+              {caseLabel ? (
+                <span className="ml-2 font-normal text-[#6E6E73]">{caseLabel}</span>
+              ) : null}
+              {onStartRename ? (
+                <button
+                  type="button"
+                  data-rd-rename-start
+                  aria-label="名前を変更"
+                  onClick={onStartRename}
+                  className="ml-2 font-normal text-[13px] text-[#0A6CD6]"
+                >
+                  改名
+                </button>
+              ) : null}
+            </h1>
+          )}
         </div>
         <div
           data-rd-toolbar-right

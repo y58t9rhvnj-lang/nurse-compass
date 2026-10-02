@@ -15,6 +15,7 @@ import {
   MessageSquareText,
   Network,
   NotebookPen,
+  PenLine,
   Settings,
   StickyNote,
   User,
@@ -44,6 +45,7 @@ export type AppView =
   | "evidence-review"
   // Related Diagram V1 Slice 1（read-only A3）。学生サイドナビから到達。
   | "related-diagram"
+  | "free-canvas"
   | "announcements";
 
 export type NavItem = {
@@ -106,6 +108,12 @@ export const STUDENT_NAV_ITEMS: NavItem[] = [
     icon: Network,
     view: "related-diagram",
     href: "/v2/student/related-diagram",
+  },
+  {
+    label: "自由キャンバス",
+    icon: PenLine,
+    view: "free-canvas",
+    href: "/v2/student/canvases",
   },
   { label: "提出", icon: Send, view: "submissions" },
   { label: "フィードバック", icon: MessageSquareText, view: "feedback" },
