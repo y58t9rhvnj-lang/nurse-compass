@@ -85,7 +85,7 @@ export default function FreeCanvasListClient() {
     <div data-free-canvas-list="1">
       <div className="mb-6 flex items-center justify-between gap-3">
         <p className="text-sm text-slate-600">
-          患者Aの関連図とは別です。提出・AI評価・教員評価の対象にはなりません。
+          患者Aの関連図とは別です。提出・教員評価の対象にはなりません。
         </p>
         <button
           type="button"

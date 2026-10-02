@@ -171,9 +171,9 @@ test("＋カード→chooser", () => {
   assert.ok(ws.includes("onAddCard={openCardTypeChooser}"));
   assert.ok(ws.includes("RelatedDiagramCardTypeChooser"));
   assert.ok(chooser.includes("追加するカード"));
-  assert.ok(chooser.includes("気づき・理解"));
-  assert.ok(chooser.includes("看護問題"));
-  assert.equal(DIRECT_CARD_CREATE_TYPE_LABELS.understanding, "気づき・理解");
+  assert.ok(chooser.includes("DIRECT_CARD_CREATE_TYPE_LABELS.understanding"));
+  assert.ok(chooser.includes("DIRECT_CARD_CREATE_TYPE_LABELS.nursing_problem"));
+  assert.equal(DIRECT_CARD_CREATE_TYPE_LABELS.understanding, "情報カード");
   assert.equal(DIRECT_CARD_CREATE_TYPE_LABELS.nursing_problem, "看護問題");
 });
 
@@ -243,7 +243,7 @@ test("connecting中open不可", () => {
   );
 });
 
-test("気づき・理解→Drawer", () => {
+test("情報カード→Drawer", () => {
   assert.ok(ws.includes('if (type === "understanding")'));
   assert.ok(ws.includes("openDirectInsightCompose()"));
   assert.ok(ws.includes("RelatedDiagramDirectInsightDrawer"));

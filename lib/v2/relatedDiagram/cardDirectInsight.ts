@@ -15,7 +15,7 @@ import type {
 } from "./types";
 
 export const DIRECT_INSIGHT_ORIGIN = "direct_insight" as const;
-export const DIRECT_INSIGHT_LABEL = "関連図での新しい気づき";
+export const DIRECT_INSIGHT_LABEL = "情報カード";
 
 export type DirectInsightComposeDraft = {
   text: string;

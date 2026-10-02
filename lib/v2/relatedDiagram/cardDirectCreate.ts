@@ -36,7 +36,7 @@ export const DIRECT_CARD_CREATE_TYPE_LABELS: Record<
   DirectCardCreateType,
   string
 > = {
-  understanding: "気づき・理解",
+  understanding: "情報カード",
   nursing_problem: "看護問題",
 };
 

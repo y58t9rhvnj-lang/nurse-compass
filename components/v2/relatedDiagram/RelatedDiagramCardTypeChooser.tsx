@@ -1,6 +1,9 @@
 "use client";
 
-import type { DirectCardCreateType } from "@/lib/v2/relatedDiagram/cardDirectCreate";
+import {
+  DIRECT_CARD_CREATE_TYPE_LABELS,
+  type DirectCardCreateType,
+} from "@/lib/v2/relatedDiagram/cardDirectCreate";
 import { EDITOR_TOUCH_TARGET_PX } from "@/lib/v2/relatedDiagram/editorUiState";
 import type { ScreenRect } from "@/lib/v2/relatedDiagram/actionPopoverPlacement";
 import RelatedDiagramActionPopover from "./RelatedDiagramActionPopover";
@@ -31,22 +34,22 @@ export default function RelatedDiagramCardTypeChooser({
         <button
           type="button"
           data-rd-card-type="understanding"
-          aria-label="気づき・理解"
+          aria-label={DIRECT_CARD_CREATE_TYPE_LABELS.understanding}
           onClick={() => onChoose("understanding")}
           className="flex w-full items-center rounded-xl px-3 text-left text-[14px] text-[#1D1D1F]"
           style={{ minHeight: EDITOR_TOUCH_TARGET_PX }}
         >
-          気づき・理解
+          {DIRECT_CARD_CREATE_TYPE_LABELS.understanding}
         </button>
         <button
           type="button"
           data-rd-card-type="nursing_problem"
-          aria-label="看護問題"
+          aria-label={DIRECT_CARD_CREATE_TYPE_LABELS.nursing_problem}
           onClick={() => onChoose("nursing_problem")}
           className="flex w-full items-center rounded-xl px-3 text-left text-[14px] text-[#1D1D1F]"
           style={{ minHeight: EDITOR_TOUCH_TARGET_PX }}
         >
-          看護問題
+          {DIRECT_CARD_CREATE_TYPE_LABELS.nursing_problem}
         </button>
       </div>
     </RelatedDiagramActionPopover>

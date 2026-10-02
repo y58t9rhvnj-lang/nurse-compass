@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { DirectInsightComposeDraft } from "@/lib/v2/relatedDiagram/cardDirectInsight";
+import {
+  DIRECT_INSIGHT_LABEL,
+  type DirectInsightComposeDraft,
+} from "@/lib/v2/relatedDiagram/cardDirectInsight";
 import type { RelatedDiagramCardState } from "@/lib/v2/relatedDiagram/types";
 import RelatedDiagramEditorDrawerShell from "./RelatedDiagramEditorDrawerShell";
 
@@ -32,12 +35,12 @@ export default function RelatedDiagramDirectInsightDrawer({
 
   return (
     <RelatedDiagramEditorDrawerShell
-      label="新しい気づきを追加"
+      label={`${DIRECT_INSIGHT_LABEL}を追加`}
       testId="direct-insight"
       onClose={onCancel}
       header={
         <h2 className="truncate text-[16px] font-semibold text-[#1D1D1F]">
-          新しい気づきを追加
+          {DIRECT_INSIGHT_LABEL}を追加
         </h2>
       }
       footer={
@@ -70,7 +73,7 @@ export default function RelatedDiagramDirectInsightDrawer({
         onPointerUp={isolate}
       >
         <p className="mb-3 text-[13px] text-[#6E6E73]">
-          関連図での新しい気づき
+          {DIRECT_INSIGHT_LABEL}
         </p>
         <label
           htmlFor="rd-insight-text"

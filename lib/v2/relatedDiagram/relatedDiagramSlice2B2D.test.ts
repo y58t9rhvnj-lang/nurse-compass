@@ -1,5 +1,5 @@
 /**
- * Slice 2B-2D Direct Insight / 「新しい気づき」 tests.
+ * Slice 2B-2D Direct Insight / 「情報カード」 tests.
  * Run: npx tsx lib/v2/relatedDiagram/relatedDiagramSlice2B2D.test.ts
  */
 
@@ -152,7 +152,7 @@ test("1 ＋カードでDirect Insight Composeが開く", () => {
   assert.ok(ws.includes("openDirectInsightCompose"));
   assert.ok(ws.includes("emptyDirectInsightComposeDraft()"));
   assert.ok(ws.includes("RelatedDiagramDirectInsightDrawer"));
-  assert.ok(drawer.includes("新しい気づきを追加"));
+  assert.ok(drawer.includes("{DIRECT_INSIGHT_LABEL}を追加"));
   assert.equal(
     resolveRelatedDiagramEditorMode({
       selection: emptyDiagramSelection(),
@@ -298,8 +298,8 @@ test("13 Form3 source traceなし", () => {
   });
   const graph = insertCardEntity(createEmptySemanticGraph(), entity);
   assert.equal(form3SourceTrace(graph, entity.card.id), null);
-  assert.equal(DIRECT_INSIGHT_LABEL, "関連図での新しい気づき");
-  assert.ok(drawer.includes("関連図での新しい気づき"));
+  assert.equal(DIRECT_INSIGHT_LABEL, "情報カード");
+  assert.ok(drawer.includes("{DIRECT_INSIGHT_LABEL}"));
   assert.equal(drawer.includes("様式3のアセスメントから追加"), false);
   assert.equal(drawer.includes("様式3の情報から追加"), false);
 });
