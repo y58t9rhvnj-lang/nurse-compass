@@ -32,6 +32,19 @@ export default async function AdminHomePage() {
       </header>
 
       <section className="mb-8">
+        <h2 className="text-sm font-semibold text-slate-500">操作説明</h2>
+        <Link
+          href="/v2/admin/guide"
+          className="mt-3 flex min-h-[88px] flex-col justify-center rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-sky-300 hover:bg-slate-50"
+        >
+          <span className="text-lg font-bold text-slate-900">操作説明</span>
+          <span className="mt-1 text-sm text-slate-500">
+            管理者・教員・学生向けの現行操作を確認
+          </span>
+        </Link>
+      </section>
+
+      <section className="mb-8">
         <h2 className="text-sm font-semibold text-slate-500">お知らせ</h2>
         <Link
           href="/v2/teacher/announcements"

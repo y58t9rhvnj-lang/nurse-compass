@@ -23,6 +23,11 @@ export default async function AdminLayout({
   // Admin ページは通常のドキュメントフローなので、ここで /v2/admin/* 専用の
   // 縦スクロール領域を用意する（集計 → 登録ボタン → 一覧 まで到達できるようにする）。
   return (
-    <div className="h-dvh overflow-y-auto overscroll-contain">{children}</div>
+    <div
+      className="h-dvh overflow-y-auto overscroll-contain"
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
+      {children}
+    </div>
   );
 }

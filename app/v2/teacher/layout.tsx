@@ -13,7 +13,10 @@ export default async function TeacherLayout({
 }) {
   await requireRole("teacher", "admin");
   return (
-    <div className="h-dvh overflow-y-auto overscroll-contain bg-slate-50">
+    <div
+      className="h-dvh overflow-y-auto overscroll-contain bg-slate-50"
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
       {children}
     </div>
   );

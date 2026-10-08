@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
   Calendar,
   ChevronDown,
+  CircleHelp,
   ClipboardList,
   FileText,
   Home,
@@ -46,7 +47,8 @@ export type AppView =
   // Related Diagram V1 Slice 1（read-only A3）。学生サイドナビから到達。
   | "related-diagram"
   | "free-canvas"
-  | "announcements";
+  | "announcements"
+  | "guide";
 
 export type NavItem = {
   label: string;
@@ -117,6 +119,12 @@ export const STUDENT_NAV_ITEMS: NavItem[] = [
   },
   { label: "提出", icon: Send, view: "submissions" },
   { label: "フィードバック", icon: MessageSquareText, view: "feedback" },
+  {
+    label: "操作説明",
+    icon: CircleHelp,
+    view: "guide",
+    href: "/v2/student/guide",
+  },
   { label: "情報BOX", icon: MessageCircle, badge: 2 },
   { label: "申し送り", icon: MessageCircle },
   { label: "スケジュール", icon: Calendar },
@@ -183,48 +191,9 @@ export default function SideNav({
       )}
 
       {/* ナビ一覧（唯一のスクロール領域）。min-h-0 で親 flex 内で縮み、収まらないときだけ縦スクロール。
-          pr-1 でスクロールバーが文字・アイコンに被らない余白を確保。iPad Safari 慣性スクロール対応。 */}
-      <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]">
-        {items
-          .filter((item) => !item.flag || isFeatureEnabled(item.flag))
-          .map(({ label, icon: Icon, view, badge }) => {
-          const active = view !== undefined && view === activeView;
-          const clickable = view !== undefined;
-          return (
-          <li key={label}>
-            <button
-              type="button"
-              onClick={clickable ? () => onNavigate(view) : undefined}
-              aria-current={active ? "page" : undefined}
-              className={[
-                "flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] transition-colors",
-                active
-                  ? "bg-[#0A84FF] font-semibold text-white shadow-[0_2px_8px_rgba(10,132,255,0.3)]"
-                  : "font-medium text-[#3A3A3C] hover:bg-[#F2F2F5]",
-              ].join(" ")}
-            >
-              <Icon
-                className="h-[18px] w-[18px] shrink-0"
-                strokeWidth={active ? 2.25 : 1.75}
-              />
-              <span className="flex-1 truncate">{label}</span>
-              {badge !== undefined && badge > 0 && (
-                <span
-                  className={[
-                    "flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold",
-                    active
-                      ? "bg-white text-[#0A84FF]"
-                      : "bg-[#FF3B30] text-white",
-                  ].join(" ")}
-                >
-                  {badge}
-                </span>
-              )}
-            </button>
-          </li>
-          );
-        })}
-      </ul>
+          pr-1 でスクロールバーが文字・アイコンに被らない余白を確保。iPad Safari 慣性スクロール対応。
+          下に続きがあるときだけ案内を出し、最下部まで来たら消す（項目は覆わない）。 */}
+      <NavList items={items} activeView={activeView} onNavigate={onNavigate} />
 
       {/* 識別情報（最下部・固定）。onLogout 指定時はユーザーメニュー、未指定時は静的表示。
           shrink-0 でスクロール領域に含めず、常に画面内に表示する。 */}
@@ -246,6 +215,101 @@ export default function SideNav({
         </div>
       )}
     </nav>
+  );
+}
+
+function NavList({
+  items,
+  activeView,
+  onNavigate,
+}: {
+  items: NavItem[];
+  activeView: AppView;
+  onNavigate: (view: AppView) => void;
+}) {
+  const listRef = useRef<HTMLUListElement>(null);
+  const [moreBelow, setMoreBelow] = useState(false);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const update = () => {
+      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setMoreBelow(el.scrollHeight > el.clientHeight + 2 && gap > 2);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [items, activeView]);
+
+  return (
+    <div className="relative min-h-0 flex-1">
+      <ul
+        ref={listRef}
+        data-sidenav-list="1"
+        className={[
+          "flex h-full min-h-0 flex-col gap-1 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]",
+          moreBelow ? "pb-14" : "",
+        ].join(" ")}
+      >
+        {items
+          .filter((item) => !item.flag || isFeatureEnabled(item.flag))
+          .map(({ label, icon: Icon, view, badge }) => {
+            const active = view !== undefined && view === activeView;
+            const clickable = view !== undefined;
+            return (
+              <li key={label}>
+                <button
+                  type="button"
+                  onClick={clickable ? () => onNavigate(view) : undefined}
+                  aria-current={active ? "page" : undefined}
+                  className={[
+                    "flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] transition-colors",
+                    active
+                      ? "bg-[#0A84FF] font-semibold text-white shadow-[0_2px_8px_rgba(10,132,255,0.3)]"
+                      : "font-medium text-[#3A3A3C] hover:bg-[#F2F2F5]",
+                  ].join(" ")}
+                >
+                  <Icon
+                    className="h-[18px] w-[18px] shrink-0"
+                    strokeWidth={active ? 2.25 : 1.75}
+                  />
+                  <span className="flex-1 truncate">{label}</span>
+                  {badge !== undefined && badge > 0 && (
+                    <span
+                      className={[
+                        "flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold",
+                        active
+                          ? "bg-white text-[#0A84FF]"
+                          : "bg-[#FF3B30] text-white",
+                      ].join(" ")}
+                    >
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+      </ul>
+      {moreBelow ? (
+        <div
+          data-sidenav-more="1"
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-0.5 bg-gradient-to-t from-white via-white/95 to-transparent pb-1 pt-5 text-center"
+        >
+          <ChevronDown className="h-4 w-4 text-[#0A6CD6]" strokeWidth={2.2} />
+          <p className="px-1 text-[10px] font-medium leading-snug text-[#0A6CD6]">
+            下にスクロールすると、続きのメニューが表示されます
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
