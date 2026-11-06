@@ -4,6 +4,7 @@ import type {
   StudentSubmissionTaskBucket,
 } from "./types";
 import type { AssessmentMilestoneRow } from "./types";
+import { isSupportedStudentSubmissionType } from "./studentSubmissionDisplay";
 
 export function classifyStudentSubmissionBucket(input: {
   status: AssessmentMilestoneRow["status"];
@@ -100,6 +101,8 @@ export function buildStudentSubmissionTasks(input: {
         hasSubmission: list.length > 0,
       });
       // open_late は未提出・提出済みの両方を含む。未提出はバッジ対象。
+      // 未対応種別（related_diagram 等）は一覧には出すが提出不可・バッジ対象外。
+      const ready = isSupportedStudentSubmissionType(milestone.milestoneType);
       return {
         milestoneId: milestone.id,
         cycleId: milestone.assessmentCycleId,
@@ -116,7 +119,7 @@ export function buildStudentSubmissionTasks(input: {
         sequenceNumber: milestone.sequenceNumber,
         serverNow: input.serverNow,
         bucket,
-        canSubmit: canSubmitStudentTask(bucket),
+        canSubmit: ready && canSubmitStudentTask(bucket),
         latestSubmission: latest,
         submissionCount: list.length,
         submissions: list,
@@ -133,6 +136,7 @@ export function buildStudentSubmissionTasks(input: {
   });
 
   const pendingBadgeCount = tasks.filter((t) => {
+    if (!isSupportedStudentSubmissionType(t.milestoneType)) return false;
     if (t.status !== "open") return false;
     const opensOk =
       !t.opensAt || new Date(t.serverNow).getTime() >= new Date(t.opensAt).getTime();

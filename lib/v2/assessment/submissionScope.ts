@@ -492,20 +492,19 @@ export function buildStudentVisibleScopeDescription(
 }
 
 export function formatSubmissionScopeJa(
-  type: AssessmentMilestoneType,
-  scope: AssessmentSubmissionScope,
+  type: string,
+  scope: AssessmentSubmissionScope | null | undefined,
 ): string {
+  const s = scope;
   switch (type) {
     case "form2":
-      return scope.includePatientUnderstanding
-        ? "様式2・患者理解"
-        : "様式2";
+      return s?.includePatientUnderstanding ? "様式2・患者理解" : "様式2";
     case "form3_progress": {
       if (
-        scope.form3Scope?.mode === "selected_patterns" &&
-        scope.form3Scope.patternIds.length > 0
+        s?.form3Scope?.mode === "selected_patterns" &&
+        s.form3Scope.patternIds.length > 0
       ) {
-        return `様式3途中（${formatPatternIdsJa(scope.form3Scope.patternIds)}）`;
+        return `様式3途中（${formatPatternIdsJa(s.form3Scope.patternIds)}）`;
       }
       return "様式3途中";
     }
@@ -515,11 +514,11 @@ export function formatSubmissionScopeJa(
       return "最終提出";
     case "custom": {
       const parts: string[] = [];
-      if (scope.includeForm2) parts.push("様式2");
-      if (scope.includeForm3) {
-        if (scope.form3Scope?.mode === "selected_patterns") {
+      if (s?.includeForm2) parts.push("様式2");
+      if (s?.includeForm3) {
+        if (s.form3Scope?.mode === "selected_patterns") {
           parts.push(
-            `様式3（${formatPatternIdsJa(scope.form3Scope.patternIds)}）`,
+            `様式3（${formatPatternIdsJa(s.form3Scope.patternIds)}）`,
           );
         } else {
           parts.push("様式3");
@@ -527,10 +526,12 @@ export function formatSubmissionScopeJa(
       }
       return parts.length > 0 ? parts.join("・") : "カスタム";
     }
+    default:
+      return "準備中";
   }
 }
 
-export function milestoneTypeLabel(type: AssessmentMilestoneType): string {
+export function milestoneTypeLabel(type: string): string {
   switch (type) {
     case "form2":
       return "様式2";
@@ -542,6 +543,10 @@ export function milestoneTypeLabel(type: AssessmentMilestoneType): string {
       return "最終提出";
     case "custom":
       return "カスタム";
+    case "related_diagram":
+      return "関連図";
+    default:
+      return "提出課題";
   }
 }
 

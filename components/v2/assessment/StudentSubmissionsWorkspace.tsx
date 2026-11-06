@@ -17,10 +17,16 @@ import {
   milestoneTypeLabel,
 } from "@/lib/v2/assessment/submissionScope";
 import {
+  isSupportedStudentSubmissionType,
+  studentSubmissionWorkspaceTarget,
+  studentTaskLoadErrorMessage,
+} from "@/lib/v2/assessment/studentSubmissionDisplay";
+import {
   STUDENT_TASK_BUCKET_ORDER,
   studentTaskSectionTitle,
 } from "@/lib/v2/assessment/studentSubmissionTasks";
 import type {
+  AssessmentSubmitErrorKind,
   AssessmentSubmitPreview,
   StudentSubmissionTask,
   StudentSubmissionTaskBucket,
@@ -49,20 +55,23 @@ function studentFacingError(message: string, kind?: string): string {
   return message;
 }
 
-function workspaceTarget(type: StudentSubmissionTask["milestoneType"]): {
-  view: AppView;
-  label: string;
+function workspaceTarget(type: string) {
+  return studentSubmissionWorkspaceTarget(type);
+}
+
+function pendingStatusLines(task: StudentSubmissionTask): {
+  badge: string;
+  badgeClass: string;
+  detail: string[];
 } {
-  switch (type) {
-    case "form2":
-      return { view: "clinical-workspace", label: "様式2を確認する" };
-    case "form3_progress":
-    case "form3_complete":
-      return { view: "form3", label: "様式3を確認する" };
-    case "final":
-    case "custom":
-      return { view: "clinical-workspace", label: "様式2を確認する" };
+  if (!isSupportedStudentSubmissionType(task.milestoneType)) {
+    return {
+      badge: "準備中",
+      badgeClass: "border-[#E5E5EA] bg-[#F5F5F7] text-[#6E6E73]",
+      detail: ["この課題の提出は準備中です。"],
+    };
   }
+  return statusLines(task);
 }
 
 function statusLines(task: StudentSubmissionTask): {
@@ -183,6 +192,9 @@ export default function StudentSubmissionsWorkspace({
   const [tasks, setTasks] = useState<StudentSubmissionTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<AssessmentSubmitErrorKind | string | null>(
+    null,
+  );
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [preview, setPreview] = useState<AssessmentSubmitPreview | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -198,21 +210,38 @@ export default function StudentSubmissionsWorkspace({
     if (localOnly) {
       setTasks([]);
       setLoading(false);
+      setError(null);
+      setErrorKind(null);
       onPendingCountChange?.(0);
       return;
     }
     setLoading(true);
     setError(null);
-    const res = await listStudentSubmissionTasksAction(patientId);
-    setLoading(false);
-    if (!res.ok) {
-      setError(res.message);
+    setErrorKind(null);
+    try {
+      const res = await listStudentSubmissionTasksAction(patientId);
+      setLoading(false);
+      if (!res.ok) {
+        setErrorKind(res.kind);
+        setError(studentTaskLoadErrorMessage(res.kind));
+        setTasks([]);
+        if (res.kind === "unauthorized") onPendingCountChange?.(0);
+        return;
+      }
+      if (!Array.isArray(res.tasks)) {
+        setErrorKind("db_error");
+        setError(studentTaskLoadErrorMessage("db_error"));
+        setTasks([]);
+        return;
+      }
+      setTasks(res.tasks);
+      onPendingCountChange?.(res.pendingBadgeCount);
+    } catch {
+      setLoading(false);
+      setErrorKind("db_error");
+      setError(studentTaskLoadErrorMessage("db_error"));
       setTasks([]);
-      onPendingCountChange?.(0);
-      return;
     }
-    setTasks(res.tasks);
-    onPendingCountChange?.(res.pendingBadgeCount);
   }, [localOnly, patientId, onPendingCountChange]);
 
   useEffect(() => {
@@ -258,6 +287,7 @@ export default function StudentSubmissionsWorkspace({
   const beginSubmitFlow = useCallback(
     async (task: StudentSubmissionTask) => {
       if (!task.canSubmit) return;
+      if (!isSupportedStudentSubmissionType(task.milestoneType)) return;
       if (localOnly) {
         window.alert("講義デモでは課題を提出できません。");
         return;
@@ -327,7 +357,26 @@ export default function StudentSubmissionsWorkspace({
         {loading ? (
           <p className="text-[13px] text-[#8E8E93]">読み込み中…</p>
         ) : error ? (
-          <p className="text-[13px] text-[#C0392B]">{error}</p>
+          <div className="mx-auto max-w-2xl rounded-2xl border border-[#F0D9A8] bg-white px-4 py-6 text-center">
+            <p className="text-[13px] text-[#C0392B]">{error}</p>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-[#0A84FF] px-5 text-[13px] font-semibold text-white"
+                onClick={() => void reload()}
+              >
+                再試行
+              </button>
+              {errorKind === "unauthorized" ? (
+                <a
+                  href="/v2/login"
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-[#E5E5EA] bg-white px-5 text-[13px] font-semibold text-[#1D1D1F]"
+                >
+                  ログインへ
+                </a>
+              ) : null}
+            </div>
+          </div>
         ) : tasks.length === 0 ? (
           <p className="rounded-2xl border border-[#E5E5EA] bg-white px-4 py-6 text-center text-[13px] text-[#8E8E93]">
             現在、表示できる提出課題はありません。
@@ -341,7 +390,7 @@ export default function StudentSubmissionsWorkspace({
                 </h2>
                 <ul className="space-y-3">
                   {section.items.map((task) => {
-                    const status = statusLines(task);
+                    const status = pendingStatusLines(task);
                     const target = workspaceTarget(task.milestoneType);
                     const scopeJa = formatSubmissionScopeJa(
                       task.milestoneType,
@@ -349,6 +398,7 @@ export default function StudentSubmissionsWorkspace({
                     );
                     const busy = submittingId === task.milestoneId;
                     const historyOpen = historyOpenId === task.milestoneId;
+                    const ready = target.available;
                     return (
                       <li
                         key={task.milestoneId}
@@ -406,14 +456,22 @@ export default function StudentSubmissionsWorkspace({
                         ) : null}
 
                         <div className="mt-3 flex flex-col gap-1.5">
+                          {ready && target.view ? (
                           <button
                             type="button"
                             className="flex h-11 w-full items-center justify-center rounded-xl border border-[#E5E5EA] bg-white text-[13px] font-medium text-[#0A84FF]"
-                            onClick={() => onNavigateWorkspace(target.view)}
+                            onClick={() => {
+                              if (target.view) onNavigateWorkspace(target.view);
+                            }}
                           >
                             {target.label}
                           </button>
-                          {task.canSubmit ? (
+                          ) : (
+                            <p className="flex h-11 w-full items-center justify-center rounded-xl border border-[#E5E5EA] bg-[#F5F5F7] text-[13px] font-medium text-[#6E6E73]">
+                              準備中
+                            </p>
+                          )}
+                          {ready && task.canSubmit ? (
                             <button
                               type="button"
                               className="flex h-11 w-full items-center justify-center rounded-xl bg-[#0A84FF] text-[13px] font-semibold text-white disabled:opacity-50"

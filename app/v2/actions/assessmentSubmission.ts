@@ -186,31 +186,48 @@ export async function listMyAssessmentSubmissionsAction(
 export async function listStudentSubmissionTasksAction(
   patientId: string,
 ): Promise<StudentSubmissionTasksResult> {
-  const ctx = await requireStudentContext();
-  if (!ctx.ok) return { ok: false, kind: ctx.kind, message: ctx.message };
-  const caseId = caseIdForPatient(patientId);
-  if (!caseId) return { ok: false, kind: "validation", message: "unknown case" };
+  try {
+    const ctx = await requireStudentContext();
+    if (!ctx.ok) return { ok: false, kind: ctx.kind, message: ctx.message };
+    const caseId = caseIdForPatient(patientId);
+    if (!caseId) return { ok: false, kind: "validation", message: "unknown case" };
 
-  const [milestones, submissions] = await Promise.all([
-    listStudentMilestonesForCase(ctx.supabase, caseId),
-    listOwnSubmissionsForCase(ctx.supabase, ctx.profile.id, caseId),
-  ]);
-  if (milestones.error || submissions.error) {
-    return { ok: false, kind: "db_error", message: "提出課題を読み込めませんでした。" };
+    const [milestones, submissions] = await Promise.all([
+      listStudentMilestonesForCase(ctx.supabase, caseId),
+      listOwnSubmissionsForCase(ctx.supabase, ctx.profile.id, caseId),
+    ]);
+    if (milestones.error || submissions.error) {
+      return {
+        ok: false,
+        kind: "db_error",
+        message: "提出課題を読み込めませんでした。",
+      };
+    }
+
+    const serverNow = new Date().toISOString();
+    const built = buildStudentSubmissionTasks({
+      milestones: milestones.rows,
+      submissions: submissions.items,
+      serverNow,
+    });
+    return {
+      ok: true,
+      tasks: built.tasks,
+      pendingBadgeCount: built.pendingBadgeCount,
+      serverNow,
+    };
+  } catch (error) {
+    console.error("[v2-student-tasks]", {
+      name: error instanceof Error ? error.name : "unknown",
+      message:
+        error instanceof Error ? error.message.slice(0, 200) : "non_error",
+    });
+    return {
+      ok: false,
+      kind: "db_error",
+      message: "提出課題を読み込めませんでした。",
+    };
   }
-
-  const serverNow = new Date().toISOString();
-  const built = buildStudentSubmissionTasks({
-    milestones: milestones.rows,
-    submissions: submissions.items,
-    serverNow,
-  });
-  return {
-    ok: true,
-    tasks: built.tasks,
-    pendingBadgeCount: built.pendingBadgeCount,
-    serverNow,
-  };
 }
 
 export async function getSubmissionPendingBadgeCountAction(
